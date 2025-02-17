@@ -56,7 +56,7 @@ export default function Stories() {
           <div className="flex items-center gap-4">
             <Button 
               variant="ghost" 
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/editor')}
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -64,7 +64,7 @@ export default function Stories() {
             </Button>
             <h1 className="text-2xl font-bold">My Stories</h1>
           </div>
-          <Button onClick={() => navigate('/')} className="gap-2">
+          <Button onClick={() => navigate('/editor')} className="gap-2">
             <Plus className="h-4 w-4" />
             New Story
           </Button>
@@ -76,7 +76,7 @@ export default function Stories() {
           <div className="text-center py-12">
             <h2 className="text-xl font-semibold mb-2">No stories yet</h2>
             <p className="text-muted-foreground mb-4">Start writing your first story!</p>
-            <Button onClick={() => navigate('/')}>
+            <Button onClick={() => navigate('/editor')}>
               Create New Story
             </Button>
           </div>
@@ -86,7 +86,7 @@ export default function Stories() {
               <div
                 key={story.id}
                 className="p-6 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/editor')}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">

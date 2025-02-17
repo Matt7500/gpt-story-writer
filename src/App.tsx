@@ -30,7 +30,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route
-        path="/"
+        path="/editor"
         element={
           <PrivateRoute>
             <Index />
@@ -38,7 +38,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/stories"
+        path="/"
         element={
           <PrivateRoute>
             <Stories />
