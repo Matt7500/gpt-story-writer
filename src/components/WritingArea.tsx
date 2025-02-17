@@ -1,7 +1,7 @@
 
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { CheckCircle, MessageSquare, BookOpen, Save } from "lucide-react";
+import { CheckCircle, MessageSquare, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -99,8 +99,11 @@ export function WritingArea({
             Feedback
           </Button>
           <Button variant="outline" size="sm" onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            Save Progress
+            Save
+          </Button>
+          <Button size="sm" onClick={onComplete}>
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Complete
           </Button>
         </div>
       </div>
@@ -118,14 +121,6 @@ export function WritingArea({
         className="min-h-[calc(100vh-300px)] w-full resize-none text-xl leading-relaxed"
         placeholder="Start writing your story..."
       />
-
-      <div className="flex justify-end border-t pt-4">
-        <Button size="default" onClick={onComplete} className="gap-2">
-          <CheckCircle className="h-4 w-4" />
-          Mark Chapter as Complete
-        </Button>
-      </div>
-
       {showFeedback && (
         <div className="space-y-4 pt-4 border-t">
           <Textarea
