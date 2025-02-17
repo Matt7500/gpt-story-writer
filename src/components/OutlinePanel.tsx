@@ -1,9 +1,10 @@
 
-import { Book, ChevronRight, Users, LogOut } from "lucide-react";
+import { Book, ChevronRight, Users, LogOut, Library } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Separator } from "./ui/separator";
+import { useNavigate } from "react-router-dom";
 
 interface OutlinePanelProps {
   chapters: Chapter[];
@@ -26,6 +27,7 @@ export function OutlinePanel({
   onShowCharacters,
   onSignOut,
 }: OutlinePanelProps) {
+  const navigate = useNavigate();
   const totalWords = chapters.reduce((acc, chapter) => {
     const content = chapter.content || "";
     return acc + (content.trim() ? content.trim().split(/\s+/).length : 0);
@@ -77,6 +79,14 @@ export function OutlinePanel({
         </div>
       </ScrollArea>
       <div className="p-4 border-t border-border/40 space-y-2">
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2"
+          onClick={() => navigate('/stories')}
+        >
+          <Library className="h-4 w-4" />
+          <span>My Stories</span>
+        </Button>
         <Button
           variant="outline"
           className="w-full justify-start gap-2"

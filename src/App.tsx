@@ -9,6 +9,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { AuthProvider } from "./components/AuthProvider";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Stories from "./pages/Stories";
 import NotFound from "./pages/NotFound";
 import { useAuth } from "./components/AuthProvider";
 
@@ -33,6 +34,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <Index />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/stories"
+        element={
+          <PrivateRoute>
+            <Stories />
           </PrivateRoute>
         }
       />

@@ -27,6 +27,36 @@ export type Database = {
         }
         Relationships: []
       }
+      stories: {
+        Row: {
+          characters: string
+          created_at: string | null
+          id: number
+          plot_outline: string
+          story_idea: string
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          characters: string
+          created_at?: string | null
+          id?: number
+          plot_outline: string
+          story_idea: string
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          characters?: string
+          created_at?: string | null
+          id?: number
+          plot_outline?: string
+          story_idea?: string
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
