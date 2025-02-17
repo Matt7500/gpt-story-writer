@@ -3,8 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Book, Plus, LogOut } from "lucide-react";
+import { Book, Plus, LogOut, Trash2 } from "lucide-react";
 import { StoryGenerationModal } from "@/components/StoryGenerationModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Story {
   id: number;
@@ -19,6 +29,7 @@ export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -70,10 +81,45 @@ export default function Stories() {
 
   const handleStoryGenerated = (storyId: number) => {
     setIsGenerating(false);
-    // Refresh the stories list
     fetchStories();
-    // Navigate to the editor with the new story
     navigate(`/editor/${storyId}`);
+  };
+
+  const handleDeleteStory = async () => {
+    if (!storyToDelete) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
+
+      const response = await fetch(`http://localhost:3001/api/stories/${storyToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete story');
+      }
+
+      toast({
+        title: "Story deleted",
+        description: "Your story has been successfully deleted.",
+      });
+
+      // Remove the story from the local state
+      setStories(stories.filter(story => story.id !== storyToDelete.id));
+    } catch (error: any) {
+      toast({
+        title: "Error deleting story",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setStoryToDelete(null);
+    }
   };
 
   return (
@@ -83,6 +129,27 @@ export default function Stories() {
         onComplete={handleStoryGenerated}
         onClose={() => setIsGenerating(false)}
       />
+
+      <AlertDialog open={!!storyToDelete} onOpenChange={() => setStoryToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your story
+              and remove it from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteStory}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <header className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="max-w-4xl mx-auto p-4 flex items-center justify-between">
@@ -120,23 +187,38 @@ export default function Stories() {
             {stories.map((story) => (
               <div
                 key={story.id}
-                className="p-6 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/editor/${story.id}`)}
+                className="p-6 border rounded-lg hover:bg-accent/50 transition-colors group relative"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <Book className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <h3 className="font-semibold">{story.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(story.created_at).toLocaleDateString()}
-                      </p>
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/editor/${story.id}`)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <Book className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <h3 className="font-semibold">{story.title}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(story.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
+                  <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                    {story.story_idea}
+                  </p>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                  {story.story_idea}
-                </p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStoryToDelete(story);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             ))}
           </div>

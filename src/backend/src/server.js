@@ -352,4 +352,31 @@ app.get('/api/stories/:id', authenticateUser, async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Delete story
+app.delete('/api/stories/:id', authenticateUser, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('stories')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'Story deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete story error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 }); 
