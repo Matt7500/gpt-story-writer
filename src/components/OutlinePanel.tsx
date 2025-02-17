@@ -1,4 +1,3 @@
-
 import { Book, ChevronRight, LogOut, Library, BookCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -68,12 +67,6 @@ export function OutlinePanel({
                     <ChevronRight className="h-4 w-4 ml-auto opacity-60" />
                   )}
                 </Button>
-                <p className="text-xs text-muted-foreground pl-9">
-                  {wordCount} words
-                </p>
-                {index < chapters.length - 1 && (
-                  <Separator className="my-2" />
-                )}
               </div>
             );
           })}

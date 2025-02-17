@@ -34,6 +34,7 @@ export default function Editor() {
   const [currentChapter, setCurrentChapter] = useState(0);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [story, setStory] = useState<Story | null>(null);
   const [showCharacters, setShowCharacters] = useState(false);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function Editor() {
           return;
         }
 
-        const { data: story, error } = await supabase
+        const { data: storyData, error } = await supabase
           .from('stories')
           .select('*')
           .eq('id', id)
@@ -62,12 +63,14 @@ export default function Editor() {
           throw new Error(error.message || 'Story not found');
         }
 
-        if (!story) {
+        if (!storyData) {
           throw new Error('Story not found');
         }
 
+        setStory(storyData);
+
         // Parse the plot outline into chapters
-        const outline = JSON.parse(story.plot_outline);
+        const outline = JSON.parse(storyData.plot_outline);
         const formattedChapters = outline.map((sceneBeat: string, index: number) => ({
           title: `Chapter ${index + 1}`,
           content: "",
@@ -76,7 +79,7 @@ export default function Editor() {
         }));
 
         // Parse the characters
-        const parsedCharacters = story.characters
+        const parsedCharacters = storyData.characters
           .match(/<character[^>]*>(.*?)<\/character>/g)
           ?.map(char => {
             const nameMatch = char.match(/name='([^']*)'/) || [];
@@ -170,6 +173,7 @@ export default function Editor() {
             <WritingArea
               chapter={chapters[currentChapter]}
               chapters={chapters}
+              characters={story?.characters || ""}
               onSave={handleSave}
               onComplete={handleComplete}
               onFeedback={handleFeedback}

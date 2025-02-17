@@ -21,7 +21,8 @@ const {
   createTitle, 
   createOutline, 
   charactersFn,
-  initializeClients 
+  initializeClients,
+  writeScene
 } = require('./story');
 
 // Initialize clients and start server
@@ -133,10 +134,10 @@ const progressClients = new Map();
 const abortControllers = new Map();
 
 // Helper function to send progress updates
-const sendProgressUpdate = (clientId, step) => {
+const sendProgressUpdate = (clientId, data) => {
   const client = progressClients.get(clientId);
   if (client) {
-    client.write(`data: ${JSON.stringify({ step })}\n\n`);
+    client.write(`data: ${JSON.stringify(data)}\n\n`);
   }
 };
 
@@ -166,6 +167,118 @@ app.get('/api/stories/progress', (req, res) => {
     }
     progressClients.delete(clientId);
   });
+});
+
+// Add SSE endpoint for scene writing progress
+app.get('/api/stories/write-scene/progress', (req, res) => {
+  const clientId = req.query.clientId;
+  if (!clientId) {
+    return res.status(400).json({ error: 'Client ID is required' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Store the response object in the global map
+  progressClients.set(clientId, res);
+
+  // Create an AbortController for this client
+  const controller = new AbortController();
+  abortControllers.set(clientId, controller);
+
+  req.on('close', () => {
+    progressClients.delete(clientId);
+    abortControllers.delete(clientId);
+  });
+});
+
+// Add endpoint for scene writing
+app.post('/api/stories/write-scene', authenticateUser, async (req, res) => {
+  const { clientId, sceneBeat, characters, previousScenes } = req.body;
+
+  console.log('Scene generation started:', {
+    clientId,
+    sceneBeat,
+    previousScenesCount: previousScenes.length
+  });
+
+  if (!clientId || !sceneBeat || !characters) {
+    console.log('Missing required fields:', { clientId, sceneBeat, characters });
+    return res.status(400).json({ 
+      error: 'Missing required fields: clientId, sceneBeat, characters' 
+    });
+  }
+
+  try {
+    // Get the abort controller for this client
+    const controller = abortControllers.get(clientId);
+    const signal = controller ? controller.signal : null;
+
+    // Check if the request has been aborted
+    if (signal?.aborted) {
+      console.log('Scene generation cancelled for client:', clientId);
+      throw new Error('Scene generation cancelled');
+    }
+
+    console.log('Generating scene with:', {
+      sceneBeat,
+      charactersLength: characters.length,
+      previousScenesCount: previousScenes.length
+    });
+
+    // Create a callback function for partial updates
+    const onProgress = (partialContent) => {
+      sendProgressUpdate(clientId, { content: partialContent, isPartial: true });
+    };
+
+    // Write the scene using the story.js module with progress callback
+    const scene = await writeScene(
+      sceneBeat,
+      characters,
+      previousScenes.length,
+      previousScenes.length + 1,
+      previousScenes,
+      onProgress
+    );
+
+    console.log('Scene generated successfully:', {
+      clientId,
+      sceneLength: scene.length,
+      scenePreview: scene.substring(0, 200) + '...'
+    });
+
+    // Send the final scene content
+    sendProgressUpdate(clientId, { content: scene, isPartial: false });
+
+    // Clean up
+    const client = progressClients.get(clientId);
+    if (client) {
+      client.end();
+      progressClients.delete(clientId);
+    }
+    abortControllers.delete(clientId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Scene generation error:', {
+      clientId,
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to generate scene' 
+    });
+
+    // Clean up on error
+    const client = progressClients.get(clientId);
+    if (client) {
+      client.end();
+      progressClients.delete(clientId);
+    }
+    abortControllers.delete(clientId);
+  }
 });
 
 // API Endpoints

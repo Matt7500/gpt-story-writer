@@ -323,7 +323,7 @@ If all issues are resolved, respond only with: All issues resolved
 //
 // The big function that merges everything: writes a scene, checks consistency, rewrites if needed
 //
-async function writeScene(sceneBeat, characters, num, totalScenes) {
+async function writeScene(sceneBeat, characters, num, totalScenes, previousScenes = [], onProgress) {
   console.log(`Writing scene ${num+1} of ${totalScenes}`);
   
   // If there is no "previousScenes", use a fallback
@@ -353,7 +353,7 @@ ${context}
 ${sceneBeat}
 
 ## WRITING INSTRUCTIONS
-You are an expert fiction writer. Write a fully detailed scene as long as you need to without overwriting that flows naturally from the previous events described in the context.
+You are an expert fiction writer. Write a fully detailed scene that is at least 800 words without overwriting that flows naturally from the previous events described in the context.
 ${finalSceneIndicator}
 
 # Core Requirements
@@ -384,59 +384,56 @@ ${finalSceneIndicator}
 - Break up dialogue with introspection and description
 - Include moments of dark humor sparingly
 - Allow for natural processing of events
-  `;
+
+# IMPORTANT: Send your response in chunks of 1-2 paragraphs at a time. After each chunk, write "[CONTINUE]" on a new line.
+`;
 
   let retries = 0;
   while (retries < 5) {
     try {
-      // 1) generate the scene
       const response = await oaiClient.chat.completions.create({
         model: settings.OAI_MODEL,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 8000
+        max_tokens: 8000,
+        stream: true
       });
-      let writtenScene = response.choices[0].message.content
-        .replace(/\*/g, '')
-        .replace(/---\n/g, '')
-        .replace(/\n\n---/g, '');
+
+      let fullScene = "";
+      let currentChunk = "";
+
+      for await (const chunk of response) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        currentChunk += content;
+
+        // If we see [CONTINUE], send the current chunk
+        if (currentChunk.includes("[CONTINUE]")) {
+          const parts = currentChunk.split("[CONTINUE]");
+          const completedChunk = parts[0].trim();
+          
+          if (completedChunk && onProgress) {
+            onProgress(completedChunk + "\n\n");
+          }
+          
+          fullScene += completedChunk + "\n\n";
+          currentChunk = parts[1] || "";
+        }
+      }
+
+      // Send any remaining content
+      if (currentChunk.trim() && onProgress) {
+        onProgress(currentChunk.trim() + "\n\n");
+      }
+      fullScene += currentChunk.trim();
 
       // Check length
-      if (writtenScene.trim().length < 500) {
-        console.log(`Scene too short (${writtenScene.trim().length} chars). Retrying...`);
+      if (fullScene.trim().length < 500) {
+        console.log(`Scene too short (${fullScene.trim().length} chars). Retrying...`);
         retries += 1;
         continue;
       }
 
-      // 2) Attempt a consistency check and rewriting loop
-      let attempt = 0;
-      const maxAttempts = 3;
-      while (attempt < maxAttempts) {
-        const inconsistencies = await checkSceneConsistency(writtenScene, previousScenes, characters);
-        if (!inconsistencies || inconsistencies.includes("No Continuity Errors Found")) {
-          // done
-          previousScenes.push(writtenScene);
-          return writtenScene;
-        }
-
-        console.log(`Attempt ${attempt+1}: Rewriting scene to fix inconsistencies...`);
-        writtenScene = await rewriteScene(writtenScene, sceneBeat, inconsistencies);
-
-        // verify
-        const verification = await verifySceneFixes(writtenScene, inconsistencies);
-        if (verification === "All issues resolved") {
-          previousScenes.push(writtenScene);
-          return writtenScene;
-        } else {
-          // rewrite again with leftover issues
-          writtenScene = await rewriteScene(writtenScene, sceneBeat, verification);
-        }
-        attempt++;
-        console.log(`Verification failed. Remaining issues: ${verification}`);
-      }
-
-      console.log("Warning: Maximum rewrite attempts reached. Using best version.");
-      previousScenes.push(writtenScene);
-      return writtenScene;
+      previousScenes.push(fullScene);
+      return fullScene;
 
     } catch (err) {
       console.log(`Error in writeScene: ${err}. Retrying...`);

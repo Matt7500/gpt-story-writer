@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface Story {
-  id: number;
+  id: string;
   title: string;
   story_idea: string;
   plot_outline: string;
@@ -79,7 +79,7 @@ export default function Stories() {
     setIsGenerating(true);
   };
 
-  const handleStoryGenerated = (storyId: number) => {
+  const handleStoryGenerated = (storyId: string) => {
     setIsGenerating(false);
     fetchStories();
     navigate(`/editor/${storyId}`);

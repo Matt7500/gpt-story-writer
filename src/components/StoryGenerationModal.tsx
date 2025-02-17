@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface StoryGenerationModalProps {
   open: boolean;
   onClose: () => void;
-  onComplete: (storyId: number) => void;
+  onComplete: (storyId: string) => void;
 }
 
 const STEPS = [
