@@ -9,6 +9,7 @@ interface WritingAreaProps {
   chapter: {
     title: string;
     content: string;
+    sceneBeat?: string;
   };
   onSave: (content: string) => void;
   onComplete: () => void;
@@ -72,6 +73,14 @@ export function WritingArea({
           </Button>
         </div>
       </div>
+      
+      {chapter.sceneBeat && (
+        <div className="p-4 bg-muted rounded-lg">
+          <p className="text-sm font-medium mb-1">Scene Beat:</p>
+          <p className="text-sm text-muted-foreground">{chapter.sceneBeat}</p>
+        </div>
+      )}
+
       <Textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
