@@ -46,10 +46,18 @@ export function WritingArea({
     }
   };
 
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const charCount = content.length;
+
   return (
     <div className="writing-area space-y-6 animate-slide-up">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{chapter.title}</h1>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold">{chapter.title}</h1>
+          <p className="text-sm text-muted-foreground">
+            {wordCount} words • {charCount} characters
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
             <MessageSquare className="h-4 w-4 mr-2" />
