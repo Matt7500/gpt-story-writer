@@ -1,4 +1,3 @@
-
 import {
   Dialog,
   DialogContent,
@@ -29,8 +28,8 @@ export function CharacterModal({
         <DialogHeader>
           <DialogTitle>Characters</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="h-[60vh] mt-4">
-          <div className="space-y-6">
+        <ScrollArea className="h-[60vh] mt-4 pr-4 -mr-4">
+          <div className="space-y-6 pr-2">
             {characters.map((character, index) => (
               <div key={index} className="space-y-2">
                 <h3 className="font-semibold text-lg">{character.name}</h3>

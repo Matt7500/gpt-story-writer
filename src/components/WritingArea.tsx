@@ -3,14 +3,7 @@ import { Textarea } from "./ui/textarea";
 import { CheckCircle, MessageSquare, BookOpen, BookCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { StoryOutlineModal } from "./StoryOutlineModal";
 
 interface WritingAreaProps {
   chapter: {
@@ -42,6 +35,7 @@ export function WritingArea({
 }: WritingAreaProps) {
   const [content, setContent] = useState(chapter.content);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showOutline, setShowOutline] = useState(false);
   const [feedback, setFeedback] = useState("");
   const { toast } = useToast();
 
@@ -70,32 +64,10 @@ export function WritingArea({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <BookOpen className="h-4 w-4 mr-2" />
-                Story Outline
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-              <DialogHeader>
-                <DialogTitle>Story Outline</DialogTitle>
-                <DialogDescription>
-                  A chapter-by-chapter breakdown of your story.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-6 mt-6">
-                {chapters.map((chapter, index) => (
-                  <div key={index} className="space-y-2 p-4 rounded-lg bg-muted/50">
-                    <h3 className="font-medium">{chapter.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {chapter.sceneBeat}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" size="sm" onClick={() => setShowOutline(true)}>
+            <BookOpen className="h-4 w-4 mr-2" />
+            Story Outline
+          </Button>
           <Button variant="outline" size="sm" onClick={onShowCharacters}>
             <Users className="h-4 w-4 mr-2" />
             Characters
@@ -161,6 +133,12 @@ export function WritingArea({
           </div>
         </div>
       )}
+
+      <StoryOutlineModal
+        isOpen={showOutline}
+        onClose={() => setShowOutline(false)}
+        chapters={chapters}
+      />
     </div>
   );
 }
