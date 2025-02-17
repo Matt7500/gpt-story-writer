@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,7 +96,14 @@ export default function Index() {
 
   const handleFeedback = (feedback: string) => {
     console.log("Feedback received:", feedback);
-    // In a real app, this would be sent to an API
+  };
+
+  const handleFinishStory = () => {
+    // Add logic for finishing the story
+    toast({
+      title: "Story Completed",
+      description: "Congratulations on finishing your story!",
+    });
   };
 
   return (
@@ -105,8 +113,8 @@ export default function Index() {
           chapters={chapters}
           currentChapter={currentChapter}
           onChapterSelect={setCurrentChapter}
-          onShowCharacters={() => setShowCharacters(true)}
           onSignOut={handleSignOut}
+          onFinishStory={handleFinishStory}
         />
         <main className="flex-1 overflow-auto">
           <div className="editor-container">
@@ -115,6 +123,7 @@ export default function Index() {
               onSave={handleSave}
               onComplete={handleComplete}
               onFeedback={handleFeedback}
+              onShowCharacters={() => setShowCharacters(true)}
             />
           </div>
         </main>
