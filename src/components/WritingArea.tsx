@@ -1,7 +1,7 @@
 
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { CheckCircle, MessageSquare, BookOpen } from "lucide-react";
+import { CheckCircle, MessageSquare, BookOpen, BookCheck } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -22,6 +22,7 @@ interface WritingAreaProps {
   onSave: (content: string) => void;
   onComplete: () => void;
   onFeedback: (feedback: string) => void;
+  onFinishStory?: () => void;
 }
 
 export function WritingArea({
@@ -29,19 +30,12 @@ export function WritingArea({
   onSave,
   onComplete,
   onFeedback,
+  onFinishStory,
 }: WritingAreaProps) {
   const [content, setContent] = useState(chapter.content);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedback, setFeedback] = useState("");
   const { toast } = useToast();
-
-  const handleSave = () => {
-    onSave(content);
-    toast({
-      title: "Changes saved",
-      description: "Your progress has been saved successfully.",
-    });
-  };
 
   const handleFeedback = () => {
     if (feedback.trim()) {
@@ -98,13 +92,21 @@ export function WritingArea({
             <MessageSquare className="h-4 w-4 mr-2" />
             Feedback
           </Button>
-          <Button variant="outline" size="sm" onClick={handleSave}>
-            Save
-          </Button>
           <Button size="sm" onClick={onComplete}>
             <CheckCircle className="h-4 w-4 mr-2" />
             Complete
           </Button>
+          {onFinishStory && (
+            <Button 
+              variant="default" 
+              size="sm"
+              onClick={onFinishStory}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <BookCheck className="h-4 w-4 mr-2" />
+              Finish Story
+            </Button>
+          )}
         </div>
       </div>
       
@@ -117,10 +119,14 @@ export function WritingArea({
 
       <Textarea
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => {
+          setContent(e.target.value);
+          onSave(e.target.value);
+        }}
         className="min-h-[calc(100vh-300px)] w-full resize-none text-xl leading-relaxed"
         placeholder="Start writing your story..."
       />
+
       {showFeedback && (
         <div className="space-y-4 pt-4 border-t">
           <Textarea
