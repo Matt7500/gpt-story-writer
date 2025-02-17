@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Settings as SettingsIcon, User, Key } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -15,6 +22,8 @@ export default function Settings() {
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [openAIModel, setOpenAIModel] = useState("gpt-4o-mini");
+  const [reasoningModel, setReasoningModel] = useState("llama-3.1-sonar-small-128k-online");
+  const [openAIKey, setOpenAIKey] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,17 +48,23 @@ export default function Settings() {
         // Load AI settings
         const { data: settingsData } = await supabase
           .from("user_settings")
-          .select("openai_model")
+          .select("openai_model, openai_key, reasoning_model")
           .eq("user_id", user.id)
           .single();
 
         if (settingsData) {
           setOpenAIModel(settingsData.openai_model);
+          setOpenAIKey(settingsData.openai_key || "");
+          setReasoningModel(settingsData.reasoning_model || "llama-3.1-sonar-small-128k-online");
         } else {
           // Create default settings if none exist
           await supabase
             .from("user_settings")
-            .insert([{ user_id: user.id, openai_model: "gpt-4o-mini" }]);
+            .insert([{ 
+              user_id: user.id, 
+              openai_model: "gpt-4o-mini",
+              reasoning_model: "llama-3.1-sonar-small-128k-online"
+            }]);
         }
       } catch (error) {
         console.error("Error loading settings:", error);
@@ -93,7 +108,11 @@ export default function Settings() {
     try {
       const { error } = await supabase
         .from("user_settings")
-        .update({ openai_model: openAIModel })
+        .update({ 
+          openai_model: openAIModel,
+          openai_key: openAIKey,
+          reasoning_model: reasoningModel
+        })
         .eq("user_id", user?.id);
 
       if (error) throw error;
@@ -152,16 +171,48 @@ export default function Settings() {
         <Separator />
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">OpenAI Model</label>
+            <label className="text-sm font-medium">OpenAI API Key</label>
             <Input
-              value={openAIModel}
-              onChange={(e) => setOpenAIModel(e.target.value)}
-              placeholder="Enter OpenAI model name"
+              type="password"
+              value={openAIKey}
+              onChange={(e) => setOpenAIKey(e.target.value)}
+              placeholder="Enter your OpenAI API key"
             />
             <p className="text-sm text-muted-foreground">
-              Available models: gpt-4o-mini (faster), gpt-4o (more powerful)
+              Your API key is stored securely and never shared.
             </p>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Story Generation Model</label>
+            <Select value={openAIModel} onValueChange={setOpenAIModel}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gpt-4o-mini">GPT-4O Mini (Faster)</SelectItem>
+                <SelectItem value="gpt-4o">GPT-4O (More Powerful)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reasoning Model</label>
+            <Select value={reasoningModel} onValueChange={setReasoningModel}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="llama-3.1-sonar-small-128k-online">Llama 3.1 Sonar Small (Fast)</SelectItem>
+                <SelectItem value="llama-3.1-sonar-large-128k-online">Llama 3.1 Sonar Large (Balanced)</SelectItem>
+                <SelectItem value="llama-3.1-sonar-huge-128k-online">Llama 3.1 Sonar Huge (Powerful)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Used for analyzing and reasoning about your stories.
+            </p>
+          </div>
+
           <Button onClick={handleSaveAISettings}>Save AI Settings</Button>
         </div>
       </div>
