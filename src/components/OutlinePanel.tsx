@@ -1,5 +1,5 @@
 
-import { Book, ChevronRight, Users } from "lucide-react";
+import { Book, ChevronRight, Users, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ interface OutlinePanelProps {
   currentChapter: number;
   onChapterSelect: (index: number) => void;
   onShowCharacters: () => void;
+  onSignOut: () => void;
 }
 
 interface Chapter {
@@ -23,6 +24,7 @@ export function OutlinePanel({
   currentChapter,
   onChapterSelect,
   onShowCharacters,
+  onSignOut,
 }: OutlinePanelProps) {
   const totalWords = chapters.reduce((acc, chapter) => {
     const content = chapter.content || "";
@@ -74,7 +76,7 @@ export function OutlinePanel({
           })}
         </div>
       </ScrollArea>
-      <div className="p-4 border-t border-border/40">
+      <div className="p-4 border-t border-border/40 space-y-2">
         <Button
           variant="outline"
           className="w-full justify-start gap-2"
@@ -82,6 +84,14 @@ export function OutlinePanel({
         >
           <Users className="h-4 w-4" />
           <span>Characters</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 text-destructive hover:text-destructive"
+          onClick={onSignOut}
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign out</span>
         </Button>
       </div>
     </div>

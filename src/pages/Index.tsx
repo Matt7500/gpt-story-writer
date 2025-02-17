@@ -1,14 +1,11 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { OutlinePanel } from "@/components/OutlinePanel";
 import { WritingArea } from "@/components/WritingArea";
 import { CharacterModal } from "@/components/CharacterModal";
 
-// Sample data (in a real app, this would come from an API)
 const sampleChapters = [
   { title: "Chapter 1: The Beginning", content: "", completed: false },
   { title: "Chapter 2: Rising Action", content: "", completed: false },
@@ -78,22 +75,13 @@ export default function Index() {
 
   return (
     <div className="min-h-screen">
-      <div className="flex justify-end p-4">
-        <Button 
-          variant="outline" 
-          onClick={handleSignOut}
-          className="text-sm"
-        >
-          Sign out
-        </Button>
-      </div>
-      
-      <div className="flex h-[calc(100vh-80px)] bg-secondary/30">
+      <div className="flex h-screen bg-secondary/30">
         <OutlinePanel
           chapters={chapters}
           currentChapter={currentChapter}
           onChapterSelect={setCurrentChapter}
           onShowCharacters={() => setShowCharacters(true)}
+          onSignOut={handleSignOut}
         />
         <main className="flex-1 overflow-auto">
           <div className="editor-container">
