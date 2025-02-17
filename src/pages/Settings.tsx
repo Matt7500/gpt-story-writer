@@ -93,6 +93,10 @@ export default function Settings() {
 
   if (!user) return null;
 
+  const handleGoBack = () => {
+    window.history.back();
+  };
+
   return (
     <div className="container max-w-2xl mx-auto p-8 space-y-8">
       <div className="flex items-center gap-2">
@@ -122,10 +126,10 @@ export default function Settings() {
 
       <Button
         variant="outline"
-        onClick={() => navigate("/")}
+        onClick={handleGoBack}
         className="mt-8"
       >
-        Back to Stories
+        Back
       </Button>
     </div>
   );
