@@ -7,11 +7,36 @@ import { WritingArea } from "@/components/WritingArea";
 import { CharacterModal } from "@/components/CharacterModal";
 
 const sampleChapters = [
-  { title: "Chapter 1: The Beginning", content: "", completed: false },
-  { title: "Chapter 2: Rising Action", content: "", completed: false },
-  { title: "Chapter 3: The Climax", content: "", completed: false },
-  { title: "Chapter 4: Falling Action", content: "", completed: false },
-  { title: "Chapter 5: Resolution", content: "", completed: false },
+  { 
+    title: "Chapter 1: The Beginning", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The protagonist discovers a mysterious letter that will change their life forever."
+  },
+  { 
+    title: "Chapter 2: Rising Action", 
+    content: "", 
+    completed: false,
+    sceneBeat: "Following the letter's clues, they encounter their first major obstacle and meet a key ally."
+  },
+  { 
+    title: "Chapter 3: The Climax", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The truth behind the letter is revealed, leading to a confrontation with the antagonist."
+  },
+  { 
+    title: "Chapter 4: Falling Action", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The aftermath of the confrontation affects all characters, leading to important decisions."
+  },
+  { 
+    title: "Chapter 5: Resolution", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The protagonist comes to terms with the changes in their life and looks toward the future."
+  },
 ];
 
 const sampleCharacters = [

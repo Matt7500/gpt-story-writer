@@ -1,14 +1,23 @@
 
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { CheckCircle, MessageSquare } from "lucide-react";
+import { CheckCircle, MessageSquare, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface WritingAreaProps {
   chapter: {
     title: string;
     content: string;
+    sceneBeat?: string;
   };
   onSave: (content: string) => void;
   onComplete: () => void;
@@ -59,6 +68,32 @@ export function WritingArea({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Story Outline
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Story Outline</DialogTitle>
+                <DialogDescription>
+                  A chapter-by-chapter breakdown of your story.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-6 space-y-6">
+                {sampleChapters.map((chapter, index) => (
+                  <div key={index} className="space-y-2">
+                    <h3 className="font-medium">{chapter.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {chapter.sceneBeat}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
             <MessageSquare className="h-4 w-4 mr-2" />
             Feedback
@@ -72,6 +107,14 @@ export function WritingArea({
           </Button>
         </div>
       </div>
+      
+      {chapter.sceneBeat && (
+        <div className="p-4 bg-muted rounded-lg">
+          <p className="text-sm font-medium mb-1">Scene Beat:</p>
+          <p className="text-sm text-muted-foreground">{chapter.sceneBeat}</p>
+        </div>
+      )}
+
       <Textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
@@ -103,3 +146,36 @@ export function WritingArea({
     </div>
   );
 }
+
+const sampleChapters = [
+  { 
+    title: "Chapter 1: The Beginning", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The protagonist discovers a mysterious letter that will change their life forever."
+  },
+  { 
+    title: "Chapter 2: Rising Action", 
+    content: "", 
+    completed: false,
+    sceneBeat: "Following the letter's clues, they encounter their first major obstacle and meet a key ally."
+  },
+  { 
+    title: "Chapter 3: The Climax", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The truth behind the letter is revealed, leading to a confrontation with the antagonist."
+  },
+  { 
+    title: "Chapter 4: Falling Action", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The aftermath of the confrontation affects all characters, leading to important decisions."
+  },
+  { 
+    title: "Chapter 5: Resolution", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The protagonist comes to terms with the changes in their life and looks toward the future."
+  },
+];
