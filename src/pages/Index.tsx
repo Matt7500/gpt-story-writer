@@ -1,10 +1,11 @@
-
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { OutlinePanel } from "@/components/OutlinePanel";
 import { WritingArea } from "@/components/WritingArea";
 import { CharacterModal } from "@/components/CharacterModal";
 
-// Sample data (in a real app, this would come from an API)
 const sampleChapters = [
   { title: "Chapter 1: The Beginning", content: "", completed: false },
   { title: "Chapter 2: Rising Action", content: "", completed: false },
@@ -28,10 +29,26 @@ const sampleCharacters = [
   },
 ];
 
-const Index = () => {
+export default function Index() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentChapter, setCurrentChapter] = useState(0);
   const [chapters, setChapters] = useState(sampleChapters);
   const [showCharacters, setShowCharacters] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate("/auth");
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSave = (content: string) => {
     const updatedChapters = [...chapters];
@@ -57,30 +74,31 @@ const Index = () => {
   };
 
   return (
-    <div className="flex h-screen bg-secondary/30">
-      <OutlinePanel
-        chapters={chapters}
-        currentChapter={currentChapter}
-        onChapterSelect={setCurrentChapter}
-        onShowCharacters={() => setShowCharacters(true)}
-      />
-      <main className="flex-1 overflow-auto">
-        <div className="editor-container">
-          <WritingArea
-            chapter={chapters[currentChapter]}
-            onSave={handleSave}
-            onComplete={handleComplete}
-            onFeedback={handleFeedback}
-          />
-        </div>
-      </main>
-      <CharacterModal
-        isOpen={showCharacters}
-        onClose={() => setShowCharacters(false)}
-        characters={sampleCharacters}
-      />
+    <div className="min-h-screen">
+      <div className="flex h-screen bg-secondary/30">
+        <OutlinePanel
+          chapters={chapters}
+          currentChapter={currentChapter}
+          onChapterSelect={setCurrentChapter}
+          onShowCharacters={() => setShowCharacters(true)}
+          onSignOut={handleSignOut}
+        />
+        <main className="flex-1 overflow-auto">
+          <div className="editor-container">
+            <WritingArea
+              chapter={chapters[currentChapter]}
+              onSave={handleSave}
+              onComplete={handleComplete}
+              onFeedback={handleFeedback}
+            />
+          </div>
+        </main>
+        <CharacterModal
+          isOpen={showCharacters}
+          onClose={() => setShowCharacters(false)}
+          characters={sampleCharacters}
+        />
+      </div>
     </div>
   );
-};
-
-export default Index;
+}
