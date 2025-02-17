@@ -38,7 +38,7 @@ export function OutlinePanel({
   return (
     <div className="outline-panel h-screen flex flex-col w-64 border-r">
       <div className="p-4 border-b border-border/40">
-        <h2 className="font-semibold">Story Outline</h2>
+        <h2 className="font-semibold">Story</h2>
         <p className="text-sm text-muted-foreground mt-1">
           {totalWords} words • {totalChars} characters
         </p>
