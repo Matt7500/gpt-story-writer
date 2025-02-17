@@ -57,6 +57,7 @@ export function OutlinePanel({
                   variant={currentChapter === index ? "secondary" : "ghost"}
                   className={cn(
                     "w-full justify-start gap-2 text-sm font-normal",
+                    "hover:bg-accent dark:hover:bg-accent/90",
                     chapter.completed && "text-muted-foreground"
                   )}
                   onClick={() => onChapterSelect(index)}
@@ -81,7 +82,7 @@ export function OutlinePanel({
       <div className="p-4 border-t border-border/40 space-y-2">
         <Button
           variant="outline"
-          className="w-full justify-start gap-2"
+          className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-accent/90 dark:border-accent/50"
           onClick={() => navigate('/')}
         >
           <Library className="h-4 w-4" />
@@ -90,7 +91,7 @@ export function OutlinePanel({
         {onFinishStory && (
           <Button
             variant="default"
-            className="w-full justify-start gap-2 bg-green-600 hover:bg-green-700"
+            className="w-full justify-start gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-600/90 dark:hover:bg-green-700/90 dark:text-white"
             onClick={onFinishStory}
           >
             <BookCheck className="h-4 w-4" />
@@ -99,7 +100,7 @@ export function OutlinePanel({
         )}
         <Button
           variant="outline"
-          className="w-full justify-start gap-2 text-[#ea384c] dark:text-red-400 hover:text-[#ea384c] dark:hover:text-red-400"
+          className="w-full justify-start gap-2 text-destructive dark:text-red-400 hover:text-destructive dark:hover:text-red-300 dark:hover:bg-red-950/50 dark:border-red-900/50"
           onClick={onSignOut}
         >
           <LogOut className="h-4 w-4" />
