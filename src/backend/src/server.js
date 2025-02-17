@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const { createClient } = require('@supabase/supabase-js');
 const { Configuration, OpenAIApi } = require('openai');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 // Load environment variables from the root directory
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
@@ -137,7 +138,8 @@ const abortControllers = new Map();
 const sendProgressUpdate = (clientId, data) => {
   const client = progressClients.get(clientId);
   if (client) {
-    client.write(`data: ${JSON.stringify(data)}\n\n`);
+    const payload = typeof data === 'number' ? { step: data } : data;
+    client.write(`data: ${JSON.stringify(payload)}\n\n`);
   }
 };
 
@@ -303,6 +305,9 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
       isAborted = true;
     });
 
+    // Generate a unique UUID for the story
+    const storyId = uuidv4();
+
     // Generate story idea
     sendProgressUpdate(clientId, 0);
     console.log("Step 1: Generating story idea...");
@@ -351,7 +356,7 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
     const { data, error } = await supabase
       .from('stories')
       .insert([{
-        id: clientId, // Use the clientId as the story ID
+        id: storyId, // Use UUID v4 instead of clientId
         user_id: req.user.id,
         title: title,
         story_idea: storyIdea,

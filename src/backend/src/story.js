@@ -657,6 +657,14 @@ function formatScenes(inputString) {
   try {
     // replicate your Python approach for cleaning code blocks
     inputString = inputString.replace(/```json\s*|\s*```/g, '').trim();
+    
+    // Find the first occurrence of '[' to get the start of the JSON array
+    const jsonStartIndex = inputString.indexOf('[');
+    if (jsonStartIndex !== -1) {
+      // Remove any text before the JSON array
+      inputString = inputString.substring(jsonStartIndex);
+    }
+
     const scenesArr = JSON.parse(inputString);
 
     const formattedScenes = [];

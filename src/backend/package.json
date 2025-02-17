@@ -17,7 +17,8 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "openai": "^4.20.1",
-    "snoowrap": "^1.23.0"
+    "snoowrap": "^1.23.0",
+    "uuid": "^11.0.5"
   },
   "devDependencies": {
     "jest": "^29.7.0",

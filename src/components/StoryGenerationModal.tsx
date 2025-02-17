@@ -51,7 +51,9 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
           
           newEventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            setCurrentStep(data.step);
+            if (typeof data.step === 'number') {
+              setCurrentStep(data.step);
+            }
           };
 
           newEventSource.onerror = () => {
