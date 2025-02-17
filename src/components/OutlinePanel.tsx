@@ -82,7 +82,7 @@ export function OutlinePanel({
         <Button
           variant="outline"
           className="w-full justify-start gap-2"
-          onClick={() => navigate('/stories')}
+          onClick={() => navigate('/')}
         >
           <Library className="h-4 w-4" />
           <span>My Stories</span>
