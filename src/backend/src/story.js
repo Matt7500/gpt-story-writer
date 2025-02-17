@@ -234,13 +234,12 @@ ${joinedPrev}
 Provide the continuity errors as a list in order of importance to the story. Describe how to fix those errors by making any small or significant changes to the scene.
   `;
   try {
-    const response = await orClient.post("/chat/completions", {
-      model: settings.OR_MODEL,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
+    const response = await orClient.chat.completions.create({
+        model: settings.OPENROUTER_MODEL_REASONING,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
     });
     const content = response.data.choices[0].message.content;
-    console.log("########### Errors #############\n\n", content, "\n##############################");
     return content;
   } catch (err) {
     console.error("Error in checkSceneConsistency:", err);
@@ -271,7 +270,7 @@ The rewrite should maintain the same general length and level of detail as the o
 ##DO NOT WRITE ANY COMMENTS ONLY RETURN THE SCENE.
   `;
   try {
-    const response = await orClient.post("/chat/completions", {
+    const response = await orClient.chat.completions.create({
       model: settings.OR_MODEL,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.8
@@ -303,7 +302,7 @@ Format remaining issues as a clear, numbered list that can be used for another r
 If all issues are resolved, respond only with: All issues resolved
   `;
   try {
-    const response = await orClient.post("/chat/completions", {
+    const response = await orClient.chat.completions.create({
       model: 'openai/o3-mini',
       messages: [{ role: "user", content: prompt }]
     });
@@ -388,8 +387,8 @@ ${finalSceneIndicator}
   while (retries < 5) {
     try {
       // 1) generate the scene
-      const response = await orClient.post("/chat/completions", {
-        model: settings.OR_MODEL,
+      const response = await oaiClient.chat.completions.create({
+        model: settings.OAI_MODEL,
         messages: [{ role: "user", content: prompt }],
         max_tokens: 8000
       });
@@ -530,7 +529,7 @@ ${firstParagraphs}
   `;
 
   try {
-    const response = await orClient.post("/chat/completions", {
+    const response = await orClient.chat.completions.create({
       model: settings.OR_MODEL,
       messages: [{ role: "user", content: prompt }]
     });
@@ -731,8 +730,8 @@ ${idea}
       `;
 
       // The Python code used oai_client with a certain model and temperature
-      const response = await oaiClient.createChatCompletion({
-        model: "gpt-4",
+      const response = await oaiClient.chat.completions.create({
+        model: settings.OAI_MODEL,
         temperature: 1,
         messages: [{ role: "user", content: userMessage }]
       });
@@ -778,7 +777,7 @@ Only return the character descriptions without any comments.
 ## Outline:
 ${outline.join('\n')}
       `;
-      const response = await orClient.post("/chat/completions", {
+      const response = await orClient.chat.completions.create({
         model: settings.OR_MODEL,
         max_tokens: 4000,
         temperature: 0.7,
@@ -808,7 +807,7 @@ async function callTune4(scene) {
 
   while (retryCount < maxRetries) {
     try {
-      const completion = await oaiClient.createChatCompletion({
+      const completion = await oaiClient.chat.completions.create({
         model: settings.FT_MODEL,
         temperature: 0.7,
         messages: [
