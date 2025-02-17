@@ -65,7 +65,7 @@ export default function Stories() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
+      <header className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="max-w-4xl mx-auto p-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold">My Stories</h1>
           <div className="flex items-center gap-4">
@@ -74,9 +74,9 @@ export default function Stories() {
               New Story
             </Button>
             <Button 
-              variant="ghost" 
+              variant="outline" 
               onClick={handleSignOut}
-              className="gap-2"
+              className="gap-2 text-[#ea384c] dark:text-red-400 hover:text-[#ea384c] dark:hover:text-red-400"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
