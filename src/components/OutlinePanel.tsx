@@ -102,7 +102,7 @@ export function OutlinePanel({
         </Button>
         <Button
           variant="outline"
-          className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-red-900/50 dark:border-red-900/50 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300"
+          className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-red-900/50 dark:border-red-900/50 text-[#ea384c] dark:text-red-400 hover:text-[#ea384c] dark:hover:text-red-300"
           onClick={onSignOut}
         >
           <LogOut className="h-4 w-4" />
