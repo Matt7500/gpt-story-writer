@@ -65,7 +65,7 @@ export function OutlinePanel({
               className={cn(
                 "w-full justify-start gap-2 text-sm font-normal",
                 "hover:bg-accent dark:hover:bg-accent/90",
-                currentChapter === index && "bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 font-medium",
+                currentChapter === index && "bg-primary/25 dark:bg-primary/40",
                 chapter.completed && "text-muted-foreground"
               )}
               onClick={() => onChapterSelect(index)}
