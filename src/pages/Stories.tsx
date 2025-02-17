@@ -2,29 +2,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Book, Plus, LogOut, Trash2, Settings } from "lucide-react";
 import { StoryGenerationModal } from "@/components/StoryGenerationModal";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-interface Story {
-  id: string;
-  title: string;
-  story_idea: string;
-  plot_outline: string;
-  characters: string;
-  created_at: string;
-}
+import { StoriesHeader } from "@/components/StoriesHeader";
+import { StoryCard } from "@/components/StoryCard";
+import { DeleteStoryDialog } from "@/components/DeleteStoryDialog";
+import { Button } from "@/components/ui/button";
+import { Story } from "@/types/story";
 
 export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
@@ -130,54 +114,16 @@ export default function Stories() {
         onClose={() => setIsGenerating(false)}
       />
 
-      <AlertDialog open={!!storyToDelete} onOpenChange={() => setStoryToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete your story
-              and remove it from our servers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteStory}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteStoryDialog
+        story={storyToDelete}
+        onClose={() => setStoryToDelete(null)}
+        onConfirm={handleDeleteStory}
+      />
 
-      <header className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto p-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">My Stories</h1>
-          <div className="flex items-center gap-4">
-            <Button onClick={handleCreateStory} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Story
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate('/settings')}
-              className="gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={handleSignOut}
-              className="gap-2 text-[#ea384c] dark:text-red-400 hover:text-[#ea384c] dark:hover:text-red-400"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
+      <StoriesHeader
+        onCreateStory={handleCreateStory}
+        onSignOut={handleSignOut}
+      />
 
       <main className="max-w-4xl mx-auto p-6">
         {loading ? (
@@ -193,41 +139,11 @@ export default function Stories() {
         ) : (
           <div className="grid gap-4">
             {stories.map((story) => (
-              <div
+              <StoryCard
                 key={story.id}
-                className="p-6 border rounded-lg hover:bg-accent/50 transition-colors group relative"
-              >
-                <div 
-                  className="cursor-pointer"
-                  onClick={() => navigate(`/editor/${story.id}`)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <Book className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <h3 className="font-semibold">{story.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(story.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                    {story.story_idea}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setStoryToDelete(story);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+                story={story}
+                onDelete={setStoryToDelete}
+              />
             ))}
           </div>
         )}
