@@ -47,36 +47,28 @@ export function OutlinePanel({
       </div>
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-2">
-          {chapters.map((chapter, index) => {
-            const wordCount = chapter.content?.trim() 
-              ? chapter.content.trim().split(/\s+/).length 
-              : 0;
-            return (
-              <div key={index} className="space-y-1">
-                <Button
-                  variant={currentChapter === index ? "secondary" : "ghost"}
-                  className={cn(
-                    "w-full justify-start gap-2 text-sm font-normal",
-                    "hover:bg-accent dark:hover:bg-accent/90",
-                    chapter.completed && "text-muted-foreground"
-                  )}
-                  onClick={() => onChapterSelect(index)}
-                >
-                  <Book className="h-4 w-4" />
-                  <span className="truncate">{chapter.title}</span>
-                  {chapter.completed && (
-                    <ChevronRight className="h-4 w-4 ml-auto opacity-60" />
-                  )}
-                </Button>
-                <p className="text-xs text-muted-foreground pl-9">
-                  {wordCount} words
-                </p>
-                {index < chapters.length - 1 && (
-                  <Separator className="my-2" />
+          {chapters.map((chapter, index) => (
+            <div key={index}>
+              <Button
+                variant={currentChapter === index ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start gap-2 text-sm font-normal",
+                  "hover:bg-accent dark:hover:bg-accent/90",
+                  chapter.completed && "text-muted-foreground"
                 )}
-              </div>
-            );
-          })}
+                onClick={() => onChapterSelect(index)}
+              >
+                <Book className="h-4 w-4" />
+                <span className="truncate">{chapter.title}</span>
+                {chapter.completed && (
+                  <ChevronRight className="h-4 w-4 ml-auto opacity-60" />
+                )}
+              </Button>
+              {index < chapters.length - 1 && (
+                <Separator className="my-2" />
+              )}
+            </div>
+          ))}
         </div>
       </ScrollArea>
       <div className="p-4 border-t border-border/40 space-y-2">
