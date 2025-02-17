@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Book, ArrowLeft, Plus } from "lucide-react";
+import { Book, Plus, LogOut } from "lucide-react";
 
 interface Story {
   id: number;
@@ -49,27 +49,43 @@ export default function Stories() {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate('/auth');
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-8">
+      <header className="border-b">
+        <div className="max-w-4xl mx-auto p-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold">My Stories</h1>
           <div className="flex items-center gap-4">
+            <Button onClick={() => navigate('/editor')} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Story
+            </Button>
             <Button 
               variant="ghost" 
-              onClick={() => navigate('/editor')}
+              onClick={handleSignOut}
               className="gap-2"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Editor
+              <LogOut className="h-4 w-4" />
+              Sign Out
             </Button>
-            <h1 className="text-2xl font-bold">My Stories</h1>
           </div>
-          <Button onClick={() => navigate('/editor')} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Story
-          </Button>
         </div>
+      </header>
 
+      <main className="max-w-4xl mx-auto p-6">
         {loading ? (
           <p className="text-muted-foreground">Loading stories...</p>
         ) : stories.length === 0 ? (
@@ -106,7 +122,7 @@ export default function Stories() {
             ))}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
