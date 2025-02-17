@@ -1,5 +1,5 @@
 
-import { Book, ChevronRight, LogOut, Library, BookCheck, Settings } from "lucide-react";
+import { Book, ChevronRight, LogOut, Library, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -40,10 +40,22 @@ export function OutlinePanel({
   return (
     <div className="outline-panel h-screen flex flex-col w-64 border-r">
       <div className="p-4 border-b border-border/40">
-        <h2 className="font-semibold">Story</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {totalWords} words • {totalChars} characters
-        </p>
+        <div className="space-y-2">
+          <h2 className="font-semibold">Story</h2>
+          <p className="text-sm text-muted-foreground">
+            {totalWords} words • {totalChars} characters
+          </p>
+          {onFinishStory && (
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-green-900/50 dark:border-green-900/50 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300"
+              onClick={onFinishStory}
+            >
+              <Book className="h-4 w-4" />
+              <span>Finish Story</span>
+            </Button>
+          )}
+        </div>
       </div>
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-2">
@@ -88,16 +100,6 @@ export function OutlinePanel({
           <Settings className="h-4 w-4" />
           <span>Settings</span>
         </Button>
-        {onFinishStory && (
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-green-900/50 dark:border-green-900/50 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300"
-            onClick={onFinishStory}
-          >
-            <BookCheck className="h-4 w-4" />
-            <span>Finish Story</span>
-          </Button>
-        )}
         <Button
           variant="outline"
           className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-red-900/50 dark:border-red-900/50 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300"
