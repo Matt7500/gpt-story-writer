@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,13 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Settings as SettingsIcon, User, Key } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -23,6 +17,8 @@ export default function Settings() {
   const [openAIModel, setOpenAIModel] = useState("gpt-4o-mini");
   const [reasoningModel, setReasoningModel] = useState("llama-3.1-sonar-small-128k-online");
   const [openAIKey, setOpenAIKey] = useState("");
+  const [titleFineTuneModel, setTitleFineTuneModel] = useState("");
+  const [rewritingModel, setRewritingModel] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,6 +56,8 @@ export default function Settings() {
           setOpenAIModel(settingsData.openai_model || "gpt-4o-mini");
           setOpenAIKey(settingsData.openai_key || "");
           setReasoningModel(settingsData.reasoning_model || "llama-3.1-sonar-small-128k-online");
+          setTitleFineTuneModel(settingsData.title_fine_tune_model || "");
+          setRewritingModel(settingsData.rewriting_model || "");
         } else {
           // Create default settings if none exist
           const { error: insertError } = await supabase
@@ -117,7 +115,9 @@ export default function Settings() {
         .update({ 
           openai_model: openAIModel,
           openai_key: openAIKey,
-          reasoning_model: reasoningModel
+          reasoning_model: reasoningModel,
+          title_fine_tune_model: titleFineTuneModel,
+          rewriting_model: rewritingModel
         })
         .eq("user_id", user?.id);
 
@@ -191,31 +191,49 @@ export default function Settings() {
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Story Generation Model</label>
-            <Select value={openAIModel} onValueChange={setOpenAIModel}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select model" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gpt-4o-mini">GPT-4O Mini (Faster)</SelectItem>
-                <SelectItem value="gpt-4o">GPT-4O (More Powerful)</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              value={openAIModel}
+              onChange={(e) => setOpenAIModel(e.target.value)}
+              placeholder="Enter model name (e.g., gpt-4o-mini)"
+            />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Reasoning Model</label>
-            <Select value={reasoningModel} onValueChange={setReasoningModel}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select model" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="llama-3.1-sonar-small-128k-online">Llama 3.1 Sonar Small (Fast)</SelectItem>
-                <SelectItem value="llama-3.1-sonar-large-128k-online">Llama 3.1 Sonar Large (Balanced)</SelectItem>
-                <SelectItem value="llama-3.1-sonar-huge-128k-online">Llama 3.1 Sonar Huge (Powerful)</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              value={reasoningModel}
+              onChange={(e) => setReasoningModel(e.target.value)}
+              placeholder="Enter model name (e.g., llama-3.1-sonar-small-128k-online)"
+            />
             <p className="text-sm text-muted-foreground">
               Used for analyzing and reasoning about your stories.
+            </p>
+          </div>
+
+          <Separator className="my-4" />
+          <h3 className="text-lg font-medium mb-4">Fine-Tune Models</h3>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Title Generation Model</label>
+            <Input
+              value={titleFineTuneModel}
+              onChange={(e) => setTitleFineTuneModel(e.target.value)}
+              placeholder="Enter fine-tuned model for titles"
+            />
+            <p className="text-sm text-muted-foreground">
+              Custom model for generating story titles.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Rewriting Model</label>
+            <Input
+              value={rewritingModel}
+              onChange={(e) => setRewritingModel(e.target.value)}
+              placeholder="Enter fine-tuned model for rewriting"
+            />
+            <p className="text-sm text-muted-foreground">
+              Custom model for rewriting and refining story content.
             </p>
           </div>
 
