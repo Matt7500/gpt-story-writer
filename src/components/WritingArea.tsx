@@ -1,9 +1,17 @@
 
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { CheckCircle, MessageSquare } from "lucide-react";
+import { CheckCircle, MessageSquare, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 interface WritingAreaProps {
   chapter: {
@@ -60,6 +68,32 @@ export function WritingArea({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Story Outline
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Story Outline</SheetTitle>
+                <SheetDescription>
+                  A chapter-by-chapter breakdown of your story.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 space-y-6">
+                {sampleChapters.map((chapter, index) => (
+                  <div key={index} className="space-y-2">
+                    <h3 className="font-medium">{chapter.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {chapter.sceneBeat}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </SheetContent>
+          </Sheet>
           <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
             <MessageSquare className="h-4 w-4 mr-2" />
             Feedback
@@ -112,3 +146,36 @@ export function WritingArea({
     </div>
   );
 }
+
+const sampleChapters = [
+  { 
+    title: "Chapter 1: The Beginning", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The protagonist discovers a mysterious letter that will change their life forever."
+  },
+  { 
+    title: "Chapter 2: Rising Action", 
+    content: "", 
+    completed: false,
+    sceneBeat: "Following the letter's clues, they encounter their first major obstacle and meet a key ally."
+  },
+  { 
+    title: "Chapter 3: The Climax", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The truth behind the letter is revealed, leading to a confrontation with the antagonist."
+  },
+  { 
+    title: "Chapter 4: Falling Action", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The aftermath of the confrontation affects all characters, leading to important decisions."
+  },
+  { 
+    title: "Chapter 5: Resolution", 
+    content: "", 
+    completed: false,
+    sceneBeat: "The protagonist comes to terms with the changes in their life and looks toward the future."
+  },
+];
