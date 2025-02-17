@@ -9,6 +9,17 @@ import { Settings as SettingsIcon, User, Key } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
+interface UserSettings {
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+  openai_key: string | null;
+  openai_model: string | null;
+  reasoning_model: string | null;
+  title_fine_tune_model: string | null;
+  rewriting_model: string | null;
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -53,11 +64,12 @@ export default function Settings() {
         }
 
         if (settingsData) {
-          setOpenAIModel(settingsData.openai_model || "gpt-4o-mini");
-          setOpenAIKey(settingsData.openai_key || "");
-          setReasoningModel(settingsData.reasoning_model || "llama-3.1-sonar-small-128k-online");
-          setTitleFineTuneModel(settingsData.title_fine_tune_model || "");
-          setRewritingModel(settingsData.rewriting_model || "");
+          const settings = settingsData as UserSettings;
+          setOpenAIModel(settings.openai_model || "gpt-4o-mini");
+          setOpenAIKey(settings.openai_key || "");
+          setReasoningModel(settings.reasoning_model || "llama-3.1-sonar-small-128k-online");
+          setTitleFineTuneModel(settings.title_fine_tune_model || "");
+          setRewritingModel(settings.rewriting_model || "");
         } else {
           // Create default settings if none exist
           const { error: insertError } = await supabase

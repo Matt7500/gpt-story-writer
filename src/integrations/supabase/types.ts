@@ -63,6 +63,8 @@ export type Database = {
           openai_key: string | null
           openai_model: string | null
           reasoning_model: string | null
+          rewriting_model: string | null
+          title_fine_tune_model: string | null
           updated_at: string
           user_id: string
         }
@@ -71,6 +73,8 @@ export type Database = {
           openai_key?: string | null
           openai_model?: string | null
           reasoning_model?: string | null
+          rewriting_model?: string | null
+          title_fine_tune_model?: string | null
           updated_at?: string
           user_id: string
         }
@@ -79,6 +83,8 @@ export type Database = {
           openai_key?: string | null
           openai_model?: string | null
           reasoning_model?: string | null
+          rewriting_model?: string | null
+          title_fine_tune_model?: string | null
           updated_at?: string
           user_id?: string
         }
