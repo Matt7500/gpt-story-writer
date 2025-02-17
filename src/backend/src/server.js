@@ -243,6 +243,7 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
     const { data, error } = await supabase
       .from('stories')
       .insert([{
+        id: clientId, // Use the clientId as the story ID
         user_id: req.user.id,
         title: title,
         story_idea: storyIdea,

@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,7 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AuthProvider } from "./components/AuthProvider";
-import Index from "./pages/Index";
+import Editor from "./pages/Editor";
 import Auth from "./pages/Auth";
 import Stories from "./pages/Stories";
 import NotFound from "./pages/NotFound";
@@ -30,10 +29,10 @@ function AppRoutes() {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route
-        path="/editor"
+        path="/editor/:id"
         element={
           <PrivateRoute>
-            <Index />
+            <Editor />
           </PrivateRoute>
         }
       />

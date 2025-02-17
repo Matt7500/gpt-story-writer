@@ -18,6 +18,12 @@ interface WritingAreaProps {
     content: string;
     sceneBeat?: string;
   };
+  chapters: {
+    title: string;
+    content: string;
+    sceneBeat: string;
+    completed: boolean;
+  }[];
   onSave: (content: string) => void;
   onComplete: () => void;
   onFeedback: (feedback: string) => void;
@@ -27,6 +33,7 @@ interface WritingAreaProps {
 
 export function WritingArea({
   chapter,
+  chapters,
   onSave,
   onComplete,
   onFeedback,
@@ -70,16 +77,16 @@ export function WritingArea({
                 Story Outline
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
               <DialogHeader>
                 <DialogTitle>Story Outline</DialogTitle>
                 <DialogDescription>
                   A chapter-by-chapter breakdown of your story.
                 </DialogDescription>
               </DialogHeader>
-              <div className="mt-6 space-y-6">
-                {sampleChapters.map((chapter, index) => (
-                  <div key={index} className="space-y-2">
+              <div className="space-y-6 mt-6">
+                {chapters.map((chapter, index) => (
+                  <div key={index} className="space-y-2 p-4 rounded-lg bg-muted/50">
                     <h3 className="font-medium">{chapter.title}</h3>
                     <p className="text-sm text-muted-foreground">
                       {chapter.sceneBeat}
@@ -157,36 +164,3 @@ export function WritingArea({
     </div>
   );
 }
-
-const sampleChapters = [
-  { 
-    title: "Chapter 1: The Beginning", 
-    content: "", 
-    completed: false,
-    sceneBeat: "The protagonist discovers a mysterious letter that will change their life forever."
-  },
-  { 
-    title: "Chapter 2: Rising Action", 
-    content: "", 
-    completed: false,
-    sceneBeat: "Following the letter's clues, they encounter their first major obstacle and meet a key ally."
-  },
-  { 
-    title: "Chapter 3: The Climax", 
-    content: "", 
-    completed: false,
-    sceneBeat: "The truth behind the letter is revealed, leading to a confrontation with the antagonist."
-  },
-  { 
-    title: "Chapter 4: Falling Action", 
-    content: "", 
-    completed: false,
-    sceneBeat: "The aftermath of the confrontation affects all characters, leading to important decisions."
-  },
-  { 
-    title: "Chapter 5: Resolution", 
-    content: "", 
-    completed: false,
-    sceneBeat: "The protagonist comes to terms with the changes in their life and looks toward the future."
-  },
-];
