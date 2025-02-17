@@ -5,13 +5,13 @@ import { CheckCircle, MessageSquare, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface WritingAreaProps {
   chapter: {
@@ -68,20 +68,20 @@ export function WritingArea({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Sheet>
-            <SheetTrigger asChild>
+          <Dialog>
+            <DialogTrigger asChild>
               <Button variant="outline" size="sm">
                 <BookOpen className="h-4 w-4 mr-2" />
                 Story Outline
               </Button>
-            </SheetTrigger>
-            <SheetContent>
-              <SheetHeader>
-                <SheetTitle>Story Outline</SheetTitle>
-                <SheetDescription>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Story Outline</DialogTitle>
+                <DialogDescription>
                   A chapter-by-chapter breakdown of your story.
-                </SheetDescription>
-              </SheetHeader>
+                </DialogDescription>
+              </DialogHeader>
               <div className="mt-6 space-y-6">
                 {sampleChapters.map((chapter, index) => (
                   <div key={index} className="space-y-2">
@@ -92,8 +92,8 @@ export function WritingArea({
                   </div>
                 ))}
               </div>
-            </SheetContent>
-          </Sheet>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
             <MessageSquare className="h-4 w-4 mr-2" />
             Feedback
