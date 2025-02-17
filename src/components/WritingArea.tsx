@@ -67,7 +67,7 @@ export function WritingArea({
       <Textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        className="min-h-[500px] resize-none text-lg leading-relaxed"
+        className="min-h-[calc(100vh-300px)] w-full resize-none text-xl leading-relaxed"
         placeholder="Start writing your story..."
       />
       {showFeedback && (
