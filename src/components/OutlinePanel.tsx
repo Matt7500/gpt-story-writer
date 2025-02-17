@@ -90,8 +90,8 @@ export function OutlinePanel({
         </Button>
         {onFinishStory && (
           <Button
-            variant="default"
-            className="w-full justify-start gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-600/90 dark:hover:bg-green-700/90 dark:text-white"
+            variant="outline"
+            className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-green-900/50 dark:border-green-900/50 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300"
             onClick={onFinishStory}
           >
             <BookCheck className="h-4 w-4" />
@@ -100,7 +100,7 @@ export function OutlinePanel({
         )}
         <Button
           variant="outline"
-          className="w-full justify-start gap-2 text-destructive dark:text-red-400 hover:text-destructive dark:hover:text-red-300 dark:hover:bg-red-950/50 dark:border-red-900/50"
+          className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-red-900/50 dark:border-red-900/50 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300"
           onClick={onSignOut}
         >
           <LogOut className="h-4 w-4" />
