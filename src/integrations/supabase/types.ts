@@ -31,7 +31,7 @@ export type Database = {
         Row: {
           characters: string
           created_at: string | null
-          id: number
+          id: string
           plot_outline: string
           story_idea: string
           title: string
@@ -40,7 +40,7 @@ export type Database = {
         Insert: {
           characters: string
           created_at?: string | null
-          id?: number
+          id: string
           plot_outline: string
           story_idea: string
           title: string
@@ -49,7 +49,7 @@ export type Database = {
         Update: {
           characters?: string
           created_at?: string | null
-          id?: number
+          id?: string
           plot_outline?: string
           story_idea?: string
           title?: string

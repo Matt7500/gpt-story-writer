@@ -1,9 +1,11 @@
+
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { CheckCircle, MessageSquare, BookOpen, BookCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { StoryOutlineModal } from "./StoryOutlineModal";
+import { FeedbackModal } from "./FeedbackModal";
 
 interface WritingAreaProps {
   chapter: {
@@ -36,19 +38,14 @@ export function WritingArea({
   const [content, setContent] = useState(chapter.content);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
-  const [feedback, setFeedback] = useState("");
   const { toast } = useToast();
 
-  const handleFeedback = () => {
-    if (feedback.trim()) {
-      onFeedback(feedback);
-      setFeedback("");
-      setShowFeedback(false);
-      toast({
-        title: "Feedback submitted",
-        description: "Thank you for your feedback!",
-      });
-    }
+  const handleFeedbackSubmit = (feedback: string) => {
+    onFeedback(feedback);
+    toast({
+      title: "Feedback submitted",
+      description: "Thank you for your feedback!",
+    });
   };
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
@@ -111,33 +108,16 @@ export function WritingArea({
         placeholder="Start writing your story..."
       />
 
-      {showFeedback && (
-        <div className="space-y-4 pt-4 border-t">
-          <Textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="What would you like to improve about this scene?"
-            className="h-32"
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFeedback(false)}
-            >
-              Cancel
-            </Button>
-            <Button size="sm" onClick={handleFeedback}>
-              Submit Feedback
-            </Button>
-          </div>
-        </div>
-      )}
-
       <StoryOutlineModal
         isOpen={showOutline}
         onClose={() => setShowOutline(false)}
         chapters={chapters}
+      />
+
+      <FeedbackModal
+        isOpen={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        onSubmit={handleFeedbackSubmit}
       />
     </div>
   );
