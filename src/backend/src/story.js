@@ -15,40 +15,41 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 // For Reddit, consider using snoowrap or a similar library:
 const Snoowrap = require('snoowrap');
+const profilesData = require('./profiles.json');
 
 // If you want a progress bar similar to tqdm, install a Node package like cli-progress
 // and import it here:
 // const cliProgress = require('cli-progress');
 
 //
-// Example "settings" object. You can place this in a separate settings.js file
-// and import it, or read from environment variables, etc.
+// Settings object with profiles from JSON
 //
 const settings = {
-  OAI_API_KEY: process.env.OAI_API_KEY || '',       // OpenAI API key
-  OR_API_KEY: process.env.OR_API_KEY || '',         // OpenRouter or custom API key
-  OR_MODEL: process.env.OR_MODEL || 'openai/o3-mini',                       // Example model name for "OpenRouter"
-  OAI_MODEL: process.env.OAI_MODEL || 'gpt-4',                               // Example OpenAI model name
-  FT_MODEL: process.env.FT_MODEL || 'ft:gpt-4o-2024-08-06:personal:jgrupe-narration-ft:AQnm6wr1', // Custom fine-tuned model, etc.
-  USE_REDDIT: false,                                // If you want to use the Reddit logic
-  USE_FINE_TUNE: false,                             // If you want to call your fine-tuned models
-  STORY_PROFILE: 'myStoryProfileName',              // Example
-  NUM_SCENES: 8,                                    // Default # of scenes if not overridden
-  // ...any other settings needed
-  // functions or stubs to load story profiles from DB, etc.
+  OAI_API_KEY: process.env.OAI_API_KEY || '',
+  OR_API_KEY: process.env.OR_API_KEY || '',
+  OR_MODEL: process.env.OR_MODEL || 'openai/o3-mini',
+  OAI_MODEL: process.env.OAI_MODEL || 'gpt-4',
+  FT_MODEL: process.env.FT_MODEL || 'ft:gpt-4o-2024-08-06:personal:jgrupe-narration-ft:AQnm6wr1',
+  USE_REDDIT: false,
+  USE_FINE_TUNE: false,
+  STORY_PROFILE: 'Horror', // Default to Horror category
+  NUM_SCENES: 8,
+  profiles: profilesData.categories,
   load_story_profiles: function() {
-    return {
-      // This is a placeholder. Your real data would come from Mongo or somewhere else.
-      myStoryProfileName: {
-        flair_exclude: 'NoSleep: Collab',
-        prompts: ["Some random story prompt..."],
-        system_prompt: "System message describing style/tone constraints...",
-        model: "gpt-4",
-      }
-    };
+    const profileMap = {};
+    this.profiles.forEach(profile => {
+      profileMap[profile.name] = {
+        flair_exclude: profile.flair_exclude || 'Series',
+        prompts: profile.prompts,
+        system_prompt: profile.system_prompt,
+        model: profile.model,
+        num_scenes: profile.num_scenes || 8
+      };
+    });
+    return profileMap;
   },
   initialize_settings: function(username) {
     // Logic that you want to run to load user-specific settings
@@ -124,8 +125,9 @@ async function initializeClients() {
     throw new Error("OpenAI API key is empty or None");
   }
   try {
-    const configuration = new Configuration({ apiKey: settings.OAI_API_KEY });
-    oaiClient = new OpenAIApi(configuration);
+    oaiClient = new OpenAI({
+      apiKey: settings.OAI_API_KEY
+    });
     console.log("OpenAI client initialized successfully");
   } catch (err) {
     console.error("Error initializing OpenAI client:", err);
@@ -133,13 +135,14 @@ async function initializeClients() {
   }
 
   // Create "OpenRouter" or custom client
-  // In Python, you used something like:
-  // or_client = OpenAI(base_url="https://openrouter.ai/api/v1", ...)
-  // Below is a placeholder using plain axios:
   if (settings.OR_API_KEY) {
     orClient = axios.create({
       baseURL: "https://openrouter.ai/api/v1",
-      headers: { Authorization: `Bearer ${settings.OR_API_KEY}` }
+      headers: { 
+        Authorization: `Bearer ${settings.OR_API_KEY}`,
+        'HTTP-Referer': 'http://localhost:5173', // Required by OpenRouter
+        'X-Title': 'Plotter Palette' // Required by OpenRouter
+      }
     });
     console.log("OpenRouter client initialized successfully");
   } else {
@@ -193,7 +196,7 @@ Provide the description as a structured text, not in JSON format.
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1
       });
-      const content = response.data.choices[0].message.content;
+      const content = response.choices[0].message.content;
       return content;
     } catch (err) {
       console.log(`Error in writeDetailedSceneDescription: ${err}. Retrying...`);
@@ -239,7 +242,7 @@ Provide the continuity errors as a list in order of importance to the story. Des
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
     });
-    const content = response.data.choices[0].message.content;
+    const content = response.choices[0].message.content;
     return content;
   } catch (err) {
     console.error("Error in checkSceneConsistency:", err);
@@ -275,7 +278,7 @@ The rewrite should maintain the same general length and level of detail as the o
       messages: [{ role: "user", content: prompt }],
       temperature: 0.8
     });
-    const content = response.data.choices[0].message.content;
+    const content = response.choices[0].message.content;
     console.log("Scene rewritten.");
     return content;
   } catch (err) {
@@ -306,7 +309,7 @@ If all issues are resolved, respond only with: All issues resolved
       model: 'openai/o3-mini',
       messages: [{ role: "user", content: prompt }]
     });
-    const content = response.data.choices[0].message.content;
+    const content = response.choices[0].message.content;
     console.log("Verification result:", content);
     return content;
   } catch (err) {
@@ -392,7 +395,7 @@ ${finalSceneIndicator}
         messages: [{ role: "user", content: prompt }],
         max_tokens: 8000
       });
-      let writtenScene = response.data.choices[0].message.content
+      let writtenScene = response.choices[0].message.content
         .replace(/\*/g, '')
         .replace(/---\n/g, '')
         .replace(/\n\n---/g, '');
@@ -533,7 +536,7 @@ ${firstParagraphs}
       model: settings.OR_MODEL,
       messages: [{ role: "user", content: prompt }]
     });
-    return response.data.choices[0].message.content;
+    return response.choices[0].message.content;
   } catch (err) {
     console.log("Error writing transition:", err);
     return "";
@@ -607,49 +610,46 @@ async function findLongPost(storyProfile) {
 // 10) story_ideas
 //
 async function storyIdeas() {
-  // Get story_profile from settings
-  const storyProfileName = settings.STORY_PROFILE;
-  let storyProfile;
   try {
     const allProfiles = settings.load_story_profiles();
-    storyProfile = allProfiles[storyProfileName];
-    if (!storyProfile) {
-      console.log(`Error: Story profile '${storyProfileName}' not found`);
+    const profile = allProfiles[settings.STORY_PROFILE];
+    
+    if (!profile) {
+      console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
       return null;
     }
-  } catch (err) {
-    console.log("Error loading story profiles:", err);
-    return null;
-  }
 
-  // If using Reddit
-  if (settings.USE_REDDIT) {
-    return await findLongPost(storyProfile);
-  }
-  // If using fine-tune
-  else if (settings.USE_FINE_TUNE) {
-    const prompt = storyProfile.prompts[Math.floor(Math.random() * storyProfile.prompts.length)];
-    console.log(prompt);
-    // Example call to a fine-tuned model:
-    const messages = [
-      { role: "system", content: storyProfile.system_prompt },
-      { role: "user", content: prompt }
-    ];
-    const response = await oaiClient.createChatCompletion({
-      model: storyProfile.model,
-      messages
+    // Get a random prompt from the profile
+    const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
+    
+    console.log('Using prompt:', prompt);
+    console.log('Using model:', profile.model || settings.OAI_MODEL);
+
+    const response = await oaiClient.chat.completions.create({
+      model: profile.model || settings.OAI_MODEL,
+      messages: [
+        { 
+          role: "system", 
+          content: profile.system_prompt 
+        },
+        { 
+          role: "user", 
+          content: prompt 
+        }
+      ],
+      temperature: 0.9,
+      max_tokens: 500
     });
-    return response.data.choices[0].message.content;
-  }
-  // Otherwise fallback
-  else {
-    const prompt = storyProfile.prompts[Math.floor(Math.random() * storyProfile.prompts.length)];
-    const messages = [{ role: "user", content: prompt }];
-    const response = await oaiClient.createChatCompletion({
-      model: 'gpt-4',
-      messages
-    });
-    return response.data.choices[0].message.content;
+
+    if (!response.choices || response.choices.length === 0) {
+      console.error('No choices in response:', response);
+      return null;
+    }
+
+    return response.choices[0].message.content;
+  } catch (err) {
+    console.error("Error generating story idea:", err);
+    return null;
   }
 }
 
@@ -684,12 +684,22 @@ function formatScenes(inputString) {
 //
 // 12) create_outline
 //
-async function createOutline(idea, num=12) {
-  const realNum = Math.floor(Math.random() * 4) + 6; // from 6 to 9 (like in Python)
-  let retries = 0;
-  while (retries < 5) {
-    try {
-      const userMessage = `
+async function createOutline(idea) {
+  try {
+    const allProfiles = settings.load_story_profiles();
+    const profile = allProfiles[settings.STORY_PROFILE];
+    
+    if (!profile) {
+      console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
+      return null;
+    }
+
+    const numScenes = profile.num_scenes || settings.NUM_SCENES;
+    let retries = 0;
+    
+    while (retries < 5) {
+      try {
+        const userMessage = `
 ## Instructions
 Write a full plot outline for the given story idea.
 Write the plot outline as a list of all the scenes in the story. Each scene must be a highly detailed paragraph on what happens in that scene.
@@ -698,7 +708,7 @@ Explicitly state the change of time between scenes if necessary.
 Mention any locations by name.
 Create a slow build up of tension and suspense throughout the story.
 A scene in the story is defined as when there is a change in the setting in the story.
-The plot outline must contain ${realNum} scenes.
+The plot outline must contain ${numScenes} scenes.
 The plot outline must follow and word things in a way that are from the protagonist's perspective, do not write anything from an outside character's perspective that the protagonist wouldn't know.
 Only refer to the protagonist in the story as "The Protagonist" in the plot outline.
 Each scene must smoothly transition from the previous scene and to the next scene without unexplained time and setting jumps.
@@ -710,49 +720,57 @@ Provide clarity on thematic or mysterious elements that connect scenes, ensuring
 The final scene beat must state it's the final scene beat of the story and how to end the story.
 
 ## You must use following json format for the plot outline exactly without deviation:
-[
-  {"scene_number": 1, "scene_beat": "<Write the first scene beat here>"},
-  {"scene_number": 2, "scene_beat": "<Write the second scene beat here>"},
-  {"scene_number": 3, "scene_beat": "<Write the third scene beat here>"},
-  {"scene_number": 4, "scene_beat": "<Write the fourth scene beat here>"},
-  {"scene_number": 5, "scene_beat": "<Write the fifth scene beat here>"},
-  {"scene_number": 6, "scene_beat": "<Write the sixth scene beat here>"},
-  {"scene_number": 7, "scene_beat": "<Write the seventh scene beat here>"},
-  {"scene_number": 8, "scene_beat": "<Write the eighth scene beat here>"},
-  {"scene_number": 9, "scene_beat": "<Write the ninth scene beat here>"},
-  {"scene_number": 10, "scene_beat": "<Write the tenth scene beat here>"},
-  {"scene_number": 11, "scene_beat": "<Write the eleventh scene beat here>"},
-  {"scene_number": 12, "scene_beat": "<Write the twelfth scene beat here>"}
-]
+${generateSceneTemplate(numScenes)}
 
 ## Story Idea:
 ${idea}
-      `;
+        `;
 
-      // The Python code used oai_client with a certain model and temperature
-      const response = await oaiClient.chat.completions.create({
-        model: settings.OAI_MODEL,
-        temperature: 1,
-        messages: [{ role: "user", content: userMessage }]
-      });
-      const text = response.data.choices[0].message.content;
-      console.log(text);
+        const response = await oaiClient.chat.completions.create({
+          model: profile.model || settings.OAI_MODEL,
+          temperature: 1,
+          messages: [{ role: "user", content: userMessage }]
+        });
+        const text = response.choices[0].message.content;
 
-      const outline = formatScenes(text);
-      if (!outline) {
-        console.log("Error: Empty outline generated.");
+        const outline = formatScenes(text);
+        if (!outline) {
+          console.log("Error: Empty outline generated.");
+          retries += 1;
+          continue;
+        }
+        return outline;
+
+      } catch (err) {
+        console.error(`Error in createOutline: ${err}. Retrying...`);
         retries += 1;
-        continue;
       }
-      return outline;
-
-    } catch (err) {
-      console.log(`Error in createOutline: ${err}. Retrying...`);
-      retries += 1;
     }
+    console.log("Failed to create outline after 5 attempts.");
+    return null;
+  } catch (err) {
+    console.error("Error loading profile:", err);
+    return null;
   }
-  console.log("Failed to create outline after 5 attempts.");
-  return null;
+}
+
+// Helper function to generate scene template
+function generateSceneTemplate(numScenes) {
+  const template = [];
+  for (let i = 1; i <= numScenes; i++) {
+    template.push({
+      scene_number: i,
+      scene_beat: `<Write the ${getOrdinal(i)} scene beat here>`
+    });
+  }
+  return JSON.stringify(template, null, 2);
+}
+
+// Helper function to get ordinal numbers
+function getOrdinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 //
@@ -777,13 +795,13 @@ Only return the character descriptions without any comments.
 ## Outline:
 ${outline.join('\n')}
       `;
-      const response = await orClient.chat.completions.create({
-        model: settings.OR_MODEL,
+      const response = await oaiClient.chat.completions.create({
+        model: settings.OAI_MODEL,
         max_tokens: 4000,
         temperature: 0.7,
         messages: [{ role: "user", content: prompt }]
       });
-      const content = response.data.choices[0].message.content;
+      const content = response.choices[0].message.content;
       return content;
     } catch (err) {
       console.log(`Error in charactersFn: ${err}. Retrying...`);
@@ -821,7 +839,7 @@ async function callTune4(scene) {
           }
         ]
       });
-      const output = completion.data.choices[0].message.content;
+      const output = completion.choices[0].message.content;
       
       // Check if output is identical or too large
       if (output.trim() === scene.trim()) {
@@ -844,6 +862,68 @@ async function callTune4(scene) {
     }
   }
   return processed;
+}
+
+async function createTitle(storyText, finetuneModel, maxRetries = 10) {
+    /**
+     * Create a title with retry logic to ensure it meets criteria:
+     * - Must be between 70 and 100 characters
+     * - Must include a comma
+     */
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const title = await oaiClient.chat.completions.create({
+                model: finetuneModel,
+                max_tokens: 4000,
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are tasked with creating a YouTube title for the given story. The title must be between 70 and 100 characters and include a comma. The title must be told in first person in the past tense."
+                    },
+                    {
+                        role: "user",
+                        content: storyText
+                    }
+                ]
+            });
+
+            let titleText = title.choices[0].message.content.replace(/"/g, '');
+
+            // Add comma if missing (for horror stories)
+            if (storyText.includes('Horror') && !titleText.includes(',')) {
+                titleText = titleText.replace(' ', ', ', 1); // Add a comma after the first space
+            }
+
+            // Check if title meets all criteria
+            if (titleText.length <= 100 && titleText.length >= 70 && titleText.includes(',')) {
+                console.log(`Generated title: ${titleText}`);
+                return titleText;
+            } else {
+                const issues = [];
+                if (titleText.length > 100) {
+                    issues.push("too long");
+                }
+                if (!titleText.includes(',')) {
+                    issues.push("missing comma");
+                }
+                console.log(`Title invalid (${issues.join(', ')}) on attempt ${attempt + 1}, retrying...`);
+            }
+
+            // If we've exhausted maxRetries without finding a valid title
+            if (attempt === maxRetries - 1) {
+                console.log(`Warning: Could not generate valid title after ${maxRetries} attempts. Truncating...`);
+                return titleText.slice(0, 97) + "...";
+            }
+
+        } catch (error) {
+            console.error(`Error on attempt ${attempt + 1}:`, error);
+            if (attempt === maxRetries - 1) {
+                throw error;
+            }
+        }
+    }
+    
+    throw new Error('Failed to generate a valid title after all attempts');
 }
 
 //
@@ -911,10 +991,15 @@ async function main(username, channelName) {
 //   console.log("Main finished:", result);
 // })();
 
+// Export all the functions we need
 module.exports = {
   main,
   createOutline,
   writeScene,
   writeStory,
-  // ...plus whichever other functions you want to export.
+  storyIdeas,
+  createTitle,
+  charactersFn,
+  initializeClients,
+  // Add any other functions you need to export
 };

@@ -1,0 +1,50 @@
+{
+  "categories": [
+    {
+      "name": "Horror",
+      "prompts": [
+        "Write a small town creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a wilderness creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a forest ranger creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a strange new job creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a camping creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a government secret creepypasta idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a military creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a military secret creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write an urban exploration creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a national park creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying discovery creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a strange rules creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a backwoods creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a scary creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a scary wendigo creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a scary skinwalker creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying urban legend creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying event/day creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying experiment creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying fire lookout tower creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying space creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write an emergency alert creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically."
+      ],
+      "model": "ft:gpt-4o-2024-08-06:personal:horror-ideas2:AJPpMCMf",
+      "subreddit": "nosleep",
+      "system_prompt": "Create a creepypasta story idea for Insomnia Stories.",
+      "min_length": 10000,
+      "flair_exclude": "Series",
+      "use_reddit": false
+    },
+    {
+      "name": "Cheating",
+      "prompts": [
+        "Write a revenge-driven highly detailed story summary about a husband who discovers his wife has been cheating on him for an extended period. The story must capture the husband's emotional journey from shock, to betrayal, to cold, calculated revenge. The tone should be one of growing tension and meticulous planning, as the protagonist seeks to not only end the marriage but ensure the wife suffers the full consequences of her actions. The husband should feel a sense of control as he gathers evidence, plans his revenge, and watches the wife's world unravel.\n\nThe wife's affairs must include one of the following:\n\nHer boss, using the relationship to gain professional benefits like promotions and raises.\nA coworker, using work trips and late nights at the office as cover.\nA neighbor, carrying on the affair under the guise of casual neighborhood friendships.\nHis best friend, exploiting his trust and their long-standing friendship.\nA fitness trainer, using gym sessions as an alibi.\nHer ex-boyfriend, rekindling a secret romance behind the husband's back.\nA family member, such as the husband's brother or cousin, creating a devastating betrayal.\nStrangers from dating apps, portraying herself as single to pursue anonymous flings.\nA married friend's spouse, forming a clandestine relationship during couples' gatherings.\nA college professor, engaging in an affair while taking courses to advance her career.\nThe husband methodically uncovers each affair, leveraging this knowledge to dismantle the wife's personal, professional, and social standing, ensuring that the full weight of her betrayal becomes public.\nThe story must focus on the husband's internal thoughts, emotions, and strategic decisions, as well as the gradual breakdown of the wife's life when she is confronted with the results of his plan. The wife's affairs must involve people close to the couple (neighbors, friends, or co-workers), adding layers of betrayal. The husband's revenge should be psychological and legal rather than physical, with each step carefully planned to strip the wife of her support systems, reputation, and financial stability. Ensure that the story has a natural conclusion, with the husband achieving his revenge and moving on, without open-ended scenarios."
+      ],
+      "model": "ft:gpt-4o-2024-08-06:personal:reddit-ideas:A8CdoEMP",
+      "num_scenes": 14,
+      "subreddit": "nosleep",
+      "system_prompt": "Create an r/nosleep style creepypasta story.",
+      "min_length": 5000,
+      "flair_exclude": "Series",
+      "use_reddit": false
+    }
+  ]
+}
