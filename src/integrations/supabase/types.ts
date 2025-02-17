@@ -60,19 +60,25 @@ export type Database = {
       user_settings: {
         Row: {
           created_at: string
+          openai_key: string | null
           openai_model: string | null
+          reasoning_model: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          openai_key?: string | null
           openai_model?: string | null
+          reasoning_model?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          openai_key?: string | null
           openai_model?: string | null
+          reasoning_model?: string | null
           updated_at?: string
           user_id?: string
         }

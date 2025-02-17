@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,38 +34,45 @@ export default function Settings() {
     async function loadSettings() {
       try {
         // Load profile data
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("username")
           .eq("id", user.id)
           .single();
 
+        if (profileError) throw profileError;
         if (profileData) {
           setUsername(profileData.username || "");
         }
 
         // Load AI settings
-        const { data: settingsData } = await supabase
+        const { data: settingsData, error: settingsError } = await supabase
           .from("user_settings")
-          .select("openai_model, openai_key, reasoning_model")
+          .select("*")
           .eq("user_id", user.id)
           .single();
 
+        if (settingsError && settingsError.code !== "PGRST116") {
+          throw settingsError;
+        }
+
         if (settingsData) {
-          setOpenAIModel(settingsData.openai_model);
+          setOpenAIModel(settingsData.openai_model || "gpt-4o-mini");
           setOpenAIKey(settingsData.openai_key || "");
           setReasoningModel(settingsData.reasoning_model || "llama-3.1-sonar-small-128k-online");
         } else {
           // Create default settings if none exist
-          await supabase
+          const { error: insertError } = await supabase
             .from("user_settings")
             .insert([{ 
               user_id: user.id, 
               openai_model: "gpt-4o-mini",
               reasoning_model: "llama-3.1-sonar-small-128k-online"
             }]);
+          
+          if (insertError) throw insertError;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error loading settings:", error);
         toast({
           title: "Error",
@@ -79,7 +85,7 @@ export default function Settings() {
     }
 
     loadSettings();
-  }, [user, navigate]);
+  }, [user, navigate, toast]);
 
   const handleSaveProfile = async () => {
     try {
