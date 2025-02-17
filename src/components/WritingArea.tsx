@@ -1,7 +1,6 @@
-
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { CheckCircle, MessageSquare, BookOpen, BookCheck } from "lucide-react";
+import { CheckCircle, MessageSquare, BookOpen, BookCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -23,6 +22,7 @@ interface WritingAreaProps {
   onComplete: () => void;
   onFeedback: (feedback: string) => void;
   onFinishStory?: () => void;
+  onShowCharacters: () => void;
 }
 
 export function WritingArea({
@@ -31,6 +31,7 @@ export function WritingArea({
   onComplete,
   onFeedback,
   onFinishStory,
+  onShowCharacters,
 }: WritingAreaProps) {
   const [content, setContent] = useState(chapter.content);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -88,6 +89,10 @@ export function WritingArea({
               </div>
             </DialogContent>
           </Dialog>
+          <Button variant="outline" size="sm" onClick={onShowCharacters}>
+            <Users className="h-4 w-4 mr-2" />
+            Characters
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
             <MessageSquare className="h-4 w-4 mr-2" />
             Feedback

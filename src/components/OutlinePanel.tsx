@@ -1,5 +1,5 @@
 
-import { Book, ChevronRight, Users, LogOut, Library } from "lucide-react";
+import { Book, ChevronRight, LogOut, Library, BookCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -10,8 +10,8 @@ interface OutlinePanelProps {
   chapters: Chapter[];
   currentChapter: number;
   onChapterSelect: (index: number) => void;
-  onShowCharacters: () => void;
   onSignOut: () => void;
+  onFinishStory?: () => void;
 }
 
 interface Chapter {
@@ -24,8 +24,8 @@ export function OutlinePanel({
   chapters,
   currentChapter,
   onChapterSelect,
-  onShowCharacters,
   onSignOut,
+  onFinishStory,
 }: OutlinePanelProps) {
   const navigate = useNavigate();
   const totalWords = chapters.reduce((acc, chapter) => {
@@ -87,14 +87,16 @@ export function OutlinePanel({
           <Library className="h-4 w-4" />
           <span>My Stories</span>
         </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={onShowCharacters}
-        >
-          <Users className="h-4 w-4" />
-          <span>Characters</span>
-        </Button>
+        {onFinishStory && (
+          <Button
+            variant="default"
+            className="w-full justify-start gap-2 bg-green-600 hover:bg-green-700"
+            onClick={onFinishStory}
+          >
+            <BookCheck className="h-4 w-4" />
+            <span>Finish Story</span>
+          </Button>
+        )}
         <Button
           variant="outline"
           className="w-full justify-start gap-2 text-[#ea384c] dark:text-red-400 hover:text-[#ea384c] dark:hover:text-red-400"
