@@ -1,4 +1,5 @@
-import { Book, ChevronRight, LogOut, Library, BookCheck } from "lucide-react";
+
+import { Book, ChevronRight, LogOut, Library, BookCheck, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -46,30 +47,28 @@ export function OutlinePanel({
       </div>
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-2">
-          {chapters.map((chapter, index) => {
-            const wordCount = chapter.content?.trim() 
-              ? chapter.content.trim().split(/\s+/).length 
-              : 0;
-            return (
-              <div key={index} className="space-y-1">
-                <Button
-                  variant={currentChapter === index ? "secondary" : "ghost"}
-                  className={cn(
-                    "w-full justify-start gap-2 text-sm font-normal",
-                    "hover:bg-accent dark:hover:bg-accent/90",
-                    chapter.completed && "text-muted-foreground"
-                  )}
-                  onClick={() => onChapterSelect(index)}
-                >
-                  <Book className="h-4 w-4" />
-                  <span className="truncate">{chapter.title}</span>
-                  {chapter.completed && (
-                    <ChevronRight className="h-4 w-4 ml-auto opacity-60" />
-                  )}
-                </Button>
-              </div>
-            );
-          })}
+          {chapters.map((chapter, index) => (
+            <div key={index}>
+              <Button
+                variant={currentChapter === index ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start gap-2 text-sm font-normal",
+                  "hover:bg-accent dark:hover:bg-accent/90",
+                  chapter.completed && "text-muted-foreground"
+                )}
+                onClick={() => onChapterSelect(index)}
+              >
+                <Book className="h-4 w-4" />
+                <span className="truncate">{chapter.title}</span>
+                {chapter.completed && (
+                  <ChevronRight className="h-4 w-4 ml-auto opacity-60" />
+                )}
+              </Button>
+              {index < chapters.length - 1 && (
+                <Separator className="my-2" />
+              )}
+            </div>
+          ))}
         </div>
       </ScrollArea>
       <div className="p-4 border-t border-border/40 space-y-2">
@@ -80,6 +79,14 @@ export function OutlinePanel({
         >
           <Library className="h-4 w-4" />
           <span>My Stories</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 dark:bg-accent/50 dark:hover:bg-accent/90 dark:border-accent/50"
+          onClick={() => navigate('/settings')}
+        >
+          <Settings className="h-4 w-4" />
+          <span>Settings</span>
         </Button>
         {onFinishStory && (
           <Button
