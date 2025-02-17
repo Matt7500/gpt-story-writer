@@ -1,9 +1,10 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Book, Plus, LogOut, Trash2 } from "lucide-react";
+import { Book, Plus, LogOut, Trash2, Settings } from "lucide-react";
 import { StoryGenerationModal } from "@/components/StoryGenerationModal";
 import {
   AlertDialog,
@@ -109,7 +110,6 @@ export default function Stories() {
         description: "Your story has been successfully deleted.",
       });
 
-      // Remove the story from the local state
       setStories(stories.filter(story => story.id !== storyToDelete.id));
     } catch (error: any) {
       toast({
@@ -158,6 +158,14 @@ export default function Stories() {
             <Button onClick={handleCreateStory} className="gap-2">
               <Plus className="h-4 w-4" />
               New Story
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/settings')}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
             </Button>
             <Button 
               variant="outline" 
