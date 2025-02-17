@@ -1,11 +1,20 @@
 
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { CheckCircle, MessageSquare, BookOpen, BookCheck, Users } from "lucide-react";
+import { 
+  CheckCircle, 
+  MessageSquare, 
+  BookOpen, 
+  BookCheck, 
+  Users, 
+  PenTool,
+  Pencil
+} from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { StoryOutlineModal } from "./StoryOutlineModal";
 import { FeedbackModal } from "./FeedbackModal";
+import { Separator } from "./ui/separator";
 
 interface WritingAreaProps {
   chapter: {
@@ -60,34 +69,53 @@ export function WritingArea({
             {wordCount} words • {charCount} characters
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowOutline(true)}>
-            <BookOpen className="h-4 w-4 mr-2" />
-            Story Outline
-          </Button>
-          <Button variant="outline" size="sm" onClick={onShowCharacters}>
-            <Users className="h-4 w-4 mr-2" />
-            Characters
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Feedback
-          </Button>
-          <Button size="sm" onClick={onComplete}>
-            <CheckCircle className="h-4 w-4 mr-2" />
-            Complete
-          </Button>
-          {onFinishStory && (
-            <Button 
-              variant="default" 
-              size="sm"
-              onClick={onFinishStory}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <BookCheck className="h-4 w-4 mr-2" />
-              Finish Story
+        <div className="flex items-center gap-4">
+          {/* Writing Tools Group */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.scrollTo({ top: document.querySelector('textarea')?.offsetTop || 0, behavior: 'smooth' })}>
+              <PenTool className="h-4 w-4 mr-2" />
+              Write
             </Button>
-          )}
+            <Button variant="outline" size="sm" onClick={() => setShowOutline(true)}>
+              <BookOpen className="h-4 w-4 mr-2" />
+              Story Outline
+            </Button>
+            <Button variant="outline" size="sm" onClick={onShowCharacters}>
+              <Users className="h-4 w-4 mr-2" />
+              Characters
+            </Button>
+          </div>
+
+          <Separator orientation="vertical" className="h-8" />
+
+          {/* Feedback Group */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Feedback
+            </Button>
+          </div>
+
+          <Separator orientation="vertical" className="h-8" />
+
+          {/* Completion Group */}
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={onComplete}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Complete
+            </Button>
+            {onFinishStory && (
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={onFinishStory}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <BookCheck className="h-4 w-4 mr-2" />
+                Finish Story
+              </Button>
+            )}
+          </div>
         </div>
       </div>
       
