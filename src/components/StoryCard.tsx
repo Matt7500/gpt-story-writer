@@ -34,16 +34,12 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
 
       if (error) throw error;
 
-      // Parse the plot outline to get chapters
-      const chapters = JSON.parse(data.plot_outline);
+      // Parse the chapters and create content string
+      const chapters = JSON.parse(data.chapters || '[]');
+      let content = '';
       
-      // Create the content string with chapters separated by three newlines
-      let content = `${story.title}\n\n`;
-      content += `Story Idea:\n${story.story_idea}\n\n\n`;
-      
-      // Add each chapter's content if it exists
-      chapters.forEach((chapter: any, index: number) => {
-        content += `Chapter ${index + 1}: ${chapter.title}\n\n`;
+      // Add each chapter's content, separated by three newlines
+      chapters.forEach((chapter: any) => {
         if (chapter.content) {
           content += `${chapter.content}\n\n\n`;
         }
