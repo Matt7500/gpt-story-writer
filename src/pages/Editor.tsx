@@ -254,6 +254,12 @@ export default function Editor() {
     };
   }, [chapters, saveState.pendingChanges, saveToDatabase]);
 
+  // Add function to check if chapter should be marked as complete
+  const isChapterComplete = (content: string) => {
+    const wordCount = content.trim().split(/\s+/).length;
+    return wordCount >= 500; // Consider a chapter complete if it has at least 500 words
+  };
+
   // Load story and handle recovery
   useEffect(() => {
     if (!id) {
@@ -314,11 +320,11 @@ export default function Editor() {
         let formattedChapters;
         if (localChapters && lastEdit) {
           // Use local storage data if available
-          const savedChapters = JSON.parse(localChapters);
+          const savedChapters = JSON.parse(localChapters).chapters;
           formattedChapters = baseChapters.map((baseChapter, index) => ({
             ...baseChapter,
             content: savedChapters[index]?.content || "",
-            completed: savedChapters[index]?.completed || false
+            completed: savedChapters[index]?.completed || isChapterComplete(savedChapters[index]?.content || "")
           }));
           
           toast({
@@ -331,7 +337,7 @@ export default function Editor() {
           formattedChapters = baseChapters.map((baseChapter, index) => ({
             ...baseChapter,
             content: savedChapters[index]?.content || "",
-            completed: savedChapters[index]?.completed || false
+            completed: savedChapters[index]?.completed || isChapterComplete(savedChapters[index]?.content || "")
           }));
         } else {
           // Fall back to base chapters
@@ -394,6 +400,7 @@ export default function Editor() {
     updatedChapters[currentChapter] = {
       ...updatedChapters[currentChapter],
       content,
+      completed: isChapterComplete(content), // Automatically update completed status
     };
     handleChapterUpdate(updatedChapters);
   };

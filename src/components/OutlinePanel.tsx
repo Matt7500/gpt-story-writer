@@ -1,5 +1,4 @@
-
-import { Book, ChevronRight, LogOut, Library, Settings } from "lucide-react";
+import { Book, ChevronRight, LogOut, Library, Settings, CheckCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -73,7 +72,7 @@ export function OutlinePanel({
               <Book className="h-4 w-4" />
               <span className="truncate">{chapter.title}</span>
               {chapter.completed && (
-                <ChevronRight className="h-4 w-4 ml-auto opacity-60" />
+                <CheckCircle className="h-4 w-4 ml-auto text-green-500 dark:text-green-400" />
               )}
             </Button>
           ))}
