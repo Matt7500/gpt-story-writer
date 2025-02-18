@@ -76,23 +76,20 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
   return (
     <div className="p-6 border rounded-lg hover:bg-accent/50 transition-colors group">
       <div 
-        className="cursor-pointer"
+        className="cursor-pointer relative"
         onClick={() => navigate(`/editor/${story.id}`)}
       >
         <div className="flex items-start justify-between mb-4">
-          <div className="flex-1 flex items-start gap-4">
-            <Book className="h-5 w-5 text-muted-foreground mt-1 flex-shrink-0" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <h3 className="font-semibold text-lg leading-tight truncate pr-24">{story.title}</h3>
+          <div className="flex items-start gap-4 pr-16">
+            <Book className="h-5 w-5 text-muted-foreground mt-1" />
+            <div className="space-y-1.5">
+              <h3 className="font-semibold text-lg">{story.title}</h3>
               <p className="text-sm text-muted-foreground">
                 {new Date(story.created_at).toLocaleDateString()} • {totalWords.toLocaleString()} words • {totalChars.toLocaleString()} characters
               </p>
-              <p className="text-sm text-muted-foreground line-clamp-2">
-                {story.story_idea}
-              </p>
             </div>
           </div>
-          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity absolute top-0 right-0">
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               variant="ghost"
               size="icon"
@@ -114,6 +111,9 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
             </Button>
           </div>
         </div>
+        <p className="text-sm text-muted-foreground line-clamp-2 pl-9">
+          {story.story_idea}
+        </p>
       </div>
     </div>
   );
