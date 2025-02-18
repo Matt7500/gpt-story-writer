@@ -1,40 +1,79 @@
-
-import { User } from "lucide-react";
+import { User, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface ProfileSettingsProps {
   userId: string;
-  username: string;
-  onUsernameChange: (username: string) => void;
 }
 
-export function ProfileSettings({ userId, username, onUsernameChange }: ProfileSettingsProps) {
+export function ProfileSettings({ userId }: ProfileSettingsProps) {
   const { toast } = useToast();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSaveProfile = async () => {
+  const handlePasswordChange = async () => {
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords do not match",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ username })
-        .eq("id", userId);
+      setLoading(true);
+      
+      // First verify the current password by attempting to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: (await supabase.auth.getUser()).data.user?.email || "",
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        throw new Error("Current password is incorrect");
+      }
+
+      // If current password is correct, update to the new password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Profile updated successfully",
+        description: "Password updated successfully",
       });
-    } catch (error) {
-      console.error("Error updating profile:", error);
+      
+      // Clear the form
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      console.error("Error changing password:", error);
       toast({
         title: "Error",
-        description: "Failed to update profile",
+        description: error.message || "Failed to change password",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,16 +84,48 @@ export function ProfileSettings({ userId, username, onUsernameChange }: ProfileS
         <h2 className="text-xl font-medium">Profile Settings</h2>
       </div>
       <Separator />
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Username</label>
-          <Input
-            value={username}
-            onChange={(e) => onUsernameChange(e.target.value)}
-            placeholder="Enter username"
-          />
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            <h3 className="text-lg font-medium">Change Password</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Current Password</label>
+              <Input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Enter current password"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New Password</label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Confirm New Password</label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+              />
+            </div>
+          </div>
+          <Button 
+            onClick={handlePasswordChange} 
+            disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+          >
+            {loading ? "Updating..." : "Update Password"}
+          </Button>
         </div>
-        <Button onClick={handleSaveProfile}>Save Profile</Button>
       </div>
     </div>
   );

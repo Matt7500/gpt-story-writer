@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,6 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -24,11 +22,6 @@ export default function Auth() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: {
-              username,
-            },
-          },
         });
         if (error) throw error;
         toast({
@@ -69,25 +62,6 @@ export default function Auth() {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          {isSignUp && (
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-foreground"
-              >
-                Username
-              </label>
-              <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                minLength={3}
-                className="mt-1"
-              />
-            </div>
-          )}
           <div>
             <label
               htmlFor="email"

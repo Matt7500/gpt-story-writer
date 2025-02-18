@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +13,6 @@ export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [username, setUsername] = useState("");
   const [openAIModel, setOpenAIModel] = useState("gpt-4o-mini");
   const [reasoningModel, setReasoningModel] = useState("llama-3.1-sonar-small-128k-online");
   const [openAIKey, setOpenAIKey] = useState("");
@@ -34,18 +32,6 @@ export default function Settings() {
 
     async function loadSettings() {
       try {
-        // Load profile data
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("username")
-          .eq("id", user.id)
-          .single();
-
-        if (profileError) throw profileError;
-        if (profileData) {
-          setUsername(profileData.username || "");
-        }
-
         // Load AI settings
         const { data: settingsData, error: settingsError } = await supabase
           .from("user_settings")
@@ -73,7 +59,7 @@ export default function Settings() {
           const { error: insertError } = await supabase
             .from("user_settings")
             .insert([{ 
-              user_id: user.id, 
+              user_id: user.id,
               openai_model: "gpt-4o-mini",
               reasoning_model: "llama-3.1-sonar-small-128k-online",
               elevenlabs_model: "eleven_multilingual_v2"
@@ -113,11 +99,7 @@ export default function Settings() {
         <h1 className="text-2xl font-semibold">Settings</h1>
       </div>
 
-      <ProfileSettings
-        userId={user.id}
-        username={username}
-        onUsernameChange={setUsername}
-      />
+      <ProfileSettings userId={user.id} />
 
       <AISettings
         userId={user.id}
