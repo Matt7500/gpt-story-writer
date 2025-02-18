@@ -1,8 +1,10 @@
+
 import { Book, ChevronRight, LogOut, Library, Settings, CheckCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { Separator } from "./ui/separator";
 
 interface OutlinePanelProps {
   chapters: Chapter[];
@@ -49,15 +51,23 @@ export function OutlinePanel({
   return (
     <div className="outline-panel h-screen flex flex-col w-64 border-r">
       <div className="p-4 border-b border-border/40">
-        <div className="space-y-2">
-          <h2 className="font-semibold">Story</h2>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">
-              {totalWords.toLocaleString()} words • {totalChars.toLocaleString()} characters
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Est. duration: {getEstimatedDuration(totalWords)}
-            </p>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <h2 className="font-semibold text-lg">Story Overview</h2>
+            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+              <div className="space-y-0.5">
+                <p className="text-xs uppercase font-medium text-primary/60">Words</p>
+                <p>{totalWords.toLocaleString()}</p>
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-xs uppercase font-medium text-primary/60">Characters</p>
+                <p>{totalChars.toLocaleString()}</p>
+              </div>
+              <div className="space-y-0.5 col-span-2">
+                <p className="text-xs uppercase font-medium text-primary/60">Est. Duration</p>
+                <p>{getEstimatedDuration(totalWords)}</p>
+              </div>
+            </div>
           </div>
           {onFinishStory && (
             <Button
