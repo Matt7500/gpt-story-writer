@@ -74,46 +74,46 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
   };
 
   return (
-    <div className="p-6 border rounded-lg hover:bg-accent/50 transition-colors group relative">
+    <div className="p-6 border rounded-lg hover:bg-accent/50 transition-colors group">
       <div 
-        className="cursor-pointer"
+        className="cursor-pointer relative"
         onClick={() => navigate(`/editor/${story.id}`)}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <Book className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <h3 className="font-semibold">{story.title}</h3>
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start gap-4">
+            <Book className="h-5 w-5 text-muted-foreground mt-1" />
+            <div className="space-y-1.5">
+              <h3 className="font-semibold text-lg">{story.title}</h3>
               <p className="text-sm text-muted-foreground">
                 {new Date(story.created_at).toLocaleDateString()} • {totalWords.toLocaleString()} words • {totalChars.toLocaleString()} characters
               </p>
             </div>
           </div>
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-primary"
+              onClick={handleDownload}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-red-600 hover:text-red-700 hover:bg-red-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(story);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+        <p className="text-sm text-muted-foreground line-clamp-2 pl-9">
           {story.story_idea}
         </p>
-      </div>
-      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-primary"
-          onClick={handleDownload}
-        >
-          <Download className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-red-600 hover:text-red-700 hover:bg-red-100"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(story);
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   );
