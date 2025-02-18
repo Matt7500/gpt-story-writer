@@ -69,9 +69,13 @@ export type Database = {
       user_settings: {
         Row: {
           created_at: string
+          elevenlabs_key: string | null
+          elevenlabs_model: string | null
+          elevenlabs_voice_id: string | null
           openai_key: string | null
           openai_model: string | null
           reasoning_model: string | null
+          replicate_key: string | null
           rewriting_model: string | null
           title_fine_tune_model: string | null
           updated_at: string
@@ -79,9 +83,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          elevenlabs_key?: string | null
+          elevenlabs_model?: string | null
+          elevenlabs_voice_id?: string | null
           openai_key?: string | null
           openai_model?: string | null
           reasoning_model?: string | null
+          replicate_key?: string | null
           rewriting_model?: string | null
           title_fine_tune_model?: string | null
           updated_at?: string
@@ -89,9 +97,13 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          elevenlabs_key?: string | null
+          elevenlabs_model?: string | null
+          elevenlabs_voice_id?: string | null
           openai_key?: string | null
           openai_model?: string | null
           reasoning_model?: string | null
+          replicate_key?: string | null
           rewriting_model?: string | null
           title_fine_tune_model?: string | null
           updated_at?: string
