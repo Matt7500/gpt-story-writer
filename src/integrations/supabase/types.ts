@@ -29,30 +29,39 @@ export type Database = {
       }
       stories: {
         Row: {
+          chapters: Json | null
           characters: string
           created_at: string | null
           id: string
+          last_saved_chunk: number | null
           plot_outline: string
           story_idea: string
           title: string
+          total_chunks: number | null
           user_id: string | null
         }
         Insert: {
+          chapters?: Json | null
           characters: string
           created_at?: string | null
           id: string
+          last_saved_chunk?: number | null
           plot_outline: string
           story_idea: string
           title: string
+          total_chunks?: number | null
           user_id?: string | null
         }
         Update: {
+          chapters?: Json | null
           characters?: string
           created_at?: string | null
           id?: string
+          last_saved_chunk?: number | null
           plot_outline?: string
           story_idea?: string
           title?: string
+          total_chunks?: number | null
           user_id?: string | null
         }
         Relationships: []
