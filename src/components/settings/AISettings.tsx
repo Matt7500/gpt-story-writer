@@ -1,4 +1,4 @@
-
+import { useEffect, useState } from "react";
 import { Key, Mic, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,12 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+interface VoiceModel {
+  model_id: string;
+  display_name: string;
+  description?: string;
+}
 
 interface AISettingsProps {
   userId: string;
@@ -51,6 +57,48 @@ export function AISettings({
   onReplicateKeyChange,
 }: AISettingsProps) {
   const { toast } = useToast();
+  const [voiceModels, setVoiceModels] = useState<VoiceModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  useEffect(() => {
+    async function fetchVoiceModels() {
+      if (!elevenLabsKey) return;
+      
+      setLoadingModels(true);
+      try {
+        const response = await fetch('https://api.elevenlabs.io/v1/models', {
+          headers: {
+            'Accept': 'application/json',
+            'xi-api-key': elevenLabsKey
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch voice models');
+        }
+
+        const data = await response.json();
+        setVoiceModels(data.map((model: any) => ({
+          model_id: model.model_id,
+          display_name: model.name,
+          description: model.description
+        })));
+      } catch (error) {
+        console.error('Error fetching voice models:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch voice models. Please check your API key.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingModels(false);
+      }
+    }
+
+    if (elevenLabsKey) {
+      fetchVoiceModels();
+    }
+  }, [elevenLabsKey, toast]);
 
   const handleSaveAISettings = async () => {
     try {
@@ -146,16 +194,30 @@ export function AISettings({
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Voice Model</label>
-          <Select value={elevenLabsModel} onValueChange={onElevenLabsModelChange}>
+          <Select 
+            value={elevenLabsModel} 
+            onValueChange={onElevenLabsModelChange}
+            disabled={loadingModels || !elevenLabsKey}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Select a model" />
+              <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="eleven_multilingual_v2">Eleven Multilingual v2</SelectItem>
-              <SelectItem value="eleven_turbo_v2">Eleven Turbo v2</SelectItem>
-              <SelectItem value="eleven_english_sts_v2">Eleven English v2</SelectItem>
+              {voiceModels.map((model) => (
+                <SelectItem 
+                  key={model.model_id} 
+                  value={model.model_id}
+                >
+                  {model.display_name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
+          {!elevenLabsKey && (
+            <p className="text-sm text-muted-foreground">
+              Enter your API key to see available models
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
