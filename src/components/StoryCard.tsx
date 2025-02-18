@@ -80,7 +80,7 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
         onClick={() => navigate(`/editor/${story.id}`)}
       >
         <div className="flex items-start justify-between mb-4">
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-4 pr-16">
             <Book className="h-5 w-5 text-muted-foreground mt-1" />
             <div className="space-y-1.5">
               <h3 className="font-semibold text-lg">{story.title}</h3>
