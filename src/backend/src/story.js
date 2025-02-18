@@ -341,22 +341,16 @@ do not end it in the middle of a scene or event. Do not write "The End" or anyth
   }
 
   const prompt = `
-## SCENE CONTEXT AND CONTINUITY
-# Characters
-${characters}
-
-# Use the provided STORY CONTEXT to remember details and events from the previous scenes in order to maintain consistency in the new scene you are writing.
-## STORY CONTEXT
-${context}
-
-# Scene Beat to Write
-${sceneBeat}
-
 ## WRITING INSTRUCTIONS
-You are an expert fiction writer. Write a fully detailed scene that is at least 800 words without overwriting that flows naturally from the previous events described in the context.
-${finalSceneIndicator}
+You are an expert fiction writer. Write a fully detailed scene that is as long as necessary to write the scene completely. Provide lots of details about the setting, characters, and events.
 
-# Core Requirements
+YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
+
+## STARTING THE SCENE
+- Start the scene with a connection to the previous scene's ending to not confuse the reader with an abrupt change in time or setting.
+- You MUST mention a change in time or setting in the scene.
+
+## CORE REQUIREMENTS
 - Write from first-person narrator perspective only
 - Begin with a clear connection to the previous scene's ending
 - Include full, natural dialogue
@@ -364,29 +358,35 @@ ${finalSceneIndicator}
 - Write everything that the narrator sees, hears, and everything that happens in the scene.
 - Write the entire scene and include everything in the scene beat given, do not leave anything out.
 - Use the character's pronouns if you don't write the character's name. Avoid using they/them pronouns, use the character's pronouns instead.
+- You MUST write ALL dialogue you can in the scene.
 
-# Pacing and Suspense
+## PACING AND SUSPENSE
 - Maintain steady, escalating suspense
 - Use strategic pauses and silence for impact
 - Build tension in small, deliberate increments
 - Balance action with reflection
 
-# Writing Style
-- Use concise, sensory-rich language
+## WRITING STYLE
 - Vary sentence length based on tension:
    * Shorter sentences for action/tension
    * Longer sentences for introspection
 - Show emotions through implications rather than stating them
 
-# Scene Structure
-- Write tight, focused paragraphs
-- Layer the scene from normal to unsettling
-- Break up dialogue with introspection and description
-- Include moments of dark humor sparingly
-- Allow for natural processing of events
+## SCENE CONTEXT AND CONTINUITY
+# Characters
+${characters}
 
-# IMPORTANT: Send your response in chunks of 1-2 paragraphs at a time. After each chunk, write "[CONTINUE]" on a new line.
+# Use the provided STORY CONTEXT to remember details and events from the previous scenes in order to maintain consistency in the new scene you are writing.
+## STORY CONTEXT
+<context>
+    ${context}
+</context>
+
+# Scene Beat to Write
+${sceneBeat}
 `;
+
+console.log(prompt);
 
   let retries = 0;
   while (retries < 5) {
@@ -405,23 +405,19 @@ ${finalSceneIndicator}
         const content = chunk.choices[0]?.delta?.content || "";
         currentChunk += content;
 
-        // If we see [CONTINUE], send the current chunk
-        if (currentChunk.includes("[CONTINUE]")) {
-          const parts = currentChunk.split("[CONTINUE]");
-          const completedChunk = parts[0].trim();
-          
-          if (completedChunk && onProgress) {
-            onProgress(completedChunk + "\n\n");
+        // If we have a reasonable chunk size or see a paragraph break, send progress
+        if (currentChunk.length > 100 || currentChunk.includes("\n\n")) {
+          if (onProgress) {
+            onProgress(currentChunk);
           }
-          
-          fullScene += completedChunk + "\n\n";
-          currentChunk = parts[1] || "";
+          fullScene += currentChunk;
+          currentChunk = "";
         }
       }
 
       // Send any remaining content
       if (currentChunk.trim() && onProgress) {
-        onProgress(currentChunk.trim() + "\n\n");
+        onProgress(currentChunk.trim());
       }
       fullScene += currentChunk.trim();
 
@@ -789,7 +785,7 @@ async function charactersFn(outline) {
 ## Instructions
 
 Using the given story outline, write short character descriptions for all the characters in the story in the following format:
-<character name='(Character Name)' aliases='(Character Alias)', pronouns='(Character Pronouns)'>(Personality, appearance, and other details)</character>
+<character name='(Character Name)' aliases='(Character Alias)', pronouns='(Character Pronouns)'>Personality, appearance, and other details</character>
 
 The character alias is what the other characters in the story will call that character in the story such as their first name.
 For the Protagonist's alias you must create a name that other characters will call them in the story.

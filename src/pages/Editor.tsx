@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { OutlinePanel } from "@/components/OutlinePanel";
 import { WritingArea } from "@/components/WritingArea";
 import { CharacterModal } from "@/components/CharacterModal";
+import debounce from "lodash/debounce";
 
 interface Chapter {
   title: string;
@@ -24,6 +25,21 @@ interface Story {
   story_idea: string;
   plot_outline: string;
   characters: string;
+  chapters: Array<{
+    title: string;
+    content: string;
+    completed: boolean;
+  }> | null;
+  user_id: string;
+  created_at: string;
+}
+
+interface SaveState {
+  lastSavedContent: string;
+  lastSavedTimestamp: number;
+  pendingChanges: boolean;
+  error: string | null;
+  retryCount: number;
 }
 
 export default function Editor() {
@@ -36,9 +52,210 @@ export default function Editor() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [story, setStory] = useState<Story | null>(null);
   const [showCharacters, setShowCharacters] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>({
+    lastSavedContent: '',
+    lastSavedTimestamp: Date.now(),
+    pendingChanges: false,
+    error: null,
+    retryCount: 0
+  });
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const maxRetries = 3;
+  const saveInterval = 5000; // 5 seconds
 
+  // Save chapters to local storage with versioning
+  const saveToLocalStorage = useCallback((updatedChapters: Chapter[]) => {
+    if (id) {
+      try {
+        const saveData = {
+          chapters: updatedChapters,
+          timestamp: Date.now(),
+          version: 1, // Increment this when changing structure
+        };
+        localStorage.setItem(`story_${id}_chapters`, JSON.stringify(saveData));
+        localStorage.setItem(`story_${id}_lastEdit`, new Date().toISOString());
+      } catch (error) {
+        console.error('Error saving to local storage:', error);
+        toast({
+          title: "Local save failed",
+          description: "Changes will be saved when connection is restored.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [id, toast]);
+
+  // Save chapters to database with retry logic
+  const saveToDatabase = useCallback(async (updatedChapters: Chapter[], isRetry = false) => {
+    if (!id) return;
+
+    try {
+      setSaveState(prev => ({ ...prev, pendingChanges: true }));
+      
+      // Save to local storage first as backup
+      saveToLocalStorage(updatedChapters);
+      
+      // Prepare chapter data for database
+      const chapterData = updatedChapters.map(chapter => ({
+        title: chapter.title,
+        content: chapter.content,
+        completed: chapter.completed
+      }));
+
+      const { error } = await supabase
+        .from('stories')
+        .update({ 
+          chapters: chapterData 
+        } as any)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Update save state on success
+      setSaveState(prev => ({
+        ...prev,
+        lastSavedContent: JSON.stringify(updatedChapters),
+        lastSavedTimestamp: Date.now(),
+        pendingChanges: false,
+        error: null,
+        retryCount: 0
+      }));
+
+      // Only clear local storage if we have a successful database save
+      if (!isRetry) {
+        const localData = localStorage.getItem(`story_${id}_chapters`);
+        if (localData) {
+          const parsedData = JSON.parse(localData);
+          // Only clear if we're saving the same or newer version
+          if (parsedData.timestamp <= Date.now()) {
+            localStorage.removeItem(`story_${id}_chapters`);
+            localStorage.removeItem(`story_${id}_lastEdit`);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error saving to database:', error);
+      
+      // Handle retry logic
+      setSaveState(prev => {
+        const newRetryCount = prev.retryCount + 1;
+        if (newRetryCount < maxRetries) {
+          // Schedule retry with exponential backoff
+          const backoffTime = Math.min(1000 * Math.pow(2, newRetryCount), 30000);
+          setTimeout(() => saveToDatabase(updatedChapters, true), backoffTime);
+        }
+        
+        return {
+          ...prev,
+          error: error.message,
+          retryCount: newRetryCount,
+          pendingChanges: true
+        };
+      });
+
+      // Show error toast only on final retry failure
+      if (!isRetry || saveState.retryCount >= maxRetries) {
+        toast({
+          title: "Error saving changes",
+          description: "Your work is saved locally and will sync when connection is restored.",
+          variant: "destructive",
+        });
+      }
+    }
+  }, [id, saveToLocalStorage, toast]);
+
+  // Auto-save handler with debounce
   useEffect(() => {
-    // If no ID is provided, redirect to stories page
+    const handleAutoSave = () => {
+      if (saveState.pendingChanges) {
+        saveToDatabase(chapters);
+      }
+    };
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout for auto-save
+    saveTimeoutRef.current = setTimeout(handleAutoSave, saveInterval);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [chapters, saveState.pendingChanges, saveToDatabase]);
+
+  // Handle chapter updates
+  const handleChapterUpdate = useCallback((updatedChapters: Chapter[]) => {
+    setChapters(updatedChapters);
+    setSaveState(prev => ({ ...prev, pendingChanges: true }));
+    saveToLocalStorage(updatedChapters);
+  }, [saveToLocalStorage]);
+
+  // Recovery system
+  useEffect(() => {
+    if (!id) return;
+
+    const attemptRecovery = async () => {
+      try {
+        const localData = localStorage.getItem(`story_${id}_chapters`);
+        if (localData) {
+          const { chapters: localChapters, timestamp } = JSON.parse(localData);
+          
+          // Check if local changes are newer than last database save
+          if (timestamp > saveState.lastSavedTimestamp) {
+            // Prompt user about recovery
+            const shouldRecover = window.confirm(
+              "We found unsaved changes from your last session. Would you like to recover them?"
+            );
+            
+            if (shouldRecover) {
+              setChapters(localChapters);
+              setSaveState(prev => ({ 
+                ...prev, 
+                pendingChanges: true,
+                lastSavedContent: JSON.stringify(localChapters)
+              }));
+            } else {
+              // Clear local storage if user declines recovery
+              localStorage.removeItem(`story_${id}_chapters`);
+              localStorage.removeItem(`story_${id}_lastEdit`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error during recovery:', error);
+      }
+    };
+
+    attemptRecovery();
+  }, [id]);
+
+  // Save when leaving the page
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveState.pendingChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        // Attempt one final save
+        saveToDatabase(chapters);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Final save when component unmounts
+      if (saveState.pendingChanges) {
+        saveToDatabase(chapters);
+      }
+    };
+  }, [chapters, saveState.pendingChanges, saveToDatabase]);
+
+  // Load story and handle recovery
+  useEffect(() => {
     if (!id) {
       navigate('/stories');
       return;
@@ -51,6 +268,10 @@ export default function Editor() {
           navigate('/auth');
           return;
         }
+
+        // Check for local storage data first
+        const localChapters = localStorage.getItem(`story_${id}_chapters`);
+        const lastEdit = localStorage.getItem(`story_${id}_lastEdit`);
 
         const { data: storyData, error } = await supabase
           .from('stories')
@@ -67,16 +288,55 @@ export default function Editor() {
           throw new Error('Story not found');
         }
 
-        setStory(storyData);
+        // Cast the story data to include chapters
+        const storyWithChapters: Story = {
+          ...storyData,
+          chapters: (storyData as any).chapters || null
+        };
+
+        setStory(storyWithChapters);
 
         // Parse the plot outline into chapters
         const outline = JSON.parse(storyData.plot_outline);
-        const formattedChapters = outline.map((sceneBeat: string, index: number) => ({
+        
+        // Create base chapters from the outline
+        const baseChapters = outline.map((sceneBeat: string, index: number) => ({
           title: `Chapter ${index + 1}`,
           content: "",
           completed: false,
           sceneBeat
         }));
+
+        // Merge chapters in this order of priority:
+        // 1. Local storage (most recent)
+        // 2. Database saved chapters
+        // 3. Base chapters from outline (fallback)
+        let formattedChapters;
+        if (localChapters && lastEdit) {
+          // Use local storage data if available
+          const savedChapters = JSON.parse(localChapters);
+          formattedChapters = baseChapters.map((baseChapter, index) => ({
+            ...baseChapter,
+            content: savedChapters[index]?.content || "",
+            completed: savedChapters[index]?.completed || false
+          }));
+          
+          toast({
+            title: "Recovered unsaved changes",
+            description: "Your previous work has been restored.",
+          });
+        } else if (storyWithChapters.chapters) {
+          // Use database chapters if available
+          const savedChapters = storyWithChapters.chapters;
+          formattedChapters = baseChapters.map((baseChapter, index) => ({
+            ...baseChapter,
+            content: savedChapters[index]?.content || "",
+            completed: savedChapters[index]?.completed || false
+          }));
+        } else {
+          // Fall back to base chapters
+          formattedChapters = baseChapters;
+        }
 
         // Parse the characters
         const parsedCharacters = storyData.characters
@@ -106,8 +366,17 @@ export default function Editor() {
     loadStory();
   }, [id, navigate, toast]);
 
+  // Ensure currentChapter is valid
+  useEffect(() => {
+    if (chapters.length > 0 && currentChapter >= chapters.length) {
+      setCurrentChapter(0);
+    }
+  }, [chapters, currentChapter]);
+
   const handleSignOut = async () => {
     try {
+      // Save before signing out
+      await saveToDatabase(chapters);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       navigate("/auth");
@@ -126,7 +395,7 @@ export default function Editor() {
       ...updatedChapters[currentChapter],
       content,
     };
-    setChapters(updatedChapters);
+    handleChapterUpdate(updatedChapters);
   };
 
   const handleComplete = () => {
@@ -135,19 +404,28 @@ export default function Editor() {
       ...updatedChapters[currentChapter],
       completed: true,
     };
-    setChapters(updatedChapters);
+    handleChapterUpdate(updatedChapters);
   };
 
   const handleFeedback = (feedback: string) => {
     console.log("Feedback received:", feedback);
   };
 
-  const handleFinishStory = () => {
-    // Add logic for finishing the story
-    toast({
-      title: "Story Completed",
-      description: "Congratulations on finishing your story!",
-    });
+  const handleFinishStory = async () => {
+    try {
+      // Save one final time
+      await saveToDatabase(chapters);
+      toast({
+        title: "Story Completed",
+        description: "Congratulations on finishing your story!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error saving story",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {

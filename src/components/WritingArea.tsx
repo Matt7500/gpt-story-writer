@@ -17,7 +17,7 @@ import { Separator } from "./ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 
 interface WritingAreaProps {
-  chapter: {
+  chapter?: {
     title: string;
     content: string;
     sceneBeat?: string;
@@ -37,7 +37,7 @@ interface WritingAreaProps {
 }
 
 export function WritingArea({
-  chapter,
+  chapter = { title: 'New Chapter', content: '', sceneBeat: '' },
   chapters,
   characters,
   onSave,
@@ -46,16 +46,17 @@ export function WritingArea({
   onFinishStory,
   onShowCharacters,
 }: WritingAreaProps) {
-  const [content, setContent] = useState(chapter.content);
+  const [content, setContent] = useState(chapter.content || '');
   const [showFeedback, setShowFeedback] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRevising, setIsRevising] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   // Add useEffect to update content when chapter changes
   useEffect(() => {
-    setContent(chapter.content);
+    setContent(chapter?.content || '');
   }, [chapter]);
 
   const handleGenerateScene = async () => {
@@ -124,12 +125,73 @@ export function WritingArea({
     }
   };
 
-  const handleFeedbackSubmit = (feedback: string) => {
-    onFeedback(feedback);
-    toast({
-      title: "Feedback submitted",
-      description: "Thank you for your feedback!",
-    });
+  const handleFeedbackSubmit = async (feedback: string) => {
+    try {
+      setIsRevising(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
+
+      // Create an EventSource for real-time updates
+      const clientId = Math.random().toString(36).substring(7);
+      const eventSource = new EventSource(`http://localhost:3001/api/stories/write-scene/progress?clientId=${clientId}`);
+
+      let currentContent = "";
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.content) {
+          if (data.isPartial) {
+            // For partial updates, append to the current content
+            currentContent += data.content;
+            setContent(currentContent);
+            onSave(currentContent);
+          } else {
+            // For the final update, use the complete content
+            setContent(data.content);
+            onSave(data.content);
+          }
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+      };
+
+      // Start the scene revision
+      const response = await fetch('http://localhost:3001/api/stories/revise-scene', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          clientId,
+          sceneBeat: chapter.sceneBeat,
+          characters,
+          currentScene: content,
+          feedback
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to revise scene');
+      }
+
+      eventSource.close();
+      toast({
+        title: "Scene revised",
+        description: "The scene has been updated based on your feedback.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error revising scene",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRevising(false);
+      setShowFeedback(false);
+    }
   };
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
@@ -151,7 +213,7 @@ export function WritingArea({
               variant="outline" 
               size="sm" 
               onClick={handleGenerateScene}
-              disabled={isGenerating}
+              disabled={isGenerating || isRevising}
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -174,31 +236,19 @@ export function WritingArea({
 
           {/* Feedback Group */}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowFeedback(true)}>
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Feedback
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowFeedback(true)}
+              disabled={isGenerating || isRevising}
+            >
+              {isRevising ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <MessageSquare className="h-4 w-4 mr-2" />
+              )}
+              {isRevising ? "Revising..." : "Feedback"}
             </Button>
-          </div>
-
-          <Separator orientation="vertical" className="h-8" />
-
-          {/* Completion Group */}
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={onComplete}>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Complete
-            </Button>
-            {onFinishStory && (
-              <Button 
-                variant="default" 
-                size="sm"
-                onClick={onFinishStory}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <BookCheck className="h-4 w-4 mr-2" />
-                Finish Story
-              </Button>
-            )}
           </div>
         </div>
       </div>
@@ -217,7 +267,7 @@ export function WritingArea({
           setContent(e.target.value);
           onSave(e.target.value);
         }}
-        className="w-full h-[calc(100vh-50px)] resize-none text-base leading-relaxed overflow-y-auto"
+        className="w-full h-[calc(100vh-100px)] resize-none text-base leading-relaxed overflow-y-auto"
         placeholder="Start writing the scene..."
       />
 

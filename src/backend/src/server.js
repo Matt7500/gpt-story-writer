@@ -283,6 +283,114 @@ app.post('/api/stories/write-scene', authenticateUser, async (req, res) => {
   }
 });
 
+// Add endpoint for scene revision based on feedback
+app.post('/api/stories/revise-scene', authenticateUser, async (req, res) => {
+  const { clientId, sceneBeat, characters, currentScene, feedback } = req.body;
+
+  if (!clientId || !sceneBeat || !characters || !currentScene || !feedback) {
+    return res.status(400).json({ 
+      error: 'Missing required fields: clientId, sceneBeat, characters, currentScene, feedback' 
+    });
+  }
+
+  try {
+    // Get the abort controller for this client
+    const controller = abortControllers.get(clientId);
+    const signal = controller ? controller.signal : null;
+
+    // Check if the request has been aborted
+    if (signal?.aborted) {
+      throw new Error('Scene revision cancelled');
+    }
+
+    // Create a callback function for partial updates
+    const onProgress = (partialContent) => {
+      sendProgressUpdate(clientId, { content: partialContent, isPartial: true });
+    };
+
+    // Construct the revision prompt
+    const revisionPrompt = `
+Revise the following scene based on the user's feedback. Maintain the core elements of the scene beat
+while addressing the specific feedback provided.
+
+Original Scene Beat:
+${sceneBeat}
+
+Current Scene:
+${currentScene}
+
+User Feedback:
+${feedback}
+
+Characters:
+${characters}
+
+Please revise the scene to address the feedback while maintaining the story's continuity and quality.
+`;
+
+    // Generate the revised scene
+    const response = await openai.chat.completions.create({
+      model: process.env.OAI_MODEL || 'gpt-4',
+      messages: [
+        { role: "system", content: "You are an expert fiction writer tasked with revising a scene based on user feedback." },
+        { role: "user", content: revisionPrompt }
+      ],
+      temperature: 0.7,
+      stream: true
+    });
+
+    let revisedScene = "";
+    let currentChunk = "";
+
+    for await (const chunk of response) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      currentChunk += content;
+
+      // If we have a reasonable chunk size or see a paragraph break, send progress
+      if (currentChunk.length > 100 || currentChunk.includes("\n\n")) {
+        if (onProgress) {
+          onProgress(currentChunk);
+        }
+        revisedScene += currentChunk;
+        currentChunk = "";
+      }
+    }
+
+    // Send any remaining content
+    if (currentChunk.trim() && onProgress) {
+      onProgress(currentChunk.trim());
+    }
+    revisedScene += currentChunk.trim();
+
+    // Send the final revised scene
+    sendProgressUpdate(clientId, { content: revisedScene, isPartial: false });
+
+    // Clean up
+    const client = progressClients.get(clientId);
+    if (client) {
+      client.end();
+      progressClients.delete(clientId);
+    }
+    abortControllers.delete(clientId);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Scene revision error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to revise scene' 
+    });
+
+    // Clean up on error
+    const client = progressClients.get(clientId);
+    if (client) {
+      client.end();
+      progressClients.delete(clientId);
+    }
+    abortControllers.delete(clientId);
+  }
+});
+
 // API Endpoints
 
 // Initialize story generation
