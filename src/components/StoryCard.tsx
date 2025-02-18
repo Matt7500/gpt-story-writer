@@ -1,4 +1,3 @@
-
 import { Book, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +11,13 @@ interface StoryCardProps {
 export function StoryCard({ story, onDelete }: StoryCardProps) {
   const navigate = useNavigate();
 
+  // Calculate word and character counts
+  const getWordCount = (text: string) => text.trim() ? text.trim().split(/\s+/).length : 0;
+  const getCharCount = (text: string) => text.length;
+
+  const totalWords = getWordCount(story.story_idea) + getWordCount(story.plot_outline);
+  const totalChars = getCharCount(story.story_idea) + getCharCount(story.plot_outline);
+
   return (
     <div className="p-6 border rounded-lg hover:bg-accent/50 transition-colors group relative">
       <div 
@@ -24,7 +30,7 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
             <div>
               <h3 className="font-semibold">{story.title}</h3>
               <p className="text-sm text-muted-foreground">
-                {new Date(story.created_at).toLocaleDateString()}
+                {new Date(story.created_at).toLocaleDateString()} • {totalWords.toLocaleString()} words • {totalChars.toLocaleString()} characters
               </p>
             </div>
           </div>
