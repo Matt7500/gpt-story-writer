@@ -51,6 +51,7 @@ export function WritingArea({
   const [showOutline, setShowOutline] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRevising, setIsRevising] = useState(false);
+  const [currentClientId, setCurrentClientId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
@@ -58,6 +59,42 @@ export function WritingArea({
   useEffect(() => {
     setContent(chapter?.content || '');
   }, [chapter]);
+
+  // Add cleanup function for cancellation
+  const cleanup = () => {
+    setIsGenerating(false);
+    setIsRevising(false);
+    setCurrentClientId(null);
+  };
+
+  // Add cancel function
+  const handleCancel = async () => {
+    if (!currentClientId) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Send cancel request to the server
+      await fetch(`http://localhost:3001/api/stories/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ clientId: currentClientId })
+      });
+
+      cleanup();
+      toast({
+        title: "Generation cancelled",
+        description: "Scene generation has been cancelled.",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error cancelling generation:', error);
+    }
+  };
 
   const handleGenerateScene = async () => {
     try {
@@ -67,6 +104,7 @@ export function WritingArea({
 
       // Create an EventSource for real-time updates
       const clientId = Math.random().toString(36).substring(7);
+      setCurrentClientId(clientId);
       const eventSource = new EventSource(`http://localhost:3001/api/stories/write-scene/progress?clientId=${clientId}`);
 
       let currentContent = "";
@@ -88,6 +126,7 @@ export function WritingArea({
 
       eventSource.onerror = () => {
         eventSource.close();
+        cleanup();
       };
 
       // Start the scene generation
@@ -114,14 +153,15 @@ export function WritingArea({
       }
 
       eventSource.close();
+      cleanup();
     } catch (error: any) {
+      cleanup();
       toast({
         title: "Error generating scene",
         description: error.message,
         variant: "destructive",
+        duration: 3000,
       });
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -133,6 +173,7 @@ export function WritingArea({
 
       // Create an EventSource for real-time updates
       const clientId = Math.random().toString(36).substring(7);
+      setCurrentClientId(clientId);
       const eventSource = new EventSource(`http://localhost:3001/api/stories/write-scene/progress?clientId=${clientId}`);
 
       let currentContent = "";
@@ -154,6 +195,7 @@ export function WritingArea({
 
       eventSource.onerror = () => {
         eventSource.close();
+        cleanup();
       };
 
       // Start the scene revision
@@ -178,18 +220,21 @@ export function WritingArea({
       }
 
       eventSource.close();
+      cleanup();
       toast({
         title: "Scene revised",
         description: "The scene has been updated based on your feedback.",
+        duration: 3000,
       });
     } catch (error: any) {
+      cleanup();
       toast({
         title: "Error revising scene",
         description: error.message,
         variant: "destructive",
+        duration: 3000,
       });
     } finally {
-      setIsRevising(false);
       setShowFeedback(false);
     }
   };
@@ -209,19 +254,26 @@ export function WritingArea({
         <div className="flex items-center gap-4">
           {/* Writing Tools Group */}
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleGenerateScene}
-              disabled={isGenerating || isRevising}
-            >
-              {isGenerating ? (
+            {isGenerating ? (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleCancel}
+              >
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
+                Cancel Generation
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleGenerateScene}
+                disabled={isGenerating || isRevising}
+              >
                 <PenTool className="h-4 w-4 mr-2" />
-              )}
-              {isGenerating ? "Writing..." : "Write Scene"}
-            </Button>
+                Write Scene
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setShowOutline(true)}>
               <BookOpen className="h-4 w-4 mr-2" />
               Story Outline
@@ -236,19 +288,26 @@ export function WritingArea({
 
           {/* Feedback Group */}
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowFeedback(true)}
-              disabled={isGenerating || isRevising}
-            >
-              {isRevising ? (
+            {isRevising ? (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={handleCancel}
+              >
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
+                Cancel Revision
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowFeedback(true)}
+                disabled={isGenerating || isRevising}
+              >
                 <MessageSquare className="h-4 w-4 mr-2" />
-              )}
-              {isRevising ? "Revising..." : "Feedback"}
-            </Button>
+                Feedback
+              </Button>
+            )}
           </div>
         </div>
       </div>

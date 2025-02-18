@@ -342,13 +342,9 @@ do not end it in the middle of a scene or event. Do not write "The End" or anyth
 
   const prompt = `
 ## WRITING INSTRUCTIONS
-You are an expert fiction writer. Write a fully detailed scene that is as long as necessary to write the scene completely. Provide lots of details about the setting, characters, and events.
-
-YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
-
-## STARTING THE SCENE
-- Start the scene with a connection to the previous scene's ending to not confuse the reader with an abrupt change in time or setting.
-- You MUST mention a change in time or setting in the scene.
+- You are an expert fiction writer. Write a fully detailed scene that is as long as necessary to write the scene completely. Provide lots of details about the setting, characters, and events.
+- YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
+- Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene.
 
 ## CORE REQUIREMENTS
 - Write from first-person narrator perspective only
@@ -362,7 +358,6 @@ YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING EL
 
 ## PACING AND SUSPENSE
 - Maintain steady, escalating suspense
-- Use strategic pauses and silence for impact
 - Build tension in small, deliberate increments
 - Balance action with reflection
 

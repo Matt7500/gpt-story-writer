@@ -326,6 +326,8 @@ Characters:
 ${characters}
 
 Please revise the scene to address the feedback while maintaining the story's continuity and quality.
+
+ONLY RESPOND WITH THE REVISED SCENE. DO NOT WRITE ANY COMMENTS OR EXPLANATIONS.
 `;
 
     // Generate the revised scene
@@ -388,6 +390,42 @@ Please revise the scene to address the feedback while maintaining the story's co
       progressClients.delete(clientId);
     }
     abortControllers.delete(clientId);
+  }
+});
+
+// Add endpoint for cancelling scene generation/revision
+app.post('/api/stories/cancel', authenticateUser, async (req, res) => {
+  const { clientId } = req.body;
+
+  if (!clientId) {
+    return res.status(400).json({ 
+      error: 'Missing required field: clientId' 
+    });
+  }
+
+  try {
+    // Get the abort controller for this client
+    const controller = abortControllers.get(clientId);
+    if (controller) {
+      // Abort any ongoing operations
+      controller.abort();
+      abortControllers.delete(clientId);
+    }
+
+    // Clean up the SSE connection
+    const client = progressClients.get(clientId);
+    if (client) {
+      client.end();
+      progressClients.delete(clientId);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Cancel error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to cancel operation' 
+    });
   }
 });
 
