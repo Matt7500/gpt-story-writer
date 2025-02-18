@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +39,7 @@ export default function Stories() {
         title: "Error fetching stories",
         description: error.message,
         variant: "destructive",
+        duration: 3000,
       });
     } finally {
       setLoading(false);
@@ -56,6 +56,7 @@ export default function Stories() {
         title: "Error signing out",
         description: error.message,
         variant: "destructive",
+        duration: 3000,
       });
     }
   };
@@ -92,6 +93,7 @@ export default function Stories() {
       toast({
         title: "Story deleted",
         description: "Your story has been successfully deleted.",
+        duration: 3000,
       });
 
       setStories(stories.filter(story => story.id !== storyToDelete.id));
@@ -100,6 +102,7 @@ export default function Stories() {
         title: "Error deleting story",
         description: error.message,
         variant: "destructive",
+        duration: 3000,
       });
     } finally {
       setStoryToDelete(null);
