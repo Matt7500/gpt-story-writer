@@ -1,3 +1,4 @@
+
 import { Book, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -33,16 +34,19 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
 
       if (error) throw error;
 
-      // Get the chapters array directly (no need to parse)
-      const chapters = data.chapters || [];
+      // Parse the chapters and create content string
+      const chaptersData = data.chapters || '[]';
+      const chapters = typeof chaptersData === 'string' ? JSON.parse(chaptersData) : chaptersData;
       let content = '';
       
-      // Add each chapter's content, separated by four newlines
-      chapters.forEach((chapter: any) => {
-        if (chapter.content) {
-          content += `${chapter.content}\n\n\n\n`;
-        }
-      });
+      // Add each chapter's content, separated by three newlines
+      if (Array.isArray(chapters)) {
+        chapters.forEach((chapter: any) => {
+          if (chapter.content) {
+            content += `${chapter.content}\n\n\n`;
+          }
+        });
+      }
 
       // Create and download the file
       const blob = new Blob([content], { type: 'text/plain' });
@@ -58,14 +62,12 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
       toast({
         title: "Story downloaded",
         description: "Your story has been downloaded successfully.",
-        duration: 3000,
       });
     } catch (error: any) {
       toast({
         title: "Error downloading story",
         description: error.message,
         variant: "destructive",
-        duration: 3000,
       });
     }
   };

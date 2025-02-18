@@ -63,9 +63,9 @@ export function OutlinePanel({
                 <p className="text-xs uppercase font-medium text-primary/60">Characters</p>
                 <p>{totalChars.toLocaleString()}</p>
               </div>
-              <div className="space-y-0.5 col-span-2">
+              <div className="col-span-2 flex justify-between items-center">
                 <p className="text-xs uppercase font-medium text-primary/60">Est. Duration</p>
-                <p>{getEstimatedDuration(totalWords)}</p>
+                <p className="text-sm">{getEstimatedDuration(totalWords)}</p>
               </div>
             </div>
           </div>
