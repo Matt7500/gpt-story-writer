@@ -10,6 +10,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { API_URL } from "@/lib/config";
 
 interface StoryGenerationModalProps {
   open: boolean;
@@ -46,7 +47,7 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
           const clientId = Math.random().toString(36).substring(7);
 
           // Set up SSE connection
-          const newEventSource = new EventSource(`http://localhost:3001/api/stories/progress?clientId=${clientId}`);
+          const newEventSource = new EventSource(`${API_URL}/api/stories/progress?clientId=${clientId}`);
           setEventSource(newEventSource);
           
           newEventSource.onmessage = (event) => {
@@ -62,7 +63,7 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
           };
 
           // Start the story generation process
-          const response = await fetch('http://localhost:3001/api/stories/initialize', {
+          const response = await fetch(`${API_URL}/api/stories/initialize`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

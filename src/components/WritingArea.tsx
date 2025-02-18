@@ -15,6 +15,7 @@ import { StoryOutlineModal } from "./StoryOutlineModal";
 import { FeedbackModal } from "./FeedbackModal";
 import { Separator } from "./ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { API_URL } from "@/lib/config";
 
 interface WritingAreaProps {
   chapter?: {
@@ -76,7 +77,7 @@ export function WritingArea({
       if (!session) return;
 
       // Send cancel request to the server
-      await fetch(`http://localhost:3001/api/stories/cancel`, {
+      await fetch(`${API_URL}/api/stories/cancel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,7 +106,7 @@ export function WritingArea({
       // Create an EventSource for real-time updates
       const clientId = Math.random().toString(36).substring(7);
       setCurrentClientId(clientId);
-      const eventSource = new EventSource(`http://localhost:3001/api/stories/write-scene/progress?clientId=${clientId}`);
+      const eventSource = new EventSource(`${API_URL}/api/stories/write-scene/progress?clientId=${clientId}`);
 
       let currentContent = "";
       eventSource.onmessage = (event) => {
@@ -130,7 +131,7 @@ export function WritingArea({
       };
 
       // Start the scene generation
-      const response = await fetch('http://localhost:3001/api/stories/write-scene', {
+      const response = await fetch(`${API_URL}/api/stories/write-scene`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -174,7 +175,7 @@ export function WritingArea({
       // Create an EventSource for real-time updates
       const clientId = Math.random().toString(36).substring(7);
       setCurrentClientId(clientId);
-      const eventSource = new EventSource(`http://localhost:3001/api/stories/write-scene/progress?clientId=${clientId}`);
+      const eventSource = new EventSource(`${API_URL}/api/stories/write-scene/progress?clientId=${clientId}`);
 
       let currentContent = "";
       eventSource.onmessage = (event) => {
@@ -199,7 +200,7 @@ export function WritingArea({
       };
 
       // Start the scene revision
-      const response = await fetch('http://localhost:3001/api/stories/revise-scene', {
+      const response = await fetch(`${API_URL}/api/stories/revise-scene`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

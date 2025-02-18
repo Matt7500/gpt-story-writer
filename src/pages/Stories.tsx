@@ -8,6 +8,7 @@ import { StoryCard } from "@/components/StoryCard";
 import { DeleteStoryDialog } from "@/components/DeleteStoryDialog";
 import { Button } from "@/components/ui/button";
 import { Story } from "@/types/story";
+import { API_URL } from "@/lib/config";
 
 export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
@@ -78,7 +79,7 @@ export default function Stories() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("No active session");
 
-      const response = await fetch(`http://localhost:3001/api/stories/${storyToDelete.id}`, {
+      const response = await fetch(`${API_URL}/api/stories/${storyToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
