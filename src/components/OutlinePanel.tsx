@@ -35,14 +35,30 @@ export function OutlinePanel({
     return acc + (chapter.content?.length || 0);
   }, 0);
 
+  // Calculate estimated video duration based on audiobook narration speed (150 words per minute)
+  const getEstimatedDuration = (wordCount: number) => {
+    const minutes = Math.round(wordCount / 150);
+    if (minutes < 60) {
+      return `${minutes} min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  };
+
   return (
     <div className="outline-panel h-screen flex flex-col w-64 border-r">
       <div className="p-4 border-b border-border/40">
         <div className="space-y-2">
           <h2 className="font-semibold">Story</h2>
-          <p className="text-sm text-muted-foreground">
-            {totalWords} words • {totalChars} characters
-          </p>
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              {totalWords.toLocaleString()} words • {totalChars.toLocaleString()} characters
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Est. duration: {getEstimatedDuration(totalWords)}
+            </p>
+          </div>
           {onFinishStory && (
             <Button
               variant="outline"
