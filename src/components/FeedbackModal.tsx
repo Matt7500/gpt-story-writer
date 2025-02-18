@@ -36,15 +36,17 @@ export function FeedbackModal({
       <DialogContent className="sm:max-w-[700px] sm:h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Submit Feedback</DialogTitle>
-          <DialogDescription className="space-y-2">
-            <p>What would you like to improve about this scene? You can provide feedback on:</p>
-            <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>Plot consistency and continuity</li>
-              <li>Character development and dialogue</li>
-              <li>Pacing and tension</li>
-              <li>Description and atmosphere</li>
-              <li>Writing style and tone</li>
-            </ul>
+          <DialogDescription asChild>
+            <div className="space-y-2">
+              <p>What would you like to improve about this scene? You can provide feedback on:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>Plot consistency and continuity</li>
+                <li>Character development and dialogue</li>
+                <li>Pacing and tension</li>
+                <li>Description and atmosphere</li>
+                <li>Writing style and tone</li>
+              </ul>
+            </div>
           </DialogDescription>
         </DialogHeader>
         <Textarea

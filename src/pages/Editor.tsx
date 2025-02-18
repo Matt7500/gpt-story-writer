@@ -330,6 +330,7 @@ export default function Editor() {
           toast({
             title: "Recovered unsaved changes",
             description: "Your previous work has been restored.",
+            duration: 3000,
           });
         } else if (storyWithChapters.chapters) {
           // Use database chapters if available
@@ -383,8 +384,16 @@ export default function Editor() {
     try {
       // Save before signing out
       await saveToDatabase(chapters);
-      const { error } = await supabase.auth.signOut();
+      
+      // Clear local storage first
+      localStorage.removeItem('sb-token');
+      localStorage.clear(); // Clear all Supabase-related data
+      
+      const { error } = await supabase.auth.signOut({
+        scope: 'local'  // Use local scope instead of global
+      });
       if (error) throw error;
+      
       navigate("/auth");
     } catch (error: any) {
       toast({

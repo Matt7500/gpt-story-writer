@@ -19,12 +19,36 @@ export default function Stories() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchStories();
-  }, []);
+    const checkAuthAndFetch = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        fetchStories();
+      } else {
+        navigate('/auth');
+      }
+    };
+    
+    checkAuthAndFetch();
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchStories();
+      } else {
+        navigate('/auth');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   const fetchStories = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('Current user:', user); // Debug log
+      
       if (!user) throw new Error("No user found");
 
       const { data, error } = await supabase
@@ -33,9 +57,12 @@ export default function Stories() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
+      console.log('Stories query result:', { data, error }); // Debug log
+
       if (error) throw error;
       setStories(data || []);
     } catch (error: any) {
+      console.error('Error in fetchStories:', error); // Debug log
       toast({
         title: "Error fetching stories",
         description: error.message,
@@ -49,8 +76,15 @@ export default function Stories() {
 
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
+      // Clear local storage first
+      localStorage.removeItem('sb-token');
+      localStorage.clear(); // Clear all Supabase-related data
+      
+      const { error } = await supabase.auth.signOut({
+        scope: 'local'  // Use local scope instead of global
+      });
       if (error) throw error;
+      
       navigate('/auth');
     } catch (error: any) {
       toast({
