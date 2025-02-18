@@ -52,18 +52,18 @@ export function OutlinePanel({
     <div className="outline-panel h-screen flex flex-col w-64 border-r">
       <div className="p-4 border-b border-border/40">
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <h2 className="font-semibold text-lg">Story Overview</h2>
-            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-              <div className="space-y-0.5">
+            <div className="space-y-1.5 text-sm text-muted-foreground">
+              <div className="flex justify-between items-center">
                 <p className="text-xs uppercase font-medium text-primary/60">Words</p>
-                <p>{totalWords.toLocaleString()}</p>
+                <p className="text-sm">{totalWords.toLocaleString()}</p>
               </div>
-              <div className="space-y-0.5">
+              <div className="flex justify-between items-center">
                 <p className="text-xs uppercase font-medium text-primary/60">Characters</p>
-                <p>{totalChars.toLocaleString()}</p>
+                <p className="text-sm">{totalChars.toLocaleString()}</p>
               </div>
-              <div className="col-span-2 flex justify-between items-center">
+              <div className="flex justify-between items-center">
                 <p className="text-xs uppercase font-medium text-primary/60">Est. Duration</p>
                 <p className="text-sm">{getEstimatedDuration(totalWords)}</p>
               </div>
