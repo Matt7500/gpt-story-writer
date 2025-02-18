@@ -20,6 +20,10 @@ export default function Settings() {
   const [openAIKey, setOpenAIKey] = useState("");
   const [titleFineTuneModel, setTitleFineTuneModel] = useState("");
   const [rewritingModel, setRewritingModel] = useState("");
+  const [elevenLabsKey, setElevenLabsKey] = useState("");
+  const [elevenLabsModel, setElevenLabsModel] = useState("eleven_multilingual_v2");
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
+  const [replicateKey, setReplicateKey] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,6 +64,10 @@ export default function Settings() {
           setReasoningModel(settings.reasoning_model || "llama-3.1-sonar-small-128k-online");
           setTitleFineTuneModel(settings.title_fine_tune_model || "");
           setRewritingModel(settings.rewriting_model || "");
+          setElevenLabsKey(settings.elevenlabs_key || "");
+          setElevenLabsModel(settings.elevenlabs_model || "eleven_multilingual_v2");
+          setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");
+          setReplicateKey(settings.replicate_key || "");
         } else {
           // Create default settings if none exist
           const { error: insertError } = await supabase
@@ -67,7 +75,8 @@ export default function Settings() {
             .insert([{ 
               user_id: user.id, 
               openai_model: "gpt-4o-mini",
-              reasoning_model: "llama-3.1-sonar-small-128k-online"
+              reasoning_model: "llama-3.1-sonar-small-128k-online",
+              elevenlabs_model: "eleven_multilingual_v2"
             }]);
           
           if (insertError) throw insertError;
@@ -117,11 +126,19 @@ export default function Settings() {
         reasoningModel={reasoningModel}
         titleFineTuneModel={titleFineTuneModel}
         rewritingModel={rewritingModel}
+        elevenLabsKey={elevenLabsKey}
+        elevenLabsModel={elevenLabsModel}
+        elevenLabsVoiceId={elevenLabsVoiceId}
+        replicateKey={replicateKey}
         onOpenAIKeyChange={setOpenAIKey}
         onOpenAIModelChange={setOpenAIModel}
         onReasoningModelChange={setReasoningModel}
         onTitleFineTuneModelChange={setTitleFineTuneModel}
         onRewritingModelChange={setRewritingModel}
+        onElevenLabsKeyChange={setElevenLabsKey}
+        onElevenLabsModelChange={setElevenLabsModel}
+        onElevenLabsVoiceIdChange={setElevenLabsVoiceId}
+        onReplicateKeyChange={setReplicateKey}
       />
 
       <Button

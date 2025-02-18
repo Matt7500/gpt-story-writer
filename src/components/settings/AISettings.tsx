@@ -1,8 +1,9 @@
 
-import { Key } from "lucide-react";
+import { Key, Mic, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,11 +14,19 @@ interface AISettingsProps {
   reasoningModel: string;
   titleFineTuneModel: string;
   rewritingModel: string;
+  elevenLabsKey: string;
+  elevenLabsModel: string;
+  elevenLabsVoiceId: string;
+  replicateKey: string;
   onOpenAIKeyChange: (key: string) => void;
   onOpenAIModelChange: (model: string) => void;
   onReasoningModelChange: (model: string) => void;
   onTitleFineTuneModelChange: (model: string) => void;
   onRewritingModelChange: (model: string) => void;
+  onElevenLabsKeyChange: (key: string) => void;
+  onElevenLabsModelChange: (model: string) => void;
+  onElevenLabsVoiceIdChange: (voiceId: string) => void;
+  onReplicateKeyChange: (key: string) => void;
 }
 
 export function AISettings({
@@ -27,11 +36,19 @@ export function AISettings({
   reasoningModel,
   titleFineTuneModel,
   rewritingModel,
+  elevenLabsKey,
+  elevenLabsModel,
+  elevenLabsVoiceId,
+  replicateKey,
   onOpenAIKeyChange,
   onOpenAIModelChange,
   onReasoningModelChange,
   onTitleFineTuneModelChange,
   onRewritingModelChange,
+  onElevenLabsKeyChange,
+  onElevenLabsModelChange,
+  onElevenLabsVoiceIdChange,
+  onReplicateKeyChange,
 }: AISettingsProps) {
   const { toast } = useToast();
 
@@ -44,7 +61,11 @@ export function AISettings({
           openai_key: openAIKey,
           reasoning_model: reasoningModel,
           title_fine_tune_model: titleFineTuneModel,
-          rewriting_model: rewritingModel
+          rewriting_model: rewritingModel,
+          elevenlabs_key: elevenLabsKey,
+          elevenlabs_model: elevenLabsModel,
+          elevenlabs_voice_id: elevenLabsVoiceId,
+          replicate_key: replicateKey
         })
         .eq("user_id", userId);
 
@@ -71,7 +92,10 @@ export function AISettings({
         <h2 className="text-xl font-medium">AI Settings</h2>
       </div>
       <Separator />
+
+      {/* OpenAI Settings */}
       <div className="space-y-4">
+        <h3 className="text-lg font-medium">OpenAI Settings</h3>
         <div className="space-y-2">
           <label className="text-sm font-medium">OpenAI API Key</label>
           <Input
@@ -80,9 +104,6 @@ export function AISettings({
             onChange={(e) => onOpenAIKeyChange(e.target.value)}
             placeholder="Enter your OpenAI API key"
           />
-          <p className="text-sm text-muted-foreground">
-            Your API key is stored securely and never shared.
-          </p>
         </div>
 
         <div className="space-y-2">
@@ -99,42 +120,85 @@ export function AISettings({
           <Input
             value={reasoningModel}
             onChange={(e) => onReasoningModelChange(e.target.value)}
-            placeholder="Enter model name (e.g., llama-3.1-sonar-small-128k-online)"
+            placeholder="Enter model name"
           />
-          <p className="text-sm text-muted-foreground">
-            Used for analyzing and reasoning about your stories.
-          </p>
         </div>
-
-        <Separator className="my-4" />
-        <h3 className="text-lg font-medium mb-4">Fine-Tune Models</h3>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Title Generation Model</label>
-          <Input
-            value={titleFineTuneModel}
-            onChange={(e) => onTitleFineTuneModelChange(e.target.value)}
-            placeholder="Enter fine-tuned model for titles"
-          />
-          <p className="text-sm text-muted-foreground">
-            Custom model for generating story titles.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Rewriting Model</label>
-          <Input
-            value={rewritingModel}
-            onChange={(e) => onRewritingModelChange(e.target.value)}
-            placeholder="Enter fine-tuned model for rewriting"
-          />
-          <p className="text-sm text-muted-foreground">
-            Custom model for rewriting and refining story content.
-          </p>
-        </div>
-
-        <Button onClick={handleSaveAISettings}>Save AI Settings</Button>
       </div>
+
+      <Separator />
+
+      {/* ElevenLabs Settings */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Mic className="h-5 w-5" />
+          <h3 className="text-lg font-medium">Text to Speech Settings</h3>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">ElevenLabs API Key</label>
+          <Input
+            type="password"
+            value={elevenLabsKey}
+            onChange={(e) => onElevenLabsKeyChange(e.target.value)}
+            placeholder="Enter your ElevenLabs API key"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Voice Model</label>
+          <Select value={elevenLabsModel} onValueChange={onElevenLabsModelChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a model" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="eleven_multilingual_v2">Eleven Multilingual v2</SelectItem>
+              <SelectItem value="eleven_turbo_v2">Eleven Turbo v2</SelectItem>
+              <SelectItem value="eleven_english_sts_v2">Eleven English v2</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Voice ID</label>
+          <Select value={elevenLabsVoiceId} onValueChange={onElevenLabsVoiceIdChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a voice" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="21m00Tcm4TlvDq8ikWAM">Rachel</SelectItem>
+              <SelectItem value="AZnzlk1XvdvUeBnXmlld">Domi</SelectItem>
+              <SelectItem value="EXAVITQu4vr4xnSDxMaL">Bella</SelectItem>
+              <SelectItem value="ErXwobaYiN019PkySvjV">Antoni</SelectItem>
+              <SelectItem value="MF3mGyEYCl7XYWbV9V6O">Elli</SelectItem>
+              <SelectItem value="TxGEqnHWrfWFTfGW9XjX">Josh</SelectItem>
+              <SelectItem value="VR6AewLTigWG4xSOukaG">Arnold</SelectItem>
+              <SelectItem value="pNInz6obpgDQGcFmaJgB">Adam</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Replicate Settings */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Image className="h-5 w-5" />
+          <h3 className="text-lg font-medium">Image Generation Settings</h3>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Replicate API Key</label>
+          <Input
+            type="password"
+            value={replicateKey}
+            onChange={(e) => onReplicateKeyChange(e.target.value)}
+            placeholder="Enter your Replicate API key"
+          />
+        </div>
+      </div>
+
+      <Button onClick={handleSaveAISettings}>Save AI Settings</Button>
     </div>
   );
 }
