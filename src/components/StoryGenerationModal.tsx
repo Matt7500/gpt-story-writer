@@ -8,9 +8,10 @@ import {
   DialogClose
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { API_URL } from "@/lib/config";
+import { Button } from "./ui/button";
 
 interface StoryGenerationModalProps {
   open: boolean;
@@ -30,11 +31,14 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [eventSource, setEventSource] = useState<EventSource | null>(null);
+  const [proposedTitle, setProposedTitle] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setCurrentStep(0);
       setError(null);
+      setProposedTitle(null);
 
       const generateStory = async () => {
         try {
@@ -44,16 +48,20 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
           }
 
           // Generate a unique client ID for this story generation session
-          const clientId = Math.random().toString(36).substring(7);
+          const newClientId = Math.random().toString(36).substring(7);
+          setClientId(newClientId);
 
           // Set up SSE connection
-          const newEventSource = new EventSource(`${API_URL}/api/stories/progress?clientId=${clientId}`);
+          const newEventSource = new EventSource(`${API_URL}/api/stories/progress?clientId=${newClientId}`);
           setEventSource(newEventSource);
           
           newEventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (typeof data.step === 'number') {
               setCurrentStep(data.step);
+            }
+            if (data.title) {
+              setProposedTitle(data.title);
             }
           };
 
@@ -69,7 +77,7 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${session.access_token}`
             },
-            body: JSON.stringify({ clientId })
+            body: JSON.stringify({ clientId: newClientId })
           });
 
           if (!response.ok) {
@@ -83,12 +91,14 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
             throw new Error(data.error || 'Failed to generate story');
           }
 
-          // Close SSE connection
-          newEventSource.close();
-          setEventSource(null);
-
-          // Complete the process
-          onComplete(data.story.id);
+          // Don't complete immediately - wait for user approval of title
+          if (!data.waitingForTitleApproval) {
+            // Close SSE connection
+            newEventSource.close();
+            setEventSource(null);
+            // Complete the process
+            onComplete(data.story.id);
+          }
         } catch (err: any) {
           console.error('Story generation error:', err);
           setError(err.message || 'An error occurred while generating the story');
@@ -122,7 +132,43 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
     }
     setCurrentStep(0);
     setError(null);
+    setProposedTitle(null);
     onClose();
+  };
+
+  const handleTitleApproval = async (approved: boolean) => {
+    if (!clientId) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
+
+      const response = await fetch(`${API_URL}/api/stories/approve-title`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          clientId,
+          approved,
+          title: proposedTitle
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process title approval');
+      }
+
+      if (!approved) {
+        // Reset proposed title and wait for new one
+        setProposedTitle(null);
+      }
+    } catch (error: any) {
+      console.error('Title approval error:', error);
+      setError(error.message || 'An error occurred while processing title approval');
+    }
   };
 
   // Add cleanup on unmount
@@ -176,6 +222,30 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                   </div>
                 ))}
               </div>
+
+              {/* Title Approval UI */}
+              {proposedTitle && currentStep === 1 && (
+                <div className="mt-6 p-4 border rounded-lg">
+                  <h3 className="text-lg font-semibold mb-2">Proposed Title:</h3>
+                  <p className="text-xl mb-4">{proposedTitle}</p>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="default" 
+                      onClick={() => handleTitleApproval(true)}
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Accept Title
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleTitleApproval(false)}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Generate New Title
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
