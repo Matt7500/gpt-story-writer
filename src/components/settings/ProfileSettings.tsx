@@ -90,41 +90,57 @@ export function ProfileSettings({ userId }: ProfileSettingsProps) {
             <KeyRound className="h-4 w-4" />
             <h3 className="text-lg font-medium">Change Password</h3>
           </div>
-          <div className="space-y-4">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              handlePasswordChange();
+            }}
+            className="space-y-4"
+          >
             <div className="space-y-2">
-              <label className="text-sm font-medium">Current Password</label>
+              <label className="text-sm font-medium" htmlFor="current-password">Current Password</label>
               <Input
+                id="current-password"
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter current password"
+                required
+                autoComplete="current-password"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">New Password</label>
+              <label className="text-sm font-medium" htmlFor="new-password">New Password</label>
               <Input
+                id="new-password"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Enter new password"
+                required
+                minLength={6}
+                autoComplete="new-password"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Confirm New Password</label>
+              <label className="text-sm font-medium" htmlFor="confirm-password">Confirm New Password</label>
               <Input
+                id="confirm-password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm new password"
+                required
+                autoComplete="new-password"
               />
             </div>
-          </div>
-          <Button 
-            onClick={handlePasswordChange} 
-            disabled={loading || !currentPassword || !newPassword || !confirmPassword}
-          >
-            {loading ? "Updating..." : "Update Password"}
-          </Button>
+            <Button 
+              type="submit"
+              disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+            >
+              {loading ? "Updating..." : "Update Password"}
+            </Button>
+          </form>
         </div>
       </div>
     </div>
