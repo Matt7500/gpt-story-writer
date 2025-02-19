@@ -332,25 +332,17 @@ export function AISettings({
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Voice ID</label>
-          <Select 
-            value={elevenLabsVoiceId} 
-            onValueChange={onElevenLabsVoiceIdChange}
+          <Input
+            value={elevenLabsVoiceId}
+            onChange={(e) => onElevenLabsVoiceIdChange(e.target.value)}
+            placeholder="Enter voice ID"
             disabled={!keyValidation.elevenlabs.isValid}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a voice" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="21m00Tcm4TlvDq8ikWAM">Rachel</SelectItem>
-              <SelectItem value="AZnzlk1XvdvUeBnXmlld">Domi</SelectItem>
-              <SelectItem value="EXAVITQu4vr4xnSDxMaL">Bella</SelectItem>
-              <SelectItem value="ErXwobaYiN019PkySvjV">Antoni</SelectItem>
-              <SelectItem value="MF3mGyEYCl7XYWbV9V6O">Elli</SelectItem>
-              <SelectItem value="TxGEqnHWrfWFTfGW9XjX">Josh</SelectItem>
-              <SelectItem value="VR6AewLTigWG4xSOukaG">Arnold</SelectItem>
-              <SelectItem value="pNInz6obpgDQGcFmaJgB">Adam</SelectItem>
-            </SelectContent>
-          </Select>
+          />
+          {!elevenLabsKey && (
+            <p className="text-sm text-muted-foreground">
+              Enter your API key to use voice ID
+            </p>
+          )}
         </div>
       </div>
 
