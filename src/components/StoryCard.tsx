@@ -1,4 +1,3 @@
-
 import { Book, Trash2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -19,8 +18,12 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
   const getWordCount = (text: string) => text.trim() ? text.trim().split(/\s+/).length : 0;
   const getCharCount = (text: string) => text.length;
 
-  const totalWords = getWordCount(story.story_idea) + getWordCount(story.plot_outline);
-  const totalChars = getCharCount(story.story_idea) + getCharCount(story.plot_outline);
+  // Calculate total words and characters from chapters only
+  const totalWords = Array.isArray(story.chapters) ? story.chapters.reduce((acc, chapter) => 
+    acc + getWordCount(chapter.content || ''), 0) : 0;
+
+  const totalChars = Array.isArray(story.chapters) ? story.chapters.reduce((acc, chapter) => 
+    acc + getCharCount(chapter.content || ''), 0) : 0;
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();

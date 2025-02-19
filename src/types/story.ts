@@ -1,4 +1,3 @@
-
 export interface Story {
   id: string;
   title: string;
@@ -6,4 +5,9 @@ export interface Story {
   plot_outline: string;
   characters: string;
   created_at: string;
+  chapters?: Array<{
+    title: string;
+    content: string;
+    completed: boolean;
+  }> | null;
 }
