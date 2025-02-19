@@ -1,16 +1,22 @@
 import { useEffect, useState } from "react";
-import { Key, Mic, Image } from "lucide-react";
+import { Key, Mic, Image, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface VoiceModel {
   model_id: string;
   display_name: string;
   description?: string;
+}
+
+interface APIKeyValidation {
+  isValid: boolean;
+  message: string;
 }
 
 interface AISettingsProps {
@@ -34,6 +40,12 @@ interface AISettingsProps {
   onElevenLabsVoiceIdChange: (voiceId: string) => void;
   onReplicateKeyChange: (key: string) => void;
 }
+
+const API_KEY_PATTERNS = {
+  openai: /^sk-proj-[A-Za-z0-9_-]+$/,
+  elevenlabs: /^sk_[A-Za-z0-9]{48}$/,
+  replicate: /^r8_[A-Za-z0-9]{37}$/
+};
 
 export function AISettings({
   userId,
@@ -59,10 +71,56 @@ export function AISettings({
   const { toast } = useToast();
   const [voiceModels, setVoiceModels] = useState<VoiceModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [editingKeys, setEditingKeys] = useState<Record<string, boolean>>({
+    openai: false,
+    elevenlabs: false,
+    replicate: false
+  });
+  const [keyValidation, setKeyValidation] = useState<Record<string, APIKeyValidation>>({
+    openai: { isValid: false, message: "" },
+    elevenlabs: { isValid: false, message: "" },
+    replicate: { isValid: false, message: "" }
+  });
+
+  const validateKey = (key: string, type: 'openai' | 'elevenlabs' | 'replicate'): APIKeyValidation => {
+    if (!key) return { isValid: false, message: "" };
+    if (!editingKeys[type]) return { isValid: true, message: "" };
+    
+    const pattern = API_KEY_PATTERNS[type];
+    const isValid = pattern.test(key);
+    
+    return {
+      isValid,
+      message: isValid ? "Valid API key format" : "Invalid API key format"
+    };
+  };
+
+  useEffect(() => {
+    setKeyValidation({
+      openai: validateKey(openAIKey, 'openai'),
+      elevenlabs: validateKey(elevenLabsKey, 'elevenlabs'),
+      replicate: validateKey(replicateKey, 'replicate')
+    });
+  }, [openAIKey, elevenLabsKey, replicateKey, editingKeys]);
+
+  const handleKeyChange = (value: string, type: 'openai' | 'elevenlabs' | 'replicate') => {
+    setEditingKeys(prev => ({ ...prev, [type]: true }));
+    switch (type) {
+      case 'openai':
+        onOpenAIKeyChange(value);
+        break;
+      case 'elevenlabs':
+        onElevenLabsKeyChange(value);
+        break;
+      case 'replicate':
+        onReplicateKeyChange(value);
+        break;
+    }
+  };
 
   useEffect(() => {
     async function fetchVoiceModels() {
-      if (!elevenLabsKey) return;
+      if (!elevenLabsKey || !keyValidation.elevenlabs.isValid) return;
       
       setLoadingModels(true);
       try {
@@ -98,7 +156,7 @@ export function AISettings({
     if (elevenLabsKey) {
       fetchVoiceModels();
     }
-  }, [elevenLabsKey, toast]);
+  }, [elevenLabsKey, keyValidation.elevenlabs.isValid, toast]);
 
   const handleSaveAISettings = async () => {
     try {
@@ -119,6 +177,13 @@ export function AISettings({
 
       if (error) throw error;
 
+      // Reset editing state after successful save
+      setEditingKeys({
+        openai: false,
+        elevenlabs: false,
+        replicate: false
+      });
+
       toast({
         title: "Success",
         description: "AI settings updated successfully",
@@ -131,6 +196,13 @@ export function AISettings({
         variant: "destructive",
       });
     }
+  };
+
+  const ValidationIcon = ({ isValid, message }: { isValid: boolean, message: string }) => {
+    if (!message) return null;
+    return isValid ? 
+      <Check className="h-4 w-4 text-green-500" /> : 
+      <X className="h-4 w-4 text-red-500" />;
   };
 
   return (
@@ -146,12 +218,31 @@ export function AISettings({
         <h3 className="text-lg font-medium">OpenAI Settings</h3>
         <div className="space-y-2">
           <label className="text-sm font-medium">OpenAI API Key</label>
-          <Input
-            type="password"
-            value={openAIKey}
-            onChange={(e) => onOpenAIKeyChange(e.target.value)}
-            placeholder="Enter your OpenAI API key"
-          />
+          <div className="relative">
+            <Input
+              type="password"
+              value={openAIKey}
+              onChange={(e) => handleKeyChange(e.target.value, 'openai')}
+              placeholder="sk-proj-..."
+              className={cn(
+                "pr-8",
+                editingKeys.openai && keyValidation.openai.message && (
+                  keyValidation.openai.isValid ? "border-green-500" : "border-red-500"
+                )
+              )}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              {editingKeys.openai && <ValidationIcon {...keyValidation.openai} />}
+            </div>
+          </div>
+          {editingKeys.openai && keyValidation.openai.message && (
+            <p className={cn(
+              "text-xs",
+              keyValidation.openai.isValid ? "text-green-500" : "text-red-500"
+            )}>
+              {keyValidation.openai.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -184,12 +275,31 @@ export function AISettings({
         
         <div className="space-y-2">
           <label className="text-sm font-medium">ElevenLabs API Key</label>
-          <Input
-            type="password"
-            value={elevenLabsKey}
-            onChange={(e) => onElevenLabsKeyChange(e.target.value)}
-            placeholder="Enter your ElevenLabs API key"
-          />
+          <div className="relative">
+            <Input
+              type="password"
+              value={elevenLabsKey}
+              onChange={(e) => handleKeyChange(e.target.value, 'elevenlabs')}
+              placeholder="Enter your ElevenLabs API key"
+              className={cn(
+                "pr-8",
+                editingKeys.elevenlabs && keyValidation.elevenlabs.message && (
+                  keyValidation.elevenlabs.isValid ? "border-green-500" : "border-red-500"
+                )
+              )}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              {editingKeys.elevenlabs && <ValidationIcon {...keyValidation.elevenlabs} />}
+            </div>
+          </div>
+          {editingKeys.elevenlabs && keyValidation.elevenlabs.message && (
+            <p className={cn(
+              "text-xs",
+              keyValidation.elevenlabs.isValid ? "text-green-500" : "text-red-500"
+            )}>
+              {keyValidation.elevenlabs.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -197,7 +307,7 @@ export function AISettings({
           <Select 
             value={elevenLabsModel} 
             onValueChange={onElevenLabsModelChange}
-            disabled={loadingModels || !elevenLabsKey}
+            disabled={loadingModels || !elevenLabsKey || !keyValidation.elevenlabs.isValid}
           >
             <SelectTrigger>
               <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
@@ -222,7 +332,11 @@ export function AISettings({
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Voice ID</label>
-          <Select value={elevenLabsVoiceId} onValueChange={onElevenLabsVoiceIdChange}>
+          <Select 
+            value={elevenLabsVoiceId} 
+            onValueChange={onElevenLabsVoiceIdChange}
+            disabled={!keyValidation.elevenlabs.isValid}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a voice" />
             </SelectTrigger>
@@ -251,16 +365,40 @@ export function AISettings({
         
         <div className="space-y-2">
           <label className="text-sm font-medium">Replicate API Key</label>
-          <Input
-            type="password"
-            value={replicateKey}
-            onChange={(e) => onReplicateKeyChange(e.target.value)}
-            placeholder="Enter your Replicate API key"
-          />
+          <div className="relative">
+            <Input
+              type="password"
+              value={replicateKey}
+              onChange={(e) => handleKeyChange(e.target.value, 'replicate')}
+              placeholder="r8_..."
+              className={cn(
+                "pr-8",
+                editingKeys.replicate && keyValidation.replicate.message && (
+                  keyValidation.replicate.isValid ? "border-green-500" : "border-red-500"
+                )
+              )}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              {editingKeys.replicate && <ValidationIcon {...keyValidation.replicate} />}
+            </div>
+          </div>
+          {editingKeys.replicate && keyValidation.replicate.message && (
+            <p className={cn(
+              "text-xs",
+              keyValidation.replicate.isValid ? "text-green-500" : "text-red-500"
+            )}>
+              {keyValidation.replicate.message}
+            </p>
+          )}
         </div>
       </div>
 
-      <Button onClick={handleSaveAISettings}>Save AI Settings</Button>
+      <Button 
+        onClick={handleSaveAISettings}
+        disabled={!keyValidation.openai.isValid && !keyValidation.elevenlabs.isValid && !keyValidation.replicate.isValid}
+      >
+        Save AI Settings
+      </Button>
     </div>
   );
 }
