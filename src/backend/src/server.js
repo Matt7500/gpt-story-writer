@@ -51,7 +51,7 @@ console.log('Imported functions:', {
 // Validate required environment variables
 const requiredEnvVars = [
   'SUPABASE_URL',
-  'SUPABASE_ANON_KEY'
+  'SUPABASE_SERVICE_ROLE_KEY'
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -63,14 +63,19 @@ for (const envVar of requiredEnvVars) {
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Initialize Supabase client
+// Initialize Supabase client with service role key
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
 console.log('Supabase URL:', supabaseUrl);
-console.log('Supabase Key:', supabaseKey ? 'Present' : 'Missing');
+console.log('Supabase Service Key:', supabaseKey ? 'Present' : 'Missing');
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 
 // Security middleware
 app.use(helmet());

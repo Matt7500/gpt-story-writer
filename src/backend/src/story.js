@@ -870,7 +870,7 @@ Only return the character descriptions without any comments.
 ## Outline:
 ${outline.join('\n')}
       `;
-      const response = await req.openai.chat.completions.create({
+      const response = await req.openRouter.chat.completions.create({
         model: req.userSettings.openrouter_model,
         max_tokens: 4000,
         temperature: 0.7,
