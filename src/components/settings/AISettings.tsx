@@ -42,7 +42,7 @@ interface AISettingsProps {
 }
 
 const API_KEY_PATTERNS = {
-  openai: /^sk-proj-[A-Za-z0-9_-]+$/,
+  openai: /^sk-or-v1-[A-Za-z0-9]{64}$/,
   elevenlabs: /^sk_[A-Za-z0-9]{48}$/,
   replicate: /^r8_[A-Za-z0-9]{37}$/
 };
@@ -163,8 +163,8 @@ export function AISettings({
       const { error } = await supabase
         .from("user_settings")
         .update({ 
-          openai_model: openAIModel,
-          openai_key: openAIKey,
+          openrouter_model: openAIModel,
+          openrouter_key: openAIKey,
           reasoning_model: reasoningModel,
           title_fine_tune_model: titleFineTuneModel,
           rewriting_model: rewritingModel,
@@ -213,17 +213,17 @@ export function AISettings({
       </div>
       <Separator />
 
-      {/* OpenAI Settings */}
+      {/* OpenRouter Settings */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">OpenAI Settings</h3>
+        <h3 className="text-lg font-medium">OpenRouter Settings</h3>
         <div className="space-y-2">
-          <label className="text-sm font-medium">OpenAI API Key</label>
+          <label className="text-sm font-medium">OpenRouter API Key</label>
           <div className="relative">
             <Input
               type="password"
               value={openAIKey}
               onChange={(e) => handleKeyChange(e.target.value, 'openai')}
-              placeholder="sk-proj-..."
+              placeholder="Enter your OpenRouter API key"
               className={cn(
                 "pr-8",
                 editingKeys.openai && keyValidation.openai.message && (

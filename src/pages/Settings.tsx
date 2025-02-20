@@ -13,13 +13,13 @@ export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [openAIModel, setOpenAIModel] = useState("gpt-4o-mini");
-  const [reasoningModel, setReasoningModel] = useState("llama-3.1-sonar-small-128k-online");
+  const [openAIModel, setOpenAIModel] = useState("");
+  const [reasoningModel, setReasoningModel] = useState("");
   const [openAIKey, setOpenAIKey] = useState("");
   const [titleFineTuneModel, setTitleFineTuneModel] = useState("");
   const [rewritingModel, setRewritingModel] = useState("");
   const [elevenLabsKey, setElevenLabsKey] = useState("");
-  const [elevenLabsModel, setElevenLabsModel] = useState("eleven_multilingual_v2");
+  const [elevenLabsModel, setElevenLabsModel] = useState("");
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
   const [replicateKey, setReplicateKey] = useState("");
   const [loading, setLoading] = useState(true);
@@ -39,14 +39,20 @@ export default function Settings() {
           .eq("user_id", user.id)
           .single();
 
-        if (settingsError && settingsError.code !== "PGRST116") {
-          throw settingsError;
+        console.log("Settings data from DB:", settingsData);
+
+        if (settingsError) {
+          console.log("Settings error:", settingsError);
+          if (settingsError.code !== "PGRST116") {
+            throw settingsError;
+          }
         }
 
         if (settingsData) {
           const settings = settingsData as UserSettings;
-          setOpenAIModel(settings.openai_model || "gpt-4o-mini");
-          setOpenAIKey(settings.openai_key || "");
+          console.log("Setting openai_model to:", settings.openrouter_model || "gpt-4o-mini");
+          setOpenAIModel(settings.openrouter_model || "gpt-4o-mini");
+          setOpenAIKey(settings.openrouter_key || "");
           setReasoningModel(settings.reasoning_model || "llama-3.1-sonar-small-128k-online");
           setTitleFineTuneModel(settings.title_fine_tune_model || "");
           setRewritingModel(settings.rewriting_model || "");
@@ -55,17 +61,30 @@ export default function Settings() {
           setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");
           setReplicateKey(settings.replicate_key || "");
         } else {
-          // Create default settings if none exist
-          const { error: insertError } = await supabase
+          console.log("No settings found, creating default settings");
+          const defaultSettings = {
+            user_id: user.id,
+            openrouter_model: "gpt-4o-mini",
+            reasoning_model: "llama-3.1-sonar-small-128k-online",
+            elevenlabs_model: "eleven_multilingual_v2"
+          };
+
+          const { data: newSettings, error: insertError } = await supabase
             .from("user_settings")
-            .insert([{ 
-              user_id: user.id,
-              openai_model: "gpt-4o-mini",
-              reasoning_model: "llama-3.1-sonar-small-128k-online",
-              elevenlabs_model: "eleven_multilingual_v2"
-            }]);
+            .insert([defaultSettings])
+            .select()
+            .single();
           
           if (insertError) throw insertError;
+
+          console.log("New settings created:", newSettings);
+          
+          // Set state with the newly created settings
+          if (newSettings) {
+            setOpenAIModel(newSettings.openrouter_model || "gpt-4o-mini");
+            setReasoningModel(newSettings.reasoning_model || "llama-3.1-sonar-small-128k-online");
+            setElevenLabsModel(newSettings.elevenlabs_model || "eleven_multilingual_v2");
+          }
         }
       } catch (error: any) {
         console.error("Error loading settings:", error);
