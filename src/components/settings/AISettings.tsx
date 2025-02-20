@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { userSettingsService } from "@/services/UserSettingsService";
 
 interface VoiceModel {
   model_id: string;
@@ -22,6 +23,7 @@ interface APIKeyValidation {
 interface AISettingsProps {
   userId: string;
   openAIKey: string;
+  openai_key: string;
   openAIModel: string;
   reasoningModel: string;
   titleFineTuneModel: string;
@@ -31,6 +33,7 @@ interface AISettingsProps {
   elevenLabsVoiceId: string;
   replicateKey: string;
   onOpenAIKeyChange: (key: string) => void;
+  onOpenaiKeyChange: (key: string) => void;
   onOpenAIModelChange: (model: string) => void;
   onReasoningModelChange: (model: string) => void;
   onTitleFineTuneModelChange: (model: string) => void;
@@ -42,7 +45,8 @@ interface AISettingsProps {
 }
 
 const API_KEY_PATTERNS = {
-  openai: /^sk-or-v1-[A-Za-z0-9]{64}$/,
+  openai: /^sk-proj-[A-Za-z0-9_]{156}$/,
+  openrouter: /^sk-or-v1-[A-Za-z0-9]{64}$/,
   elevenlabs: /^sk_[A-Za-z0-9]{48}$/,
   replicate: /^r8_[A-Za-z0-9]{37}$/
 };
@@ -50,6 +54,7 @@ const API_KEY_PATTERNS = {
 export function AISettings({
   userId,
   openAIKey,
+  openai_key,
   openAIModel,
   reasoningModel,
   titleFineTuneModel,
@@ -59,6 +64,7 @@ export function AISettings({
   elevenLabsVoiceId,
   replicateKey,
   onOpenAIKeyChange,
+  onOpenaiKeyChange,
   onOpenAIModelChange,
   onReasoningModelChange,
   onTitleFineTuneModelChange,
@@ -73,16 +79,18 @@ export function AISettings({
   const [loadingModels, setLoadingModels] = useState(false);
   const [editingKeys, setEditingKeys] = useState<Record<string, boolean>>({
     openai: false,
+    openrouter: false,
     elevenlabs: false,
     replicate: false
   });
   const [keyValidation, setKeyValidation] = useState<Record<string, APIKeyValidation>>({
     openai: { isValid: false, message: "" },
+    openrouter: { isValid: false, message: "" },
     elevenlabs: { isValid: false, message: "" },
     replicate: { isValid: false, message: "" }
   });
 
-  const validateKey = (key: string, type: 'openai' | 'elevenlabs' | 'replicate'): APIKeyValidation => {
+  const validateKey = (key: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate'): APIKeyValidation => {
     if (!key) return { isValid: false, message: "" };
     if (!editingKeys[type]) return { isValid: true, message: "" };
     
@@ -97,16 +105,20 @@ export function AISettings({
 
   useEffect(() => {
     setKeyValidation({
-      openai: validateKey(openAIKey, 'openai'),
+      openai: validateKey(openai_key, 'openai'),
+      openrouter: validateKey(openAIKey, 'openrouter'),
       elevenlabs: validateKey(elevenLabsKey, 'elevenlabs'),
       replicate: validateKey(replicateKey, 'replicate')
     });
-  }, [openAIKey, elevenLabsKey, replicateKey, editingKeys]);
+  }, [openai_key, openAIKey, elevenLabsKey, replicateKey, editingKeys]);
 
-  const handleKeyChange = (value: string, type: 'openai' | 'elevenlabs' | 'replicate') => {
+  const handleKeyChange = (value: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate') => {
     setEditingKeys(prev => ({ ...prev, [type]: true }));
     switch (type) {
       case 'openai':
+        onOpenaiKeyChange(value);
+        break;
+      case 'openrouter':
         onOpenAIKeyChange(value);
         break;
       case 'elevenlabs':
@@ -160,26 +172,23 @@ export function AISettings({
 
   const handleSaveAISettings = async () => {
     try {
-      const { error } = await supabase
-        .from("user_settings")
-        .update({ 
-          openrouter_model: openAIModel,
-          openrouter_key: openAIKey,
-          reasoning_model: reasoningModel,
-          title_fine_tune_model: titleFineTuneModel,
-          rewriting_model: rewritingModel,
-          elevenlabs_key: elevenLabsKey,
-          elevenlabs_model: elevenLabsModel,
-          elevenlabs_voice_id: elevenLabsVoiceId,
-          replicate_key: replicateKey
-        })
-        .eq("user_id", userId);
-
-      if (error) throw error;
+      await userSettingsService.updateSettings(userId, { 
+        openrouter_model: openAIModel,
+        openrouter_key: openAIKey,
+        openai_key: openai_key,
+        reasoning_model: reasoningModel,
+        title_fine_tune_model: titleFineTuneModel,
+        rewriting_model: rewritingModel,
+        elevenlabs_key: elevenLabsKey,
+        elevenlabs_model: elevenLabsModel,
+        elevenlabs_voice_id: elevenLabsVoiceId,
+        replicate_key: replicateKey
+      });
 
       // Reset editing state after successful save
       setEditingKeys({
         openai: false,
+        openrouter: false,
         elevenlabs: false,
         replicate: false
       });
@@ -213,17 +222,17 @@ export function AISettings({
       </div>
       <Separator />
 
-      {/* OpenRouter Settings */}
+      {/* OpenAI Settings */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">OpenRouter Settings</h3>
+        <h3 className="text-lg font-medium">OpenAI Settings</h3>
         <div className="space-y-2">
-          <label className="text-sm font-medium">OpenRouter API Key</label>
+          <label className="text-sm font-medium">OpenAI API Key</label>
           <div className="relative">
             <Input
               type="password"
-              value={openAIKey}
+              value={openai_key}
               onChange={(e) => handleKeyChange(e.target.value, 'openai')}
-              placeholder="Enter your OpenRouter API key"
+              placeholder="Enter your OpenAI API key"
               className={cn(
                 "pr-8",
                 editingKeys.openai && keyValidation.openai.message && (
@@ -241,6 +250,59 @@ export function AISettings({
               keyValidation.openai.isValid ? "text-green-500" : "text-red-500"
             )}>
               {keyValidation.openai.message}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Story Ideas Model</label>
+          <Input
+            value={titleFineTuneModel}
+            onChange={(e) => onTitleFineTuneModelChange(e.target.value)}
+            placeholder="Enter model name (e.g., gpt-4)"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Title Generation Model</label>
+          <Input
+            value={rewritingModel}
+            onChange={(e) => onRewritingModelChange(e.target.value)}
+            placeholder="Enter model name (e.g., gpt-4)"
+          />
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* OpenRouter Settings */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">OpenRouter Settings</h3>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">OpenRouter API Key</label>
+          <div className="relative">
+            <Input
+              type="password"
+              value={openAIKey}
+              onChange={(e) => handleKeyChange(e.target.value, 'openrouter')}
+              placeholder="Enter your OpenRouter API key"
+              className={cn(
+                "pr-8",
+                editingKeys.openrouter && keyValidation.openrouter.message && (
+                  keyValidation.openrouter.isValid ? "border-green-500" : "border-red-500"
+                )
+              )}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              {editingKeys.openrouter && <ValidationIcon {...keyValidation.openrouter} />}
+            </div>
+          </div>
+          {editingKeys.openrouter && keyValidation.openrouter.message && (
+            <p className={cn(
+              "text-xs",
+              keyValidation.openrouter.isValid ? "text-green-500" : "text-red-500"
+            )}>
+              {keyValidation.openrouter.message}
             </p>
           )}
         </div>
@@ -387,7 +449,7 @@ export function AISettings({
 
       <Button 
         onClick={handleSaveAISettings}
-        disabled={!keyValidation.openai.isValid && !keyValidation.elevenlabs.isValid && !keyValidation.replicate.isValid}
+        disabled={!keyValidation.openai.isValid && !keyValidation.openrouter.isValid && !keyValidation.elevenlabs.isValid && !keyValidation.replicate.isValid}
       >
         Save AI Settings
       </Button>

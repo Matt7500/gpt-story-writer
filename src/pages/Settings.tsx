@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Settings as SettingsIcon } from "lucide-react";
@@ -8,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { AISettings } from "@/components/settings/AISettings";
 import type { UserSettings } from "@/types/settings";
+import { userSettingsService } from "@/services/UserSettingsService";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -16,6 +16,7 @@ export default function Settings() {
   const [openAIModel, setOpenAIModel] = useState("");
   const [reasoningModel, setReasoningModel] = useState("");
   const [openAIKey, setOpenAIKey] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
   const [titleFineTuneModel, setTitleFineTuneModel] = useState("");
   const [rewritingModel, setRewritingModel] = useState("");
   const [elevenLabsKey, setElevenLabsKey] = useState("");
@@ -32,60 +33,18 @@ export default function Settings() {
 
     async function loadSettings() {
       try {
-        // Load AI settings
-        const { data: settingsData, error: settingsError } = await supabase
-          .from("user_settings")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
-
-        console.log("Settings data from DB:", settingsData);
-
-        if (settingsError) {
-          console.log("Settings error:", settingsError);
-          if (settingsError.code !== "PGRST116") {
-            throw settingsError;
-          }
-        }
-
-        if (settingsData) {
-          const settings = settingsData as UserSettings;
-          console.log("Setting openai_model to:", settings.openrouter_model || "gpt-4o-mini");
-          setOpenAIModel(settings.openrouter_model || "gpt-4o-mini");
-          setOpenAIKey(settings.openrouter_key || "");
-          setReasoningModel(settings.reasoning_model || "llama-3.1-sonar-small-128k-online");
-          setTitleFineTuneModel(settings.title_fine_tune_model || "");
-          setRewritingModel(settings.rewriting_model || "");
-          setElevenLabsKey(settings.elevenlabs_key || "");
-          setElevenLabsModel(settings.elevenlabs_model || "eleven_multilingual_v2");
-          setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");
-          setReplicateKey(settings.replicate_key || "");
-        } else {
-          console.log("No settings found, creating default settings");
-          const defaultSettings = {
-            user_id: user.id,
-            openrouter_model: "gpt-4o-mini",
-            reasoning_model: "llama-3.1-sonar-small-128k-online",
-            elevenlabs_model: "eleven_multilingual_v2"
-          };
-
-          const { data: newSettings, error: insertError } = await supabase
-            .from("user_settings")
-            .insert([defaultSettings])
-            .select()
-            .single();
-          
-          if (insertError) throw insertError;
-
-          console.log("New settings created:", newSettings);
-          
-          // Set state with the newly created settings
-          if (newSettings) {
-            setOpenAIModel(newSettings.openrouter_model || "gpt-4o-mini");
-            setReasoningModel(newSettings.reasoning_model || "llama-3.1-sonar-small-128k-online");
-            setElevenLabsModel(newSettings.elevenlabs_model || "eleven_multilingual_v2");
-          }
-        }
+        const settings = await userSettingsService.getSettings(user.id);
+        
+        setOpenAIModel(settings.openrouter_model || "gpt-4o-mini");
+        setOpenAIKey(settings.openrouter_key || "");
+        setOpenaiKey(settings.openai_key || "");
+        setReasoningModel(settings.reasoning_model || "llama-3.1-sonar-small-128k-online");
+        setTitleFineTuneModel(settings.title_fine_tune_model || "gpt-4");
+        setRewritingModel(settings.rewriting_model || "gpt-4");
+        setElevenLabsKey(settings.elevenlabs_key || "");
+        setElevenLabsModel(settings.elevenlabs_model || "eleven_multilingual_v2");
+        setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");
+        setReplicateKey(settings.replicate_key || "");
       } catch (error: any) {
         console.error("Error loading settings:", error);
         toast({
@@ -123,6 +82,7 @@ export default function Settings() {
       <AISettings
         userId={user.id}
         openAIKey={openAIKey}
+        openai_key={openaiKey}
         openAIModel={openAIModel}
         reasoningModel={reasoningModel}
         titleFineTuneModel={titleFineTuneModel}
@@ -132,6 +92,7 @@ export default function Settings() {
         elevenLabsVoiceId={elevenLabsVoiceId}
         replicateKey={replicateKey}
         onOpenAIKeyChange={setOpenAIKey}
+        onOpenaiKeyChange={setOpenaiKey}
         onOpenAIModelChange={setOpenAIModel}
         onReasoningModelChange={setReasoningModel}
         onTitleFineTuneModelChange={setTitleFineTuneModel}

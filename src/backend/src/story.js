@@ -19,6 +19,7 @@ const OpenAI = require('openai');
 // For Reddit, consider using snoowrap or a similar library:
 const Snoowrap = require('snoowrap');
 const profilesData = require('./profiles.json');
+const userSettingsService = require('./services/UserSettingsService');
 
 // If you want a progress bar similar to tqdm, install a Node package like cli-progress
 // and import it here:
@@ -68,9 +69,8 @@ const settings = {
 //
 // Global variables to hold the clients, in parallel to the Python code
 //
-let oaiClient = null;   // Node OpenAI client
-let orClient = null;    // "OpenRouter" or custom client
-let reddit = null;      // Node Reddit client (snoowrap, etc.)
+let orClient = null;
+let reddit = null;
 
 // In Python: previous_scenes = []
 // We'll store them here as well:
@@ -120,58 +120,27 @@ function replaceWords(text) {
 // 1) initialize_clients: replicates your Python logic to create/verify clients
 //
 async function initializeClients() {
-  // Create the standard OpenAI client
-  if (!settings.OAI_API_KEY) {
-    throw new Error("OpenAI API key is empty or None");
-  }
   try {
-    oaiClient = new OpenAI({
-      apiKey: settings.OAI_API_KEY
-    });
-    console.log("OpenAI client initialized successfully");
+    // Initialize Reddit client if needed
+    if (process.env.REDDIT_CLIENT_ID) {
+      reddit = new Snoowrap({
+        userAgent: 'Reddit posts',
+        clientId: process.env.REDDIT_CLIENT_ID,
+        clientSecret: process.env.REDDIT_CLIENT_SECRET,
+        refreshToken: process.env.REDDIT_REFRESH_TOKEN
+      });
+      console.log("Reddit client initialized successfully");
+    }
   } catch (err) {
-    console.error("Error initializing OpenAI client:", err);
+    console.error("Error initializing clients:", err);
     throw err;
   }
-
-  // Create "OpenRouter" or custom client
-  if (settings.OR_API_KEY) {
-    orClient = axios.create({
-      baseURL: "https://openrouter.ai/api/v1",
-      headers: { 
-        Authorization: `Bearer ${settings.OR_API_KEY}`,
-        'HTTP-Referer': 'http://localhost:5173', // Required by OpenRouter
-        'X-Title': 'Plotter Palette' // Required by OpenRouter
-      }
-    });
-    console.log("OpenRouter client initialized successfully");
-  } else {
-    orClient = null;
-    console.log("Skipping OpenRouter client initialization (no API key)");
-  }
-
-  // Initialize Reddit client
-  // The below is a sample usage of snoowrap; you must provide your own secrets.
-  try {
-    reddit = new Snoowrap({
-      userAgent: 'Reddit posts',
-      clientId: '1oQZd_uYc9Wl7Q',
-      clientSecret: 'uanzrHod7xZya1VSZ2ZTzEVXnlA',
-      refreshToken: ''  // or username/password, depending on your scenario
-    });
-    console.log("Reddit client initialized successfully");
-  } catch (err) {
-    console.error("Error initializing Reddit client:", err);
-    reddit = null;
-  }
-
-  console.log("Client initialization completed");
 }
 
 //
 // 2) write_detailed_scene_description
 //
-async function writeDetailedSceneDescription(scene) {
+async function writeDetailedSceneDescription(scene, req) {
   const prompt = `
 Analyze the following scene and provide a highly detailed paragraph focusing on the most important details and events that are crucial to the story.
 You must include every single detail exactly that is most important to the plot of the story.
@@ -188,16 +157,12 @@ Provide the description as a structured text, not in JSON format.
   let retries = 0;
   while (retries < 5) {
     try {
-      // Example usage of your 'orClient'
-      // In Python, it was something like or_client.chat.completions.create(...)
-      // You may adapt to your chosen approach
-      const response = await orClient.post("/chat/completions", {
-        model: settings.OR_MODEL,
+      const response = await req.openai.chat.completions.create({
+        model: req.userSettings.openrouter_model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1
       });
-      const content = response.choices[0].message.content;
-      return content;
+      return response.choices[0].message.content;
     } catch (err) {
       console.log(`Error in writeDetailedSceneDescription: ${err}. Retrying...`);
       retries += 1;
@@ -323,12 +288,11 @@ If all issues are resolved, respond only with: All issues resolved
 //
 // The big function that merges everything: writes a scene, checks consistency, rewrites if needed
 //
-async function writeScene(sceneBeat, characters, num, totalScenes, previousScenes = [], onProgress) {
+async function writeScene(sceneBeat, characters, num, totalScenes, previousScenes = [], onProgress, req) {
   console.log(`Writing scene ${num+1} of ${totalScenes}`);
   
-  // If there is no "previousScenes", use a fallback
   const recentContext = previousScenes && previousScenes.length
-    ? previousScenes.slice(-4)  // just the last few for context
+    ? previousScenes.slice(-4)
     : ["No previous context. This is the first scene of the story."];
   const context = recentContext.join('\n\n');
 
@@ -339,7 +303,7 @@ This world was not my own. And I needed to get out.
 
 NOW.
 
-Running as fast as I could through the forest, I remembered how I had come to be in this place. As a Park Ranger trainee, I’d been on a fire lookout assignment and had been sent to confront a few campers who had made a bonfire without a permit - in an off-limits area. But I had stumbled through a gateway to another world in the process, becoming lost in this place. Trapped in another dimension where humanoid creatures with gray skin and four arms hunted people in the purple-tinged darkness.
+Running as fast as I could through the forest, I remembered how I had come to be in this place. As a Park Ranger trainee, I'd been on a fire lookout assignment and had been sent to confront a few campers who had made a bonfire without a permit - in an off-limits area. But I had stumbled through a gateway to another world in the process, becoming lost in this place. Trapped in another dimension where humanoid creatures with gray skin and four arms hunted people in the purple-tinged darkness.
 
 I fell flat on my face, landing hard after tripping over something.
 
@@ -351,9 +315,9 @@ The traps. I'd forgotten all about the traps David had set, all throughout this 
 
 "Come back," I heard David yelling over my shoulder from the darkness. "It's not safe! You must come back!"
 
-But I didn't listen. I scrambled back to my feet, and began to run. My only thought was to get to the archway. The place where I’d entered this world. The portal back to Earth had to be there. It HAD to be.
+But I didn't listen. I scrambled back to my feet, and began to run. My only thought was to get to the archway. The place where I'd entered this world. The portal back to Earth had to be there. It HAD to be.
 
-David’s voice could be heard receding into the distance behind me. I shuddered involuntarily, thinking about how I had seen him in the darkness of the cave, eating something like a rat or a mouse. Not only that, but his arms! His arms had been too many. There was an extra pair of hands working at the hairy flesh of the vermin he'd been eating. The bloody fur and the tearing sounds of him ripping chunks from the creature's body with his teeth were too much to think about.
+David's voice could be heard receding into the distance behind me. I shuddered involuntarily, thinking about how I had seen him in the darkness of the cave, eating something like a rat or a mouse. Not only that, but his arms! His arms had been too many. There was an extra pair of hands working at the hairy flesh of the vermin he'd been eating. The bloody fur and the tearing sounds of him ripping chunks from the creature's body with his teeth were too much to think about.
 
 At first I thought maybe he was lying to me from the beginning, and that he was from this place all along. Maybe he was born here and was trying to keep me trapped in this place. But the more I considered it, the more I realized that idea didn't sit right with me.
 
@@ -361,73 +325,73 @@ David was NOT a denizen of this terrible violet-tinted world. No, he was from Ea
 
 My mind began to work out what this meant and came to the conclusion that being in this world changed you over time. Being here, eating the foraged food and breathing the purple-tinged air. All of it was toxic to people from our world. And it caused side effects that were likely permanent.
 
-I only hoped I hadn’t been here long enough for a change to occur in ME.
+I only hoped I hadn't been here long enough for a change to occur in ME.
 
-I shuddered at the thought of an extra pair of arms splitting open the flesh of my abdomen and reaching out, grabbing anything they could get their hands on. HUNGRY. Desperate for food. For blood and flesh and…
+I shuddered at the thought of an extra pair of arms splitting open the flesh of my abdomen and reaching out, grabbing anything they could get their hands on. HUNGRY. Desperate for food. For blood and flesh and...
 
 Fuck.
 
 I needed to get out of this place.
 
-Running through the woods more carefully now, I lifted my feet high off the ground to avoid tripwires, and hoped that I didn’t stumble into a spike-filled pit or some other deathtrap which David had planted.
+Running through the woods more carefully now, I lifted my feet high off the ground to avoid tripwires, and hoped that I didn't stumble into a spike-filled pit or some other deathtrap which David had planted.
 
 Before being hired as a fire lookout, David had served in the British Military, in the SAS - a highly trained branch similar to the Special Forces in America. He was a deadly shot with a rifle, and I no longer had mine with me.
 
 I picked up my pace, hearing the sound of him coming after me through the forest. He was injured, and that would slow him down, but he also knew this place far better than I did. He knew where the traps were located and how to avoid them. Whereas I was just hoping to be able to find my way back to the archway. The possibility of getting lost forever in the wilderness of this strange world occurred to me briefly, but I tried not to think about it.
 
-Trying to remember the way we’d traveled through the forest, I stepped tentatively across the ground, no longer running, but slowly walking through the trees now. I was terrified of stepping on a spike or tumbling into a pit with spikes at the bottom, ready to impale me. David had told me more than once to NEVER go out alone, since he had placed traps everywhere in this area.
+Trying to remember the way we'd traveled through the forest, I stepped tentatively across the ground, no longer running, but slowly walking through the trees now. I was terrified of stepping on a spike or tumbling into a pit with spikes at the bottom, ready to impale me. David had told me more than once to NEVER go out alone, since he had placed traps everywhere in this area.
 
 There was a noise close behind me and I looked back to see David was following me from a distance, gaining on me, and I picked up my pace and began to run again.
 
-“Come back,” he called after me, his voice sounding different now - distorted and wrong. “It’s not safe!”
+"Come back," he called after me, his voice sounding different now - distorted and wrong. "It's not safe!"
 
 Breaking into a sprint, I hoped to lose him in the darkness. For a time, it seemed to work. He was slower due to his injuries (or his mutations) and was hobbling when I saw him again, trailing me from a distance now.
 
-Confident that I’d managed to escape the section of forest where he was hiding his traps, I began to make my way towards the archway. There were certain landmarks David had shown me to find my way back to it, but none of them looked quite the same at night. In fact, nothing looked the same at night.
+Confident that I'd managed to escape the section of forest where he was hiding his traps, I began to make my way towards the archway. There were certain landmarks David had shown me to find my way back to it, but none of them looked quite the same at night. In fact, nothing looked the same at night.
 
-I was starting to worry that I'd become completely lost, when I finally saw the huge oak tree with its one low branch that pointed the way. Following David’s prior advice, I continued traveling that direction.
+I was starting to worry that I'd become completely lost, when I finally saw the huge oak tree with its one low branch that pointed the way. Following David's prior advice, I continued traveling that direction.
 
 After a long period of walking, I realized the sun had begun to rise - looking purple and bloated and wrong as it always did in this world. But at least it gave another indication of which direction I should be walking towards. And it helped to light the way, making the landmarks more obvious as I came across each one.
 
 Here was the babbling brook which I would follow for a little while. And there was the strange boulder that looked like a face.
 
-I felt a pang of regret at leaving David behind, after he’d saved my life, showing me how to survive in this world. But then I shook my head and reconsidered.
+I felt a pang of regret at leaving David behind, after he'd saved my life, showing me how to survive in this world. But then I shook my head and reconsidered.
 
-No, I couldn’t go back to that cave.
+No, I couldn't go back to that cave.
 
 Maybe he was eating rats now, but what if tomorrow he developed a taste for my flesh? What if I woke up to find him hunched over me, eating my leg or my foot?
 
 No. Going back was not an option.
 
-If David was still following me, there was no indication of it. I couldn’t hear him chasing me anymore and he wasn’t calling after me, maybe because he was worried about alerting the creatures to his presence.
+If David was still following me, there was no indication of it. I couldn't hear him chasing me anymore and he wasn't calling after me, maybe because he was worried about alerting the creatures to his presence.
 
-The clearing where the archway had been was not far now. It was just another ten minutes or so of walking, and I was just hoping it would be there this time. If it wasn’t, I was completely unsure of what I would do. I’d been trying not to think about that part of things, since the idea of the portal not being there was too much to bear.
+The clearing where the archway had been was not far now. It was just another ten minutes or so of walking, and I was just hoping it would be there this time. If it wasn't, I was completely unsure of what I would do. I'd been trying not to think about that part of things, since the idea of the portal not being there was too much to bear.
 
-“Come back,” someone called out from the woods suddenly, startling me. It was David. At least, it sounded like him.
+"Come back," someone called out from the woods suddenly, startling me. It was David. At least, it sounded like him.
 
-“It isn’t safe!” another voice called out from my right, sounding sped up, then slowed down, like a tape recorder running low on batteries.
+"It isn't safe!" another voice called out from my right, sounding sped up, then slowed down, like a tape recorder running low on batteries.
 
 Leaves crunched on the ground behind me and ahead of me. From all angles there were voices calling out in distorted tones.
 
-“Come back!”
+"Come back!"
 
-“It isn’t safe!”
+"It isn't safe!"
 
-“CROME BYACKK!”
+"CROME BYACKK!"
 
-“GRESTSN’T SAYFF!”
+"GRESTSN'T SAYFF!"
 
-The more they said it the more the words didn’t sound like words anymore, but just strange, alien noises. They mingled together in an echoing cacophony of sounds.
+The more they said it the more the words didn't sound like words anymore, but just strange, alien noises. They mingled together in an echoing cacophony of sounds.
 
-My heart began to pound against my sternum like a jackhammer from the inside. My palms were sweating as I tried to lift my legs to run but realized they wouldn’t move.
+My heart began to pound against my sternum like a jackhammer from the inside. My palms were sweating as I tried to lift my legs to run but realized they wouldn't move.
 
-It was at that moment that I observed the fact that I didn’t have my rifle, and it dawned on me for the first time that I’d left it back at the cave. With David.
+It was at that moment that I observed the fact that I didn't have my rifle, and it dawned on me for the first time that I'd left it back at the cave. With David.
 
 And as that thought went through my mind the trees and shrubs all around me began to rustle and sway, moving aside to reveal the gray, four-armed figures who had been lying in wait.
 
-If they know you like a particular spot, they’ll start to wait for you there. They’re adept hunters. And they know exactly the way to ambush someone. Trust me, I’ve seen it for myself, David had told me.
+If they know you like a particular spot, they'll start to wait for you there. They're adept hunters. And they know exactly the way to ambush someone. Trust me, I've seen it for myself, David had told me.
 
-Yeah, I thought bitterly. He’d seen it firsthand with the rat in the cave. As he was turning into one of them - and he was becoming a pretty good hunter himself.
+Yeah, I thought bitterly. He'd seen it firsthand with the rat in the cave. As he was turning into one of them - and he was becoming a pretty good hunter himself.
 
 The pack of creatures closed in on me from all angles, and I sucked in a terrified breath, unable to scream or run or do anything at all.
 
@@ -437,17 +401,17 @@ Or so I thought.
 
 The blast of the rifle was deafening in the stillness of the forest, and I winced at the sound of it, as it took the head off the creature closest to me, which was about to grab hold of me.
 
-“RUN!” David screamed from the trees, and this time I could tell very clearly that it was his voice. But at the same time he looked different. He’d left his shirt back at the cave and the extra pair of arms on his abdomen were plainly visible now, and I could see they were holding the rifle. With four hands moving rapidly, David reloaded the gun in a fraction of the time, then had the sights up to his eye again and was ready to fire.
+"RUN!" David screamed from the trees, and this time I could tell very clearly that it was his voice. But at the same time he looked different. He'd left his shirt back at the cave and the extra pair of arms on his abdomen were plainly visible now, and I could see they were holding the rifle. With four hands moving rapidly, David reloaded the gun in a fraction of the time, then had the sights up to his eye again and was ready to fire.
 
 I did as he asked, trying to pry my eyes away from the horrifying image of what was happening. The creatures were abandoning me to go after the bigger threat, and I saw them stomping through the brush towards him as he fired the gun again, taking off the top of one of their skulls in a bloody spray. A chunk of gray brain matter landed on my cheek, and I brushed it off in disgust.
 
 Getting to my feet, I began to run. But one of the creatures stopped me. The one David had just shot was still alive somehow, and grabbing onto my leg - digging its talon-like claws into the flesh of my ankle, gritting its teeth and staring at me with a brainless, evil hunger.
 
-I screamed and howled in pain, turning around and using my other foot to stomp on the thing’s face. As it spit out broken teeth it smiled at me, squeezing and digging its nails in deeper, until I could feel blood pouring out and soaking the fabric of my sock.
+I screamed and howled in pain, turning around and using my other foot to stomp on the thing's face. As it spit out broken teeth it smiled at me, squeezing and digging its nails in deeper, until I could feel blood pouring out and soaking the fabric of my sock.
 
-“Come BACK!” it croaked in David’s voice.
+"Come BACK!" it croaked in David's voice.
 
-Finally I stepped on the thing’s arm, wrenching my leg free from its grip. It was like the thing felt no pain at all as it was immediately trying to come after me again with its other good hands. It was like all it desired was to cause pain, but felt none of its own.
+Finally I stepped on the thing's arm, wrenching my leg free from its grip. It was like the thing felt no pain at all as it was immediately trying to come after me again with its other good hands. It was like all it desired was to cause pain, but felt none of its own.
 
 Trying not to think about that, I turned away and began to run, limping on my one injured leg, ignoring the pain as I broke into a sprint.
 
@@ -461,9 +425,9 @@ But I had no time to mourn for him.
 
 I rushed through the trees, trying to ignore the pain in my leg, hoping with every fiber of my being that the archway would be there. I spoke the words in my mind and out loud over and over again, like a mantra, as the clearing came closer and drew into focus.
 
-“Please be there, please be there, please be there.”
+"Please be there, please be there, please be there."
 
-And when I came out from the trees and into the clearing I almost couldn’t believe my eyes.
+And when I came out from the trees and into the clearing I almost couldn't believe my eyes.
 
 Was this a dream? A mirage? A fantasy that would disappear when I blinked my eyes and opened them again?
 
@@ -475,23 +439,15 @@ The archway was back.
 
 And just in the nick of time.
 
-Without a moment’s hesitation I ran through it, terrified that it would disappear before I got the chance to step through the threshold and back into my dimension.
+Without a moment's hesitation I ran through it, terrified that it would disappear before I got the chance to step through the threshold and back into my dimension.
 
 Like a man terrified of elevators and worried the box will drop out at any second, I leapt through the archway and back into the glorious golden sunlight of our world.`;
-
-  let finalSceneIndicator = '';
-  if (num === totalScenes - 1) {
-    finalSceneIndicator = `
-This is the final scene of the story. You must write an ending to the story that nicely ends the story explicitly, 
-do not end it in the middle of a scene or event. Do not write "The End" or anything like that.
-`;
-  }
 
   const prompt = `
 ## WRITING INSTRUCTIONS
 - You are an expert fiction writer. Write a fully detailed scene that has as many details from the scene beat as possible.
 - YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
-- Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene.
+- Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
 
 ## CORE REQUIREMENTS
 - Write in plain text only, do not include any markdown formatting.
@@ -521,17 +477,17 @@ ${characters}
 ${sceneBeat}
 `;
 
-console.log(prompt);
-
   let retries = 0;
   while (retries < 5) {
     try {
-      const response = await oaiClient.chat.completions.create({
-        model: settings.OAI_MODEL,
+      const response = await req.openRouter.chat.completions.create({
+        model: req.userSettings.openrouter_model,
         messages: [{ role: "user", content: prompt }],
         max_tokens: 8000,
         stream: true
       });
+
+      console.log(req.userSettings.openrouter_model);
 
       let fullScene = "";
       let currentChunk = "";
@@ -540,7 +496,6 @@ console.log(prompt);
         const content = chunk.choices[0]?.delta?.content || "";
         currentChunk += content;
 
-        // If we have a reasonable chunk size or see a paragraph break, send progress
         if (currentChunk.length > 100 || currentChunk.includes("\n\n")) {
           if (onProgress) {
             onProgress(currentChunk);
@@ -550,13 +505,11 @@ console.log(prompt);
         }
       }
 
-      // Send any remaining content
       if (currentChunk.trim() && onProgress) {
         onProgress(currentChunk.trim());
       }
       fullScene += currentChunk.trim();
 
-      // Check length
       if (fullScene.trim().length < 500) {
         console.log(`Scene too short (${fullScene.trim().length} chars). Retrying...`);
         retries += 1;
@@ -577,61 +530,46 @@ console.log(prompt);
 //
 // 7) write_story
 //
-async function writeStory(outline, characters, addTransitions=false) {
+async function writeStory(outline, characters, addTransitions=false, req) {
   console.log("Starting story writing process...");
   
   const scenes = [];
   const editedScenes = [];
   const originalScenes = [];
 
-  // If you want a progress bar, set it up here:
-  // const progressBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-  // progressBar.start(totalSteps, 0);
-
   let nextScene = null;
 
-  // 1) Generate all scenes
+  // Generate all scenes
   for (let i = 0; i < outline.length; i++) {
     const sceneBeat = outline[i];
     let scene;
 
     if (nextScene) {
-      // We already wrote it in a previous transition step
       scene = nextScene;
     } else {
-      // Write brand new scene
-      scene = await writeScene(sceneBeat, characters, i, outline.length);
+      scene = await writeScene(sceneBeat, characters, i, outline.length, previousScenes, null, req);
     }
 
-    // push to previous scenes
-    // (But note that writeScene already appended it—depending on your usage)
-    // previousScenes.push(scene);
     originalScenes.push(scene);
 
     if (addTransitions && i < outline.length - 1) {
-      // Pre-generate next scene for the transition
-      nextScene = await writeScene(outline[i+1], characters, i+1, outline.length);
-      const transition = await writeSceneTransition(scene, nextScene);
+      nextScene = await writeScene(outline[i+1], characters, i+1, outline.length, previousScenes, null, req);
+      const transition = await writeSceneTransition(scene, nextScene, req);
       console.log(`Transition: ${transition}`);
-      // combine them
       scene = `${scene}\n\n${transition}`;
     } else {
       nextScene = null;
     }
 
     scenes.push(scene);
-    // if progressBar, progressBar.increment();
   }
 
-  // 2) Second pass: Edit all scenes
+  // Second pass: Edit all scenes
   for (let i = 0; i < scenes.length; i++) {
-    // A placeholder for your final pass. The Python used `callTune4(scene)`.
-    const processed = await callTune4(scenes[i]);
+    const processed = await callTune4(scenes[i], req);
     editedScenes.push(processed);
-    // if progressBar, progressBar.increment();
   }
 
-  // if progressBar, progressBar.stop();
   const finalStory = editedScenes.join('\n\n');
   return { finalStory, editedScenes, originalScenes };
 }
@@ -639,7 +577,7 @@ async function writeStory(outline, characters, addTransitions=false) {
 //
 // 8) write_scene_transition
 //
-async function writeSceneTransition(scene1, scene2) {
+async function writeSceneTransition(scene1, scene2, req) {
   const scene1Paras = scene1.split('\n\n').filter(x => x.trim());
   const scene2Paras = scene2.split('\n\n').filter(x => x.trim());
 
@@ -660,8 +598,8 @@ ${firstParagraphs}
   `;
 
   try {
-    const response = await orClient.chat.completions.create({
-      model: settings.OR_MODEL,
+    const response = await req.openai.chat.completions.create({
+      model: req.userSettings.openrouter_model,
       messages: [{ role: "user", content: prompt }]
     });
     return response.choices[0].message.content;
@@ -737,7 +675,11 @@ async function findLongPost(storyProfile) {
 //
 // 10) story_ideas
 //
-async function storyIdeas() {
+async function storyIdeas(req) {
+  if (!req || !req.openai) {
+    throw new Error('OpenAI client not initialized');
+  }
+
   try {
     const allProfiles = settings.load_story_profiles();
     const profile = allProfiles[settings.STORY_PROFILE];
@@ -747,14 +689,11 @@ async function storyIdeas() {
       return null;
     }
 
-    // Get a random prompt from the profile
     const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
-    
     console.log('Using prompt:', prompt);
-    console.log('Using model:', profile.model || settings.OAI_MODEL);
 
-    const response = await oaiClient.chat.completions.create({
-      model: profile.model || settings.OAI_MODEL,
+    const response = await req.openai.chat.completions.create({
+      model: req.userSettings.title_fine_tune_model,
       messages: [
         { 
           role: "system", 
@@ -777,7 +716,7 @@ async function storyIdeas() {
     return response.choices[0].message.content;
   } catch (err) {
     console.error("Error generating story idea:", err);
-    return null;
+    throw err;  // Propagate the error up
   }
 }
 
@@ -820,7 +759,7 @@ function formatScenes(inputString) {
 //
 // 12) create_outline
 //
-async function createOutline(idea) {
+async function createOutline(idea, req) {
   try {
     const allProfiles = settings.load_story_profiles();
     const profile = allProfiles[settings.STORY_PROFILE];
@@ -862,8 +801,8 @@ ${generateSceneTemplate(numScenes)}
 ${idea}
         `;
 
-        const response = await oaiClient.chat.completions.create({
-          model: profile.model || settings.OAI_MODEL,
+        const response = await req.openRouter.chat.completions.create({
+          model: req.userSettings.openrouter_model,
           temperature: 1,
           messages: [{ role: "user", content: userMessage }]
         });
@@ -912,7 +851,7 @@ function getOrdinal(n) {
 //
 // 13) characters()
 //
-async function charactersFn(outline) {
+async function charactersFn(outline, req) {
   let retries = 0;
   while (retries < 10) {
     try {
@@ -931,14 +870,13 @@ Only return the character descriptions without any comments.
 ## Outline:
 ${outline.join('\n')}
       `;
-      const response = await oaiClient.chat.completions.create({
-        model: settings.OAI_MODEL,
+      const response = await req.openai.chat.completions.create({
+        model: req.userSettings.openrouter_model,
         max_tokens: 4000,
         temperature: 0.7,
         messages: [{ role: "user", content: prompt }]
       });
-      const content = response.choices[0].message.content;
-      return content;
+      return response.choices[0].message.content;
     } catch (err) {
       console.log(`Error in charactersFn: ${err}. Retrying...`);
       retries += 1;
@@ -951,18 +889,15 @@ ${outline.join('\n')}
 // 14) callTune4
 //    This is your "fine-tuning pipeline" method. In practice, adapt to your Node approach
 //
-async function callTune4(scene) {
-  // Splits paragraphs, lumps them by whether they have quotes, processes them, etc.
-  // For brevity, below is a simpler version that just calls your "FT model" once.
-  // If you need chunking, group checks, etc., replicate them as in Python.
+async function callTune4(scene, req) {
   let maxRetries = 3;
   let retryCount = 0;
   let processed = scene;
 
   while (retryCount < maxRetries) {
     try {
-      const completion = await oaiClient.chat.completions.create({
-        model: settings.FT_MODEL,
+      const completion = await req.openai.chat.completions.create({
+        model: req.userSettings.openrouter_model,
         temperature: 0.7,
         messages: [
           {
@@ -977,15 +912,12 @@ async function callTune4(scene) {
       });
       const output = completion.choices[0].message.content;
       
-      // Check if output is identical or too large
       if (output.trim() === scene.trim()) {
-        // same text, try again
         retryCount++;
         if (retryCount === maxRetries) {
           return replaceWords(scene);
         }
       } else {
-        // done
         processed = replaceWords(output);
         break;
       }
@@ -993,73 +925,57 @@ async function callTune4(scene) {
       console.log("Error in callTune4:", err);
       retryCount++;
       if (retryCount === maxRetries) {
-        return scene;  // fallback
+        return scene;
       }
     }
   }
   return processed;
 }
 
-async function createTitle(storyText, finetuneModel, maxRetries = 10) {
-    /**
-     * Create a title with retry logic to ensure it meets criteria:
-     * - Must be between 70 and 100 characters
-     * - Must include a comma
-     */
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-            const title = await oaiClient.chat.completions.create({
-                model: finetuneModel,
-                max_tokens: 4000,
-                messages: [
-                    {
-                        role: "system",
-                        content: "You are tasked with creating a YouTube title for the given story. The title must be between 70 and 100 characters and include a comma. The title must be told in first person in the past tense."
-                    },
-                    {
-                        role: "user",
-                        content: storyText
-                    }
-                ]
-            });
+async function createTitle(storyText, req) {
+  const maxRetries = 10;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const title = await req.openai.chat.completions.create({
+        model: req.userSettings.rewriting_model,
+        max_tokens: 4000,
+        messages: [
+          {
+            role: "system",
+            content: "You are tasked with creating a YouTube title for the given story. The title must be between 70 and 100 characters and include a comma. The title must be told in first person in the past tense."
+          },
+          {
+            role: "user",
+            content: storyText
+          }
+        ]
+      });
 
-            let titleText = title.choices[0].message.content.replace(/"/g, '');
+      let titleText = title.choices[0].message.content.replace(/"/g, '');
 
-            // Add comma if missing (for horror stories)
-            if (storyText.includes('Horror') && !titleText.includes(',')) {
-                titleText = titleText.replace(' ', ', ', 1); // Add a comma after the first space
-            }
+      if (storyText.includes('Horror') && !titleText.includes(',')) {
+        titleText = titleText.replace(' ', ', ', 1);
+      }
 
-            // Check if title meets all criteria
-            if (titleText.length <= 100 && titleText.length >= 70 && titleText.includes(',')) {
-                console.log(`Generated title: ${titleText}`);
-                return titleText;
-            } else {
-                const issues = [];
-                if (titleText.length > 100) {
-                    issues.push("too long");
-                }
-                if (!titleText.includes(',')) {
-                    issues.push("missing comma");
-                }
-                console.log(`Title invalid (${issues.join(', ')}) on attempt ${attempt + 1}, retrying...`);
-            }
+      if (titleText.length <= 100 && titleText.length >= 70 && titleText.includes(',')) {
+        console.log(`Generated title: ${titleText}`);
+        return titleText;
+      }
 
-            // If we've exhausted maxRetries without finding a valid title
-            if (attempt === maxRetries - 1) {
-                console.log(`Warning: Could not generate valid title after ${maxRetries} attempts. Truncating...`);
-                return titleText.slice(0, 97) + "...";
-            }
+      if (attempt === maxRetries - 1) {
+        console.log(`Warning: Could not generate valid title after ${maxRetries} attempts. Truncating...`);
+        return titleText.slice(0, 97) + "...";
+      }
 
-        } catch (error) {
-            console.error(`Error on attempt ${attempt + 1}:`, error);
-            if (attempt === maxRetries - 1) {
-                throw error;
-            }
-        }
+    } catch (error) {
+      console.error(`Error on attempt ${attempt + 1}:`, error);
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
     }
-    
-    throw new Error('Failed to generate a valid title after all attempts');
+  }
+  
+  throw new Error('Failed to generate a valid title after all attempts');
 }
 
 //
@@ -1094,7 +1010,7 @@ async function main(username, channelName) {
 
     // Generate characters
     console.log("Generating characters...");
-    const chars = await charactersFn(outline);
+    const chars = await charactersFn(outline, settings.NUM_SCENES);
     if (!chars) {
       throw new Error("Failed to generate characters");
     }
@@ -1137,5 +1053,7 @@ module.exports = {
   createTitle,
   charactersFn,
   initializeClients,
-  // Add any other functions you need to export
+  writeDetailedSceneDescription,
+  writeSceneTransition,
+  callTune4
 };

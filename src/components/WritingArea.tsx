@@ -101,24 +101,34 @@ export function WritingArea({
     try {
       setIsGenerating(true);
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
+      if (!session) {
+        toast({
+          title: "Authentication Error",
+          description: "Please sign in to continue.",
+          variant: "destructive",
+          duration: 3000,
+        });
+        return;
+      }
 
       // Create an EventSource for real-time updates
       const clientId = Math.random().toString(36).substring(7);
       setCurrentClientId(clientId);
-      const eventSource = new EventSource(`${API_URL}/api/stories/write-scene/progress?clientId=${clientId}`);
+      
+      // Create EventSource with auth token in query params
+      const eventSource = new EventSource(
+        `${API_URL}/api/stories/write-scene/progress?clientId=${clientId}&auth_token=${session.access_token}`
+      );
 
       let currentContent = "";
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.content) {
           if (data.isPartial) {
-            // For partial updates, append to the current content
             currentContent += data.content;
             setContent(currentContent);
             onSave(currentContent);
           } else {
-            // For the final update, use the complete content
             setContent(data.content);
             onSave(data.content);
           }
@@ -130,7 +140,7 @@ export function WritingArea({
         cleanup();
       };
 
-      // Start the scene generation
+      // Start the scene generation with proper authorization header
       const response = await fetch(`${API_URL}/api/stories/write-scene`, {
         method: 'POST',
         headers: {

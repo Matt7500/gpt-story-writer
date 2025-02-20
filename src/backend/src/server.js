@@ -6,16 +6,14 @@ const { createClient } = require('@supabase/supabase-js');
 const { Configuration, OpenAIApi } = require('openai');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const userSettingsService = require('./services/UserSettingsService');
 
 // Load environment variables from the root directory
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
 
 // Initialize OpenAI client and story module
 const OpenAI = require('openai');
-const openai = new OpenAI({
-  apiKey: process.env.OAI_API_KEY,
-});
-global.oaiClient = openai; // Make it available globally for story.js
+let openai = null; // We'll initialize this per-request based on user settings
 
 const { 
   storyIdeas, 
@@ -53,9 +51,7 @@ console.log('Imported functions:', {
 // Validate required environment variables
 const requiredEnvVars = [
   'SUPABASE_URL',
-  'SUPABASE_ANON_KEY',
-  'OAI_API_KEY',
-  'OR_API_KEY'
+  'SUPABASE_ANON_KEY'
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -141,7 +137,7 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Middleware to verify Supabase session
+// Middleware to verify Supabase session and initialize OpenAI client
 const authenticateUser = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   
@@ -157,7 +153,36 @@ const authenticateUser = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
+    // Clear the cache and get fresh settings
+    userSettingsService.clearCache(user.id);
+    const settings = await userSettingsService.getSettings(user.id);
+    
+    // Check for required API keys based on the endpoint
+    const endpoint = req.path;
+    if (endpoint.includes('/stories/write-scene') && !settings.openrouter_key) {
+      return res.status(400).json({ error: 'OpenRouter API key not configured' });
+    }
+    if ((endpoint.includes('/stories/initialize') || endpoint.includes('/stories/title')) && !settings.openai_key) {
+      return res.status(400).json({ error: 'OpenAI API key not configured' });
+    }
+
+    // Initialize OpenRouter client for scene generation
+    const openRouter = new OpenAI({
+      apiKey: settings.openrouter_key,
+      baseURL: "https://openrouter.ai/api/v1"
+    });
+
+    // Initialize OpenAI client for story ideas and titles
+    const openai = new OpenAI({
+      apiKey: settings.openai_key
+    });
+
+    // Add user, settings, and clients to request object
     req.user = user;
+    req.userSettings = settings;
+    req.openRouter = openRouter;
+    req.openai = openai;
+
     next();
   } catch (error) {
     console.error('Auth error:', error);
@@ -207,27 +232,63 @@ app.get('/api/stories/progress', (req, res) => {
 });
 
 // Add SSE endpoint for scene writing progress
-app.get('/api/stories/write-scene/progress', (req, res) => {
+app.get('/api/stories/write-scene/progress', async (req, res) => {
   const clientId = req.query.clientId;
+  const authToken = req.query.auth_token;
+
   if (!clientId) {
     return res.status(400).json({ error: 'Client ID is required' });
   }
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  if (!authToken) {
+    return res.status(401).json({ error: 'Authentication token is required' });
+  }
 
-  // Store the response object in the global map
-  progressClients.set(clientId, res);
+  try {
+    // Verify the auth token
+    const { data: { user }, error } = await supabase.auth.getUser(authToken);
 
-  // Create an AbortController for this client
-  const controller = new AbortController();
-  abortControllers.set(clientId, controller);
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
 
-  req.on('close', () => {
-    progressClients.delete(clientId);
-    abortControllers.delete(clientId);
-  });
+    // Clear the cache and get fresh settings
+    userSettingsService.clearCache(user.id);
+    const settings = await userSettingsService.getSettings(user.id);
+    if (!settings.openrouter_key) {
+      return res.status(400).json({ error: 'OpenRouter API key not configured' });
+    }
+
+    // Initialize OpenAI client with user's API key
+    openai = new OpenAI({
+      apiKey: settings.openrouter_key,
+      baseURL: "https://openrouter.ai/api/v1"
+    });
+
+    // Add user, settings, and openai client to request object
+    req.user = user;
+    req.userSettings = settings;
+    req.openai = openai;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Store the response object in the global map
+    progressClients.set(clientId, res);
+
+    // Create an AbortController for this client
+    const controller = new AbortController();
+    abortControllers.set(clientId, controller);
+
+    req.on('close', () => {
+      progressClients.delete(clientId);
+      abortControllers.delete(clientId);
+    });
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(401).json({ error: 'Authentication failed' });
+  }
 });
 
 // Add endpoint for scene writing
@@ -276,7 +337,8 @@ app.post('/api/stories/write-scene', authenticateUser, async (req, res) => {
       previousScenes.length,
       previousScenes.length + 1,
       previousScenes,
-      onProgress
+      onProgress,
+      req // Pass the request object here
     );
 
     console.log('Scene generated successfully:', {
@@ -492,82 +554,99 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
     // Generate story idea
     sendProgressUpdate(clientId, 0);
     console.log("Step 1: Generating story idea...");
-    const storyIdea = await storyIdeas();
-    if (!storyIdea || isAborted) {
-      throw new Error(isAborted ? 'Story generation cancelled' : 'Failed to generate story idea');
+    try {
+      const storyIdea = await storyIdeas(req);
+      if (!storyIdea) {
+        throw new Error('Failed to generate story idea');
+      }
+      console.log("Story idea generated successfully");
+
+      // Generate title
+      sendProgressUpdate(clientId, 1);
+      console.log("Step 2: Creating title...");
+      const title = await createTitle(storyIdea, req);
+      if (!title) {
+        throw new Error('Failed to generate title');
+      }
+      console.log("Title created successfully");
+
+      // Create outline
+      sendProgressUpdate(clientId, 2);
+      console.log("Step 3: Building plot outline...");
+      const outline = await createOutline(storyIdea, req);
+      if (!outline) {
+        throw new Error('Failed to create outline');
+      }
+      console.log("Outline created successfully");
+
+      // Generate characters
+      sendProgressUpdate(clientId, 3);
+      console.log("Step 4: Developing characters...");
+      const characters = await charactersFn(outline, req);
+      if (!characters) {
+        throw new Error('Failed to generate characters');
+      }
+      console.log("Characters generated successfully");
+
+      // Save to database
+      sendProgressUpdate(clientId, 4);
+      console.log("Step 5: Saving story...");
+      
+      // Only save to database if the generation wasn't cancelled
+      if (isAborted) {
+        throw new Error('Story generation cancelled');
+      }
+
+      const { data, error } = await supabase
+        .from('stories')
+        .insert([{
+          id: storyId, // Use UUID v4 instead of clientId
+          user_id: req.user.id,
+          title: title,
+          story_idea: storyIdea,
+          plot_outline: JSON.stringify(outline),
+          characters: characters,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      console.log("Story saved successfully");
+
+      // Close the SSE connection
+      const client = progressClients.get(clientId);
+      if (client) {
+        client.end();
+        progressClients.delete(clientId);
+      }
+      // Clean up the abort controller
+      abortControllers.delete(clientId);
+
+      res.json({
+        success: true,
+        story: data
+      });
+
+    } catch (error) {
+      console.error('Story initialization error:', error);
+      // Close the SSE connection on error
+      const client = progressClients.get(clientId);
+      if (client) {
+        client.end();
+        progressClients.delete(clientId);
+      }
+      // Clean up the abort controller
+      abortControllers.delete(clientId);
+
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
-    console.log("Story idea generated successfully");
-
-    // Generate title
-    sendProgressUpdate(clientId, 1);
-    console.log("Step 2: Creating title...");
-    const title = await createTitle(storyIdea, process.env.OAI_MODEL);
-    if (!title || isAborted) {
-      throw new Error(isAborted ? 'Story generation cancelled' : 'Failed to generate title');
-    }
-    console.log("Title created successfully");
-
-    // Create outline
-    sendProgressUpdate(clientId, 2);
-    console.log("Step 3: Building plot outline...");
-    const outline = await createOutline(storyIdea);
-    if (!outline || isAborted) {
-      throw new Error(isAborted ? 'Story generation cancelled' : 'Failed to create outline');
-    }
-    console.log("Outline created successfully");
-
-    // Generate characters
-    sendProgressUpdate(clientId, 3);
-    console.log("Step 4: Developing characters...");
-    const characters = await charactersFn(outline);
-    if (!characters || isAborted) {
-      throw new Error(isAborted ? 'Story generation cancelled' : 'Failed to generate characters');
-    }
-    console.log("Characters generated successfully");
-
-    // Save to database
-    sendProgressUpdate(clientId, 4);
-    console.log("Step 5: Saving story...");
-    
-    // Only save to database if the generation wasn't cancelled
-    if (isAborted) {
-      throw new Error('Story generation cancelled');
-    }
-
-    const { data, error } = await supabase
-      .from('stories')
-      .insert([{
-        id: storyId, // Use UUID v4 instead of clientId
-        user_id: req.user.id,
-        title: title,
-        story_idea: storyIdea,
-        plot_outline: JSON.stringify(outline),
-        characters: characters,
-        created_at: new Date().toISOString()
-      }])
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    console.log("Story saved successfully");
-
-    // Close the SSE connection
-    const client = progressClients.get(clientId);
-    if (client) {
-      client.end();
-      progressClients.delete(clientId);
-    }
-    // Clean up the abort controller
-    abortControllers.delete(clientId);
-
-    res.json({
-      success: true,
-      story: data
-    });
-
   } catch (error) {
     console.error('Story initialization error:', error);
     // Close the SSE connection on error
