@@ -21,7 +21,8 @@ const {
   createOutline, 
   charactersFn,
   initializeClients,
-  writeScene
+  writeScene,
+  callTune4
 } = require('./story');
 
 // Initialize clients and start server
@@ -756,5 +757,21 @@ app.delete('/api/stories/:id', authenticateUser, async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// Add the tune4 endpoint
+app.post('/api/tune4', authenticateUser, async (req, res) => {
+  try {
+    const { scene } = req.body;
+    if (!scene) {
+      return res.status(400).json({ error: 'Scene content is required' });
+    }
+
+    const processedScene = await callTune4(scene, req);
+    res.json({ content: processedScene });
+  } catch (error) {
+    console.error('Error processing scene with tune4:', error);
+    res.status(500).json({ error: 'Failed to process scene' });
   }
 }); 

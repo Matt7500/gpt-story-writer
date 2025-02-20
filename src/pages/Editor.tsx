@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { OutlinePanel } from "@/components/OutlinePanel";
 import { WritingArea } from "@/components/WritingArea";
 import { CharacterModal } from "@/components/CharacterModal";
+import { ExportModal } from "@/components/ExportModal";
 import debounce from "lodash/debounce";
 
 interface Chapter {
@@ -52,6 +53,7 @@ export default function Editor() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [story, setStory] = useState<Story | null>(null);
   const [showCharacters, setShowCharacters] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>({
     lastSavedContent: '',
     lastSavedTimestamp: Date.now(),
@@ -431,10 +433,7 @@ export default function Editor() {
     try {
       // Save one final time
       await saveToDatabase(chapters);
-      toast({
-        title: "Story Completed",
-        description: "Congratulations on finishing your story!",
-      });
+      setShowExportModal(true);
     } catch (error: any) {
       toast({
         title: "Error saving story",
@@ -479,6 +478,11 @@ export default function Editor() {
           isOpen={showCharacters}
           onClose={() => setShowCharacters(false)}
           characters={characters}
+        />
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          chapters={chapters}
         />
       </div>
     </div>
