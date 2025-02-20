@@ -894,10 +894,17 @@ async function callTune4(scene, req) {
   let retryCount = 0;
   let processed = scene;
 
+  console.log('Starting rewrite processing:', {
+    sceneLength: scene.length,
+    model: req.userSettings.rewrite_model || "gpt-4",
+    retryCount
+  });
+
   while (retryCount < maxRetries) {
     try {
+      // Use OpenAI client with rewrite_model setting
       const completion = await req.openai.chat.completions.create({
-        model: req.userSettings.openrouter_model,
+        model: req.userSettings.rewrite_model || "gpt-4",
         temperature: 0.7,
         messages: [
           {
@@ -914,17 +921,30 @@ async function callTune4(scene, req) {
       
       if (output.trim() === scene.trim()) {
         retryCount++;
+        console.log('No changes made by model, retrying:', { retryCount, maxRetries });
         if (retryCount === maxRetries) {
+          console.log('Max retries reached with no changes, using original text with word replacements');
           return replaceWords(scene);
         }
       } else {
         processed = replaceWords(output);
+        console.log('Successfully processed scene:', {
+          originalLength: scene.length,
+          processedLength: processed.length,
+          retryCount
+        });
         break;
       }
     } catch (err) {
-      console.log("Error in callTune4:", err);
+      console.log('Error in callTune4:', {
+        error: err.message,
+        retryCount,
+        maxRetries,
+        aborted: err.name === 'AbortError'
+      });
       retryCount++;
       if (retryCount === maxRetries) {
+        console.log('Max retries reached due to errors, using original text');
         return scene;
       }
     }

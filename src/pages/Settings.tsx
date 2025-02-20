@@ -19,6 +19,7 @@ export default function Settings() {
   const [openaiKey, setOpenaiKey] = useState("");
   const [titleFineTuneModel, setTitleFineTuneModel] = useState("");
   const [rewritingModel, setRewritingModel] = useState("");
+  const [rewriteModel, setRewriteModel] = useState("");
   const [elevenLabsKey, setElevenLabsKey] = useState("");
   const [elevenLabsModel, setElevenLabsModel] = useState("");
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
@@ -41,6 +42,7 @@ export default function Settings() {
         setReasoningModel(settings.reasoning_model || "llama-3.1-sonar-small-128k-online");
         setTitleFineTuneModel(settings.title_fine_tune_model || "gpt-4");
         setRewritingModel(settings.rewriting_model || "gpt-4");
+        setRewriteModel(settings.rewrite_model || "gpt-4");
         setElevenLabsKey(settings.elevenlabs_key || "");
         setElevenLabsModel(settings.elevenlabs_model || "eleven_multilingual_v2");
         setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");
@@ -87,6 +89,7 @@ export default function Settings() {
         reasoningModel={reasoningModel}
         titleFineTuneModel={titleFineTuneModel}
         rewritingModel={rewritingModel}
+        rewriteModel={rewriteModel}
         elevenLabsKey={elevenLabsKey}
         elevenLabsModel={elevenLabsModel}
         elevenLabsVoiceId={elevenLabsVoiceId}
@@ -97,6 +100,7 @@ export default function Settings() {
         onReasoningModelChange={setReasoningModel}
         onTitleFineTuneModelChange={setTitleFineTuneModel}
         onRewritingModelChange={setRewritingModel}
+        onRewriteModelChange={setRewriteModel}
         onElevenLabsKeyChange={setElevenLabsKey}
         onElevenLabsModelChange={setElevenLabsModel}
         onElevenLabsVoiceIdChange={setElevenLabsVoiceId}

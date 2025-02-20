@@ -765,13 +765,30 @@ app.post('/api/tune4', authenticateUser, async (req, res) => {
   try {
     const { scene } = req.body;
     if (!scene) {
+      console.log('Tune4 request rejected: missing scene content');
       return res.status(400).json({ error: 'Scene content is required' });
     }
 
+    console.log('Processing tune4 request:', {
+      sceneLength: scene.length,
+      model: req.userSettings.rewrite_model || "gpt-4"
+    });
+
     const processedScene = await callTune4(scene, req);
+    
+    console.log('Rewrite processing completed:', {
+      originalLength: scene.length,
+      processedLength: processedScene.length,
+      model: req.userSettings.rewrite_model || "gpt-4"
+    });
+
     res.json({ content: processedScene });
   } catch (error) {
-    console.error('Error processing scene with tune4:', error);
+    console.error('Error in rewrite endpoint:', {
+      error: error.message,
+      type: error.name,
+      aborted: error.name === 'AbortError'
+    });
     res.status(500).json({ error: 'Failed to process scene' });
   }
 }); 

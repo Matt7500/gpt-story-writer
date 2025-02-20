@@ -483,6 +483,7 @@ export default function Editor() {
           isOpen={showExportModal}
           onClose={() => setShowExportModal(false)}
           chapters={chapters}
+          title={story?.title || "untitled_story"}
         />
       </div>
     </div>

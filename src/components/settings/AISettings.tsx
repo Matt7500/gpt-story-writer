@@ -28,6 +28,7 @@ interface AISettingsProps {
   reasoningModel: string;
   titleFineTuneModel: string;
   rewritingModel: string;
+  rewriteModel: string;
   elevenLabsKey: string;
   elevenLabsModel: string;
   elevenLabsVoiceId: string;
@@ -38,6 +39,7 @@ interface AISettingsProps {
   onReasoningModelChange: (model: string) => void;
   onTitleFineTuneModelChange: (model: string) => void;
   onRewritingModelChange: (model: string) => void;
+  onRewriteModelChange: (model: string) => void;
   onElevenLabsKeyChange: (key: string) => void;
   onElevenLabsModelChange: (model: string) => void;
   onElevenLabsVoiceIdChange: (voiceId: string) => void;
@@ -59,6 +61,7 @@ export function AISettings({
   reasoningModel,
   titleFineTuneModel,
   rewritingModel,
+  rewriteModel,
   elevenLabsKey,
   elevenLabsModel,
   elevenLabsVoiceId,
@@ -69,6 +72,7 @@ export function AISettings({
   onReasoningModelChange,
   onTitleFineTuneModelChange,
   onRewritingModelChange,
+  onRewriteModelChange,
   onElevenLabsKeyChange,
   onElevenLabsModelChange,
   onElevenLabsVoiceIdChange,
@@ -172,18 +176,35 @@ export function AISettings({
 
   const handleSaveAISettings = async () => {
     try {
-      await userSettingsService.updateSettings(userId, { 
+      console.log('Saving settings:', {
         openrouter_model: openAIModel,
         openrouter_key: openAIKey,
         openai_key: openai_key,
         reasoning_model: reasoningModel,
         title_fine_tune_model: titleFineTuneModel,
         rewriting_model: rewritingModel,
+        rewrite_model: rewriteModel,
         elevenlabs_key: elevenLabsKey,
         elevenlabs_model: elevenLabsModel,
         elevenlabs_voice_id: elevenLabsVoiceId,
         replicate_key: replicateKey
       });
+
+      const updatedSettings = await userSettingsService.updateSettings(userId, { 
+        openrouter_model: openAIModel,
+        openrouter_key: openAIKey,
+        openai_key: openai_key,
+        reasoning_model: reasoningModel,
+        title_fine_tune_model: titleFineTuneModel,
+        rewriting_model: rewritingModel,
+        rewrite_model: rewriteModel,
+        elevenlabs_key: elevenLabsKey,
+        elevenlabs_model: elevenLabsModel,
+        elevenlabs_voice_id: elevenLabsVoiceId,
+        replicate_key: replicateKey
+      });
+
+      console.log('Settings updated successfully:', updatedSettings);
 
       // Reset editing state after successful save
       setEditingKeys({
@@ -192,6 +213,9 @@ export function AISettings({
         elevenlabs: false,
         replicate: false
       });
+
+      // Clear the cache to ensure fresh data
+      userSettingsService.clearCache(userId);
 
       toast({
         title: "Success",
@@ -268,6 +292,15 @@ export function AISettings({
           <Input
             value={rewritingModel}
             onChange={(e) => onRewritingModelChange(e.target.value)}
+            placeholder="Enter model name (e.g., gpt-4)"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Story Rewrite Model</label>
+          <Input
+            value={rewriteModel}
+            onChange={(e) => onRewriteModelChange(e.target.value)}
             placeholder="Enter model name (e.g., gpt-4)"
           />
         </div>

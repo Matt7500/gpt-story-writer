@@ -13,7 +13,8 @@ export class UserSettingsService {
   private defaultSettings: Partial<UserSettings> = {
     openrouter_model: "gpt-4o-mini",
     reasoning_model: "llama-3.1-sonar-small-128k-online",
-    elevenlabs_model: "eleven_multilingual_v2"
+    elevenlabs_model: "eleven_multilingual_v2",
+    rewrite_model: "gpt-4"
   };
 
   private constructor() {
