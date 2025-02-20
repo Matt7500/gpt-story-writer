@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -15,15 +15,19 @@ export default function Stories() {
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
+  const isMounted = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
+    // Set mounted flag
+    isMounted.current = true;
+
     const checkAuthAndFetch = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
+      if (session?.user && isMounted.current) {
         fetchStories();
-      } else {
+      } else if (isMounted.current) {
         navigate('/auth');
       }
     };
@@ -32,6 +36,8 @@ export default function Stories() {
 
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted.current) return;
+      
       if (session?.user) {
         fetchStories();
       } else {
@@ -40,16 +46,17 @@ export default function Stories() {
     });
 
     return () => {
+      isMounted.current = false;
       subscription.unsubscribe();
     };
   }, [navigate]);
 
   const fetchStories = async () => {
+    if (!isMounted.current) return;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('Current user:', user); // Debug log
-      
-      if (!user) throw new Error("No user found");
+      if (!user || !isMounted.current) return;
 
       const { data, error } = await supabase
         .from('stories')
@@ -57,8 +64,7 @@ export default function Stories() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      console.log('Stories query result:', { data, error }); // Debug log
-      if (error) throw error;
+      if (error || !isMounted.current) throw error;
       
       // Transform the data to match Story type
       const transformedStories = (data || []).map(story => ({
@@ -68,7 +74,8 @@ export default function Stories() {
       
       setStories(transformedStories);
     } catch (error: any) {
-      console.error('Error in fetchStories:', error); // Debug log
+      if (!isMounted.current) return;
+      console.error('Error in fetchStories:', error);
       toast({
         title: "Error fetching stories",
         description: error.message,
@@ -76,7 +83,9 @@ export default function Stories() {
         duration: 3000,
       });
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
