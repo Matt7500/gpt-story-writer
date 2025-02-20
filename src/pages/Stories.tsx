@@ -58,9 +58,15 @@ export default function Stories() {
         .order('created_at', { ascending: false });
 
       console.log('Stories query result:', { data, error }); // Debug log
-
       if (error) throw error;
-      setStories(data || []);
+      
+      // Transform the data to match Story type
+      const transformedStories = (data || []).map(story => ({
+        ...story,
+        chapters: Array.isArray(story.chapters) ? story.chapters : JSON.parse(story.chapters as string)
+      }));
+      
+      setStories(transformedStories);
     } catch (error: any) {
       console.error('Error in fetchStories:', error); // Debug log
       toast({
