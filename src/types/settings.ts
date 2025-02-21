@@ -9,6 +9,8 @@ export interface UserSettings {
   title_fine_tune_model: string | null;
   rewriting_model: string | null;
   rewrite_model: string | null;
+  story_generation_model: string | null;
+  use_openai_for_story_gen: boolean;
   elevenlabs_key: string | null;
   elevenlabs_model: string | null;
   elevenlabs_voice_id: string | null;

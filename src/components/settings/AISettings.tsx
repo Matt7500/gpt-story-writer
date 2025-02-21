@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { userSettingsService } from "@/services/UserSettingsService";
 import { FontManagement } from "./FontManagement";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface VoiceModel {
   model_id: string;
@@ -17,6 +19,11 @@ interface VoiceModel {
 }
 
 interface APIKeyValidation {
+  isValid: boolean;
+  message: string;
+}
+
+interface ModelValidation {
   isValid: boolean;
   message: string;
 }
@@ -30,6 +37,8 @@ interface AISettingsProps {
   titleFineTuneModel: string;
   rewritingModel: string;
   rewriteModel: string;
+  storyGenerationModel: string;
+  useOpenAIForStoryGen: boolean;
   elevenLabsKey: string;
   elevenLabsModel: string;
   elevenLabsVoiceId: string;
@@ -41,6 +50,8 @@ interface AISettingsProps {
   onTitleFineTuneModelChange: (model: string) => void;
   onRewritingModelChange: (model: string) => void;
   onRewriteModelChange: (model: string) => void;
+  onStoryGenerationModelChange: (model: string) => void;
+  onUseOpenAIForStoryGenChange: (useOpenAI: boolean) => void;
   onElevenLabsKeyChange: (key: string) => void;
   onElevenLabsModelChange: (model: string) => void;
   onElevenLabsVoiceIdChange: (voiceId: string) => void;
@@ -54,6 +65,10 @@ const API_KEY_PATTERNS = {
   replicate: /^r8_[A-Za-z0-9]{37}$/
 };
 
+const OPENAI_MODEL_PATTERN = /^gpt-/;
+const OPENROUTER_MODEL_PATTERN = /\//;
+const REASONING_MODEL_PATTERN = /^o|\/|^llama/;
+
 export function AISettings({
   userId,
   openAIKey,
@@ -63,6 +78,8 @@ export function AISettings({
   titleFineTuneModel,
   rewritingModel,
   rewriteModel,
+  storyGenerationModel,
+  useOpenAIForStoryGen,
   elevenLabsKey,
   elevenLabsModel,
   elevenLabsVoiceId,
@@ -74,6 +91,8 @@ export function AISettings({
   onTitleFineTuneModelChange,
   onRewritingModelChange,
   onRewriteModelChange,
+  onStoryGenerationModelChange,
+  onUseOpenAIForStoryGenChange,
   onElevenLabsKeyChange,
   onElevenLabsModelChange,
   onElevenLabsVoiceIdChange,
@@ -94,6 +113,14 @@ export function AISettings({
     elevenlabs: { isValid: false, message: "" },
     replicate: { isValid: false, message: "" }
   });
+  const [modelValidation, setModelValidation] = useState<ModelValidation>({
+    isValid: true,
+    message: ""
+  });
+  const [reasoningModelValidation, setReasoningModelValidation] = useState<ModelValidation>({
+    isValid: true,
+    message: ""
+  });
 
   const validateKey = (key: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate'): APIKeyValidation => {
     if (!key) return { isValid: false, message: "" };
@@ -108,6 +135,40 @@ export function AISettings({
     };
   };
 
+  const validateModel = (model: string, isOpenAI: boolean): ModelValidation => {
+    if (!model) return { isValid: false, message: "Model name is required" };
+    
+    if (isOpenAI) {
+      const isValid = OPENAI_MODEL_PATTERN.test(model);
+      return {
+        isValid,
+        message: isValid ? 
+          "Valid OpenAI model format" : 
+          "Invalid OpenAI model format. Should start with 'gpt-'"
+      };
+    } else {
+      const isValid = OPENROUTER_MODEL_PATTERN.test(model);
+      return {
+        isValid,
+        message: isValid ? 
+          "Valid OpenRouter model format" : 
+          "Invalid model format. Should include a provider prefix like 'openai/gpt-4' or 'anthropic/claude-3'"
+      };
+    }
+  };
+
+  const validateReasoningModel = (model: string): ModelValidation => {
+    if (!model) return { isValid: false, message: "Model name is required" };
+    
+    const isValid = REASONING_MODEL_PATTERN.test(model);
+    return {
+      isValid,
+      message: isValid ? 
+        "Valid model format" : 
+        "Invalid model format. Should start with 'o', 'llama', or include a provider prefix like 'openai/gpt-4'"
+    };
+  };
+
   useEffect(() => {
     setKeyValidation({
       openai: validateKey(openai_key, 'openai'),
@@ -116,6 +177,15 @@ export function AISettings({
       replicate: validateKey(replicateKey, 'replicate')
     });
   }, [openai_key, openAIKey, elevenLabsKey, replicateKey, editingKeys]);
+
+  useEffect(() => {
+    const currentModel = useOpenAIForStoryGen ? storyGenerationModel : openAIModel;
+    setModelValidation(validateModel(currentModel, useOpenAIForStoryGen));
+  }, [useOpenAIForStoryGen, storyGenerationModel, openAIModel]);
+
+  useEffect(() => {
+    setReasoningModelValidation(validateReasoningModel(reasoningModel));
+  }, [reasoningModel]);
 
   const handleKeyChange = (value: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate') => {
     setEditingKeys(prev => ({ ...prev, [type]: true }));
@@ -177,6 +247,19 @@ export function AISettings({
 
   const handleSaveAISettings = async () => {
     try {
+      // Validate the current model based on the selected provider
+      const effectiveStoryGenModel = useOpenAIForStoryGen ? storyGenerationModel : storyGenerationModel;
+      const modelValid = validateModel(effectiveStoryGenModel, useOpenAIForStoryGen);
+
+      if (!modelValid.isValid) {
+        toast({
+          title: "Invalid Model",
+          description: modelValid.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
       console.log('Saving settings:', {
         openrouter_model: openAIModel,
         openrouter_key: openAIKey,
@@ -185,6 +268,8 @@ export function AISettings({
         title_fine_tune_model: titleFineTuneModel,
         rewriting_model: rewritingModel,
         rewrite_model: rewriteModel,
+        story_generation_model: effectiveStoryGenModel,
+        use_openai_for_story_gen: useOpenAIForStoryGen,
         elevenlabs_key: elevenLabsKey,
         elevenlabs_model: elevenLabsModel,
         elevenlabs_voice_id: elevenLabsVoiceId,
@@ -199,6 +284,8 @@ export function AISettings({
         title_fine_tune_model: titleFineTuneModel,
         rewriting_model: rewritingModel,
         rewrite_model: rewriteModel,
+        story_generation_model: effectiveStoryGenModel,
+        use_openai_for_story_gen: useOpenAIForStoryGen,
         elevenlabs_key: elevenLabsKey,
         elevenlabs_model: elevenLabsModel,
         elevenlabs_voice_id: elevenLabsVoiceId,
@@ -245,6 +332,100 @@ export function AISettings({
         <Key className="h-5 w-5" />
         <h2 className="text-xl font-medium">AI Settings</h2>
       </div>
+      <Separator />
+
+      {/* Story Generation Provider Toggle */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Story Generation Settings</h3>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="story-gen-provider"
+            checked={useOpenAIForStoryGen}
+            onCheckedChange={onUseOpenAIForStoryGenChange}
+          />
+          <Label htmlFor="story-gen-provider">
+            Use OpenAI for Story Generation
+          </Label>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          When enabled, OpenAI will be used for story generation. When disabled, OpenRouter will be used instead.
+        </p>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Story Generation Model</label>
+          <div className="relative">
+            <Input
+              value={useOpenAIForStoryGen ? storyGenerationModel : openAIModel}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                if (useOpenAIForStoryGen) {
+                  onStoryGenerationModelChange(newValue);
+                } else {
+                  onOpenAIModelChange(newValue);
+                }
+                setModelValidation(validateModel(newValue, useOpenAIForStoryGen));
+              }}
+              placeholder={`Enter model name (e.g., ${useOpenAIForStoryGen ? "gpt-4" : "openai/gpt-4-turbo-preview"})`}
+              className={cn(
+                "pr-8",
+                modelValidation.message && (
+                  modelValidation.isValid ? "border-green-500" : "border-red-500"
+                )
+              )}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              {modelValidation.message && <ValidationIcon {...modelValidation} />}
+            </div>
+          </div>
+          {modelValidation.message && (
+            <p className={cn(
+              "text-xs",
+              modelValidation.isValid ? "text-green-500" : "text-red-500"
+            )}>
+              {modelValidation.message}
+            </p>
+          )}
+          <p className="text-sm text-muted-foreground">
+            Model that will be used for generating stories using {useOpenAIForStoryGen ? "OpenAI" : "OpenRouter"}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Reasoning Model</label>
+          <div className="relative">
+            <Input
+              value={reasoningModel}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                onReasoningModelChange(newValue);
+                setReasoningModelValidation(validateReasoningModel(newValue));
+              }}
+              placeholder="Enter model name"
+              className={cn(
+                "pr-8",
+                reasoningModelValidation.message && (
+                  reasoningModelValidation.isValid ? "border-green-500" : "border-red-500"
+                )
+              )}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              {reasoningModelValidation.message && <ValidationIcon {...reasoningModelValidation} />}
+            </div>
+          </div>
+          {reasoningModelValidation.message && (
+            <p className={cn(
+              "text-xs",
+              reasoningModelValidation.isValid ? "text-green-500" : "text-red-500"
+            )}>
+              {reasoningModelValidation.message}
+            </p>
+          )}
+          <p className="text-sm text-muted-foreground">
+            Model used for analyzing and improving story outlines
+          </p>
+        </div>
+      </div>
+
       <Separator />
 
       {/* OpenAI Settings */}
@@ -339,24 +520,6 @@ export function AISettings({
               {keyValidation.openrouter.message}
             </p>
           )}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Story Generation Model</label>
-          <Input
-            value={openAIModel}
-            onChange={(e) => onOpenAIModelChange(e.target.value)}
-            placeholder="Enter model name (e.g., gpt-4o-mini)"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Reasoning Model</label>
-          <Input
-            value={reasoningModel}
-            onChange={(e) => onReasoningModelChange(e.target.value)}
-            placeholder="Enter model name"
-          />
         </div>
       </div>
 

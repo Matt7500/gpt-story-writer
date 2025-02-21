@@ -14,7 +14,9 @@ export class UserSettingsService {
     openrouter_model: "gpt-4o-mini",
     reasoning_model: "llama-3.1-sonar-small-128k-online",
     elevenlabs_model: "eleven_multilingual_v2",
-    rewrite_model: "gpt-4"
+    rewrite_model: "gpt-4",
+    story_generation_model: "gpt-4",
+    use_openai_for_story_gen: false
   };
 
   private constructor() {

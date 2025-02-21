@@ -167,25 +167,27 @@ const authenticateUser = async (req, res, next) => {
     userSettingsService.clearCache(user.id);
     const settings = await userSettingsService.getSettings(user.id);
     
-    // Check for required API keys based on the endpoint
-    const endpoint = req.path;
-    if (endpoint.includes('/stories/write-scene') && !settings.openrouter_key) {
-      return res.status(400).json({ error: 'OpenRouter API key not configured' });
-    }
-    if ((endpoint.includes('/stories/initialize') || endpoint.includes('/stories/title')) && !settings.openai_key) {
-      return res.status(400).json({ error: 'OpenAI API key not configured' });
-    }
-
-    // Initialize OpenRouter client for scene generation
+    // Initialize OpenRouter client
     const openRouter = new OpenAI({
       apiKey: settings.openrouter_key,
       baseURL: "https://openrouter.ai/api/v1"
     });
 
-    // Initialize OpenAI client for story ideas and titles
+    // Initialize OpenAI client
     const openai = new OpenAI({
       apiKey: settings.openai_key
     });
+
+    // Check for required API keys based on the endpoint and settings
+    const endpoint = req.path;
+    if (endpoint.includes('/stories/write-scene') || endpoint.includes('/stories/initialize')) {
+      if (settings.use_openai_for_story_gen && !settings.openai_key) {
+        return res.status(400).json({ error: 'OpenAI API key not configured' });
+      }
+      if (!settings.use_openai_for_story_gen && !settings.openrouter_key) {
+        return res.status(400).json({ error: 'OpenRouter API key not configured' });
+      }
+    }
 
     // Add user, settings, and clients to request object
     req.user = user;

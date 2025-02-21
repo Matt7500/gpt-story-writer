@@ -20,6 +20,8 @@ export default function Settings() {
   const [titleFineTuneModel, setTitleFineTuneModel] = useState("");
   const [rewritingModel, setRewritingModel] = useState("");
   const [rewriteModel, setRewriteModel] = useState("");
+  const [storyGenerationModel, setStoryGenerationModel] = useState("");
+  const [useOpenAIForStoryGen, setUseOpenAIForStoryGen] = useState(false);
   const [elevenLabsKey, setElevenLabsKey] = useState("");
   const [elevenLabsModel, setElevenLabsModel] = useState("");
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
@@ -43,6 +45,8 @@ export default function Settings() {
         setTitleFineTuneModel(settings.title_fine_tune_model || "gpt-4");
         setRewritingModel(settings.rewriting_model || "gpt-4");
         setRewriteModel(settings.rewrite_model || "gpt-4");
+        setStoryGenerationModel(settings.story_generation_model || "gpt-4");
+        setUseOpenAIForStoryGen(settings.use_openai_for_story_gen || false);
         setElevenLabsKey(settings.elevenlabs_key || "");
         setElevenLabsModel(settings.elevenlabs_model || "eleven_multilingual_v2");
         setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");
@@ -73,47 +77,50 @@ export default function Settings() {
   };
 
   return (
-    <div className="container max-w-2xl mx-auto p-8 space-y-8">
-      <div className="flex items-center gap-2">
-        <SettingsIcon className="h-6 w-6" />
-        <h1 className="text-2xl font-semibold">Settings</h1>
+    <div className="container max-w-2xl mx-auto py-8">
+      <div className="flex items-center gap-2 mb-8">
+        <SettingsIcon className="h-5 w-5" />
+        <h1 className="text-2xl font-medium">Settings</h1>
       </div>
 
-      <ProfileSettings userId={user.id} />
+      <div className="space-y-8">
+        <ProfileSettings userId={user.id} />
+        <AISettings
+          userId={user.id}
+          openAIKey={openAIKey}
+          openai_key={openaiKey}
+          openAIModel={openAIModel}
+          reasoningModel={reasoningModel}
+          titleFineTuneModel={titleFineTuneModel}
+          rewritingModel={rewritingModel}
+          rewriteModel={rewriteModel}
+          storyGenerationModel={storyGenerationModel}
+          useOpenAIForStoryGen={useOpenAIForStoryGen}
+          elevenLabsKey={elevenLabsKey}
+          elevenLabsModel={elevenLabsModel}
+          elevenLabsVoiceId={elevenLabsVoiceId}
+          replicateKey={replicateKey}
+          onOpenAIKeyChange={setOpenAIKey}
+          onOpenaiKeyChange={setOpenaiKey}
+          onOpenAIModelChange={setOpenAIModel}
+          onReasoningModelChange={setReasoningModel}
+          onTitleFineTuneModelChange={setTitleFineTuneModel}
+          onRewritingModelChange={setRewritingModel}
+          onRewriteModelChange={setRewriteModel}
+          onStoryGenerationModelChange={setStoryGenerationModel}
+          onUseOpenAIForStoryGenChange={setUseOpenAIForStoryGen}
+          onElevenLabsKeyChange={setElevenLabsKey}
+          onElevenLabsModelChange={setElevenLabsModel}
+          onElevenLabsVoiceIdChange={setElevenLabsVoiceId}
+          onReplicateKeyChange={setReplicateKey}
+        />
+      </div>
 
-      <AISettings
-        userId={user.id}
-        openAIKey={openAIKey}
-        openai_key={openaiKey}
-        openAIModel={openAIModel}
-        reasoningModel={reasoningModel}
-        titleFineTuneModel={titleFineTuneModel}
-        rewritingModel={rewritingModel}
-        rewriteModel={rewriteModel}
-        elevenLabsKey={elevenLabsKey}
-        elevenLabsModel={elevenLabsModel}
-        elevenLabsVoiceId={elevenLabsVoiceId}
-        replicateKey={replicateKey}
-        onOpenAIKeyChange={setOpenAIKey}
-        onOpenaiKeyChange={setOpenaiKey}
-        onOpenAIModelChange={setOpenAIModel}
-        onReasoningModelChange={setReasoningModel}
-        onTitleFineTuneModelChange={setTitleFineTuneModel}
-        onRewritingModelChange={setRewritingModel}
-        onRewriteModelChange={setRewriteModel}
-        onElevenLabsKeyChange={setElevenLabsKey}
-        onElevenLabsModelChange={setElevenLabsModel}
-        onElevenLabsVoiceIdChange={setElevenLabsVoiceId}
-        onReplicateKeyChange={setReplicateKey}
-      />
-
-      <Button
-        variant="outline"
-        onClick={handleGoBack}
-        className="mt-8"
-      >
-        Back
-      </Button>
+      <div className="mt-8">
+        <Button variant="outline" onClick={handleGoBack}>
+          Back
+        </Button>
+      </div>
     </div>
   );
 }
