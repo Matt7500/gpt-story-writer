@@ -7,11 +7,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
-import { Download, Video, AlertTriangle } from "lucide-react";
+import { Download, Video, AlertTriangle, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "./ui/progress";
 import { userSettingsService } from "@/services/UserSettingsService";
+import { toast } from "@/components/ui/use-toast";
 
 interface Chapter {
   title: string;
@@ -59,10 +60,12 @@ function ConfirmationDialog({ isOpen, onConfirm, onCancel }: {
 
 export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalProps) {
   const [isExporting, setIsExporting] = useState(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentChapter, setCurrentChapter] = useState("");
   const [controller, setController] = useState<AbortController | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<string | null>(null);
 
   // Handle modal close
   const handleClose = () => {
@@ -198,6 +201,82 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     }
   };
 
+  const handleGenerateVideo = async () => {
+    try {
+      setIsGeneratingVideo(true);
+      
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      // Start video generation
+      const response = await fetch("http://localhost:3001/api/video/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ 
+          title,
+          chapters
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start video generation');
+      }
+
+      const { videoId } = await response.json();
+
+      // Start polling for status
+      const statusInterval = setInterval(async () => {
+        const statusResponse = await fetch(`http://localhost:3001/api/video/status/${videoId}`, {
+          headers: {
+            "Authorization": `Bearer ${session.access_token}`
+          }
+        });
+        
+        if (statusResponse.ok) {
+          const status = await statusResponse.json();
+          setVideoProgress(status.message);
+          
+          if (status.status === 'completed' || status.status === 'failed') {
+            clearInterval(statusInterval);
+            setIsGeneratingVideo(false);
+            setVideoProgress(null);
+            
+            if (status.status === 'completed') {
+              // Handle completion (e.g., show download link)
+              toast({
+                title: "Video Generated",
+                description: "Your video has been generated successfully.",
+              });
+            } else {
+              toast({
+                title: "Video Generation Failed",
+                description: status.error || "Failed to generate video",
+                variant: "destructive",
+              });
+            }
+          }
+        }
+      }, 5000);
+
+      return () => clearInterval(statusInterval);
+    } catch (error: any) {
+      console.error('Error generating video:', error);
+      setIsGeneratingVideo(false);
+      setVideoProgress(null);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate video",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -209,29 +288,35 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {isExporting && (
+            {(isExporting || isGeneratingVideo) && (
               <div className="space-y-2">
                 <Progress value={progress} className="w-full" />
                 <p className="text-sm text-muted-foreground text-center">
-                  {currentChapter ? `Processing ${currentChapter}...` : 'Starting export...'}
+                  {isGeneratingVideo 
+                    ? (videoProgress || 'Starting video generation...') 
+                    : (currentChapter ? `Processing ${currentChapter}...` : 'Starting export...')}
                 </p>
               </div>
             )}
             <Button
               onClick={handleDownload}
-              disabled={isExporting}
+              disabled={isExporting || isGeneratingVideo}
               className="w-full flex items-center justify-center gap-2"
             >
               <Download className="h-4 w-4" />
               {isExporting ? "Processing..." : "Download as Text"}
             </Button>
             <Button
-              disabled
-              variant="secondary"
+              onClick={handleGenerateVideo}
+              disabled={isExporting || isGeneratingVideo}
               className="w-full flex items-center justify-center gap-2"
             >
-              <Video className="h-4 w-4" />
-              Create Video (Coming Soon)
+              {isGeneratingVideo ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Video className="h-4 w-4" />
+              )}
+              {isGeneratingVideo ? "Generating..." : "Generate Video"}
             </Button>
           </div>
         </DialogContent>

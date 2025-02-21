@@ -7,6 +7,10 @@ const { Configuration, OpenAIApi } = require('openai');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const userSettingsService = require('./services/UserSettingsService');
+const videoGenerationService = require('./services/VideoGenerationService');
+const multer = require('multer');
+const fontService = require('./services/FontService');
+const fs = require('fs');
 
 // Load environment variables from the root directory
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
@@ -790,5 +794,226 @@ app.post('/api/tune4', authenticateUser, async (req, res) => {
       aborted: error.name === 'AbortError'
     });
     res.status(500).json({ error: 'Failed to process scene' });
+  }
+});
+
+// Video Generation Endpoints
+app.post('/api/video/generate', authenticateUser, async (req, res) => {
+  try {
+    const { title, chapters } = req.body;
+    
+    if (!title || !chapters) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: title, chapters' 
+      });
+    }
+
+    // Generate a unique ID for this video generation process
+    const videoId = uuidv4();
+
+    // Start the image generation process
+    videoGenerationService.updateGenerationStatus(req.user.id, 'Starting image generation...');
+
+    // Start the process asynchronously
+    (async () => {
+      try {
+        const images = await videoGenerationService.generateImage(title, req.user.id);
+        videoGenerationService.updateGenerationStatus(req.user.id, 'Image generation completed');
+        
+        // Store the paths for the next steps
+        videoGenerationService.activeGenerations.set(req.user.id, {
+          status: 'processing',
+          message: 'Image generation completed',
+          timestamp: Date.now(),
+          videoId,
+          images
+        });
+
+      } catch (error) {
+        console.error('Error in video generation process:', error);
+        videoGenerationService.activeGenerations.set(req.user.id, {
+          status: 'failed',
+          message: error.message,
+          timestamp: Date.now(),
+          videoId
+        });
+      }
+    })();
+
+    // Respond immediately with the video ID for status checking
+    res.json({ 
+      videoId,
+      message: 'Video generation started'
+    });
+
+  } catch (error) {
+    console.error('Error starting video generation:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to start video generation'
+    });
+  }
+});
+
+app.get('/api/video/status/:videoId', authenticateUser, (req, res) => {
+  try {
+    const status = videoGenerationService.getGenerationStatus(req.user.id);
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting video status:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to get video status'
+    });
+  }
+});
+
+// Font Management Endpoints
+
+// Configure multer for font uploads
+const upload = multer({
+  dest: 'temp/uploads/',
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only .ttf and .otf files
+    if (file.mimetype === 'font/ttf' || file.mimetype === 'font/otf' ||
+        file.originalname.endsWith('.ttf') || file.originalname.endsWith('.otf')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only .ttf and .otf files are allowed.'));
+    }
+  }
+});
+
+// Upload font
+app.post('/api/fonts/upload', authenticateUser, upload.single('font'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No font file provided' });
+    }
+
+    // Validate the font file
+    const validation = await fontService.validateFontFile(req.file.path);
+    if (!validation.isValid) {
+      return res.status(400).json({ error: validation.error });
+    }
+
+    // Generate UUID for the font
+    const fontId = uuidv4();
+
+    // Save the font file
+    const fontPath = await fontService.saveFontFile(req.file.path, req.user.id, fontId);
+
+    // Save font information to database
+    const { data: fontData, error: dbError } = await supabase
+      .from('user_fonts')
+      .insert({
+        id: fontId,
+        user_id: req.user.id,
+        font_name: req.body.name || validation.fontFamily,
+        font_file_path: fontPath,
+        font_family: validation.fontFamily,
+        font_weight: validation.fontWeight
+      })
+      .select()
+      .single();
+
+    if (dbError) throw dbError;
+
+    // Clean up temporary file
+    await fs.unlink(req.file.path);
+
+    res.json({
+      success: true,
+      font: fontData
+    });
+
+  } catch (error) {
+    console.error('Font upload error:', error);
+    res.status(500).json({ error: 'Failed to upload font' });
+  }
+});
+
+// Get font preview
+app.get('/api/fonts/:id/preview', authenticateUser, async (req, res) => {
+  try {
+    const { data: font, error } = await supabase
+      .from('user_fonts')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (error || !font) {
+      return res.status(404).json({ error: 'Font not found' });
+    }
+
+    const previewBuffer = await fontService.previewFont(font.font_file_path);
+    
+    res.set('Content-Type', 'image/png');
+    res.send(previewBuffer);
+
+  } catch (error) {
+    console.error('Font preview error:', error);
+    res.status(500).json({ error: 'Failed to generate font preview' });
+  }
+});
+
+// List user's fonts
+app.get('/api/fonts', authenticateUser, async (req, res) => {
+  try {
+    const { data: fonts, error } = await supabase
+      .from('user_fonts')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      fonts: fonts
+    });
+
+  } catch (error) {
+    console.error('List fonts error:', error);
+    res.status(500).json({ error: 'Failed to list fonts' });
+  }
+});
+
+// Delete font
+app.delete('/api/fonts/:id', authenticateUser, async (req, res) => {
+  try {
+    const { data: font, error: fetchError } = await supabase
+      .from('user_fonts')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (fetchError || !font) {
+      return res.status(404).json({ error: 'Font not found' });
+    }
+
+    // Delete from database
+    const { error: deleteError } = await supabase
+      .from('user_fonts')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
+
+    if (deleteError) throw deleteError;
+
+    // Clean up font file
+    await fontService.cleanupFont(req.user.id, req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Font deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Delete font error:', error);
+    res.status(500).json({ error: 'Failed to delete font' });
   }
 }); 

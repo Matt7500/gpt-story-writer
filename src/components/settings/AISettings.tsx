@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { userSettingsService } from "@/services/UserSettingsService";
+import { FontManagement } from "./FontManagement";
 
 interface VoiceModel {
   model_id: string;
@@ -443,7 +444,7 @@ export function AISettings({
 
       <Separator />
 
-      {/* Replicate Settings */}
+      {/* Image Generation Settings */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Image className="h-5 w-5" />
@@ -478,6 +479,10 @@ export function AISettings({
             </p>
           )}
         </div>
+
+        <Separator className="my-4" />
+        
+        <FontManagement userId={userId} />
       </div>
 
       <Button 
