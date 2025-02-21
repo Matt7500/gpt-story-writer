@@ -11,6 +11,7 @@ const videoGenerationService = require('./services/VideoGenerationService');
 const multer = require('multer');
 const fontService = require('./services/FontService');
 const fs = require('fs');
+const logger = require('./utils/logger');
 
 // Load environment variables from the root directory
 require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
@@ -307,42 +308,62 @@ app.get('/api/stories/write-scene/progress', async (req, res) => {
 app.post('/api/stories/write-scene', authenticateUser, async (req, res) => {
   const { clientId, sceneBeat, characters, previousScenes } = req.body;
 
-  console.log('Scene generation started:', {
+  await logger.logSceneWriting(req.user.id, {
+    requestType: 'write_scene',
     clientId,
-    sceneBeat,
-    previousScenesCount: previousScenes.length
+    prompt: `
+## WRITING INSTRUCTIONS
+- You are an expert fiction writer. Write a fully detailed scene that has as many details from the scene beat as possible.
+- YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
+- Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
+
+## CORE REQUIREMENTS
+- Write in plain text only, do not include any markdown formatting.
+- Write from first-person narrator perspective only
+- Begin with a clear connection to the previous scene's ending
+- Include full, natural dialogue
+- Write the dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
+- Write everything that the narrator sees, hears, and everything that happens in the scene.
+- Write the entire scene and include everything in the scene beat given, do not leave anything out.
+- Use the character's pronouns if you don't write the character's name. Avoid using they/them pronouns, use the character's pronouns instead.
+- You MUST write ALL dialogue you can in the scene.
+
+## SCENE CONTEXT AND CONTINUITY
+# Characters
+${characters}
+
+# Use the provided STORY CONTEXT to remember details and events from the previous scenes in order to maintain consistency in the new scene you are writing.
+## STORY CONTEXT
+<context>
+    ${previousScenes?.join('\n\n')}
+</context>
+
+# Scene Beat to Write
+${sceneBeat}`
   });
 
   if (!clientId || !sceneBeat || !characters) {
-    console.log('Missing required fields:', { clientId, sceneBeat, characters });
+    await logger.logError(req.user.id, new Error('Missing required fields'));
     return res.status(400).json({ 
       error: 'Missing required fields: clientId, sceneBeat, characters' 
     });
   }
 
   try {
-    // Get the abort controller for this client
     const controller = abortControllers.get(clientId);
     const signal = controller ? controller.signal : null;
 
-    // Check if the request has been aborted
     if (signal?.aborted) {
-      console.log('Scene generation cancelled for client:', clientId);
+      await logger.logError(req.user.id, new Error('Scene generation cancelled'));
       throw new Error('Scene generation cancelled');
     }
 
-    console.log('Generating scene with:', {
-      sceneBeat,
-      charactersLength: characters.length,
-      previousScenesCount: previousScenes.length
-    });
-
-    // Create a callback function for partial updates
+    let fullResponse = "";
     const onProgress = (partialContent) => {
+      fullResponse += partialContent;
       sendProgressUpdate(clientId, { content: partialContent, isPartial: true });
     };
 
-    // Write the scene using the story.js module with progress callback
     const scene = await writeScene(
       sceneBeat,
       characters,
@@ -350,19 +371,19 @@ app.post('/api/stories/write-scene', authenticateUser, async (req, res) => {
       previousScenes.length + 1,
       previousScenes,
       onProgress,
-      req // Pass the request object here
+      req
     );
 
-    console.log('Scene generated successfully:', {
+    await logger.logSceneWriting(req.user.id, {
+      status: 'success',
       clientId,
       sceneLength: scene.length,
-      scenePreview: scene.substring(0, 200) + '...'
+      scenePreview: scene.substring(0, 200) + '...',
+      fullResponse: fullResponse.substring(0, 1000) + '...' // Log first 1000 chars of the response
     });
 
-    // Send the final scene content
     sendProgressUpdate(clientId, { content: scene, isPartial: false });
 
-    // Clean up
     const client = progressClients.get(clientId);
     if (client) {
       client.end();
@@ -372,23 +393,13 @@ app.post('/api/stories/write-scene', authenticateUser, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Scene generation error:', {
-      clientId,
-      error: error.message,
-      stack: error.stack
-    });
+    await logger.logError(req.user.id, error);
+    
+    cleanup();
     res.status(500).json({ 
       success: false, 
       error: error.message || 'Failed to generate scene' 
     });
-
-    // Clean up on error
-    const client = progressClients.get(clientId);
-    if (client) {
-      client.end();
-      progressClients.delete(clientId);
-    }
-    abortControllers.delete(clientId);
   }
 });
 
@@ -396,29 +407,7 @@ app.post('/api/stories/write-scene', authenticateUser, async (req, res) => {
 app.post('/api/stories/revise-scene', authenticateUser, async (req, res) => {
   const { clientId, sceneBeat, characters, currentScene, feedback } = req.body;
 
-  if (!clientId || !sceneBeat || !characters || !currentScene || !feedback) {
-    return res.status(400).json({ 
-      error: 'Missing required fields: clientId, sceneBeat, characters, currentScene, feedback' 
-    });
-  }
-
-  try {
-    // Get the abort controller for this client
-    const controller = abortControllers.get(clientId);
-    const signal = controller ? controller.signal : null;
-
-    // Check if the request has been aborted
-    if (signal?.aborted) {
-      throw new Error('Scene revision cancelled');
-    }
-
-    // Create a callback function for partial updates
-    const onProgress = (partialContent) => {
-      sendProgressUpdate(clientId, { content: partialContent, isPartial: true });
-    };
-
-    // Construct the revision prompt
-    const revisionPrompt = `
+  const revisionPrompt = `
 Revise the following scene based on the user's feedback. Maintain the core elements of the scene beat
 while addressing the specific feedback provided.
 
@@ -438,6 +427,34 @@ Please revise the scene to address the feedback while maintaining the story's co
 
 ONLY RESPOND WITH THE REVISED SCENE. DO NOT WRITE ANY COMMENTS OR EXPLANATIONS.
 `;
+
+  await logger.logSceneFeedback(req.user.id, {
+    requestType: 'revise_scene',
+    clientId,
+    prompt: revisionPrompt
+  });
+
+  if (!clientId || !sceneBeat || !characters || !currentScene || !feedback) {
+    await logger.logError(req.user.id, new Error('Missing required fields'));
+    return res.status(400).json({ 
+      error: 'Missing required fields: clientId, sceneBeat, characters, currentScene, feedback' 
+    });
+  }
+
+  try {
+    const controller = abortControllers.get(clientId);
+    const signal = controller ? controller.signal : null;
+
+    if (signal?.aborted) {
+      await logger.logError(req.user.id, new Error('Scene revision cancelled'));
+      throw new Error('Scene revision cancelled');
+    }
+
+    let fullResponse = "";
+    const onProgress = (partialContent) => {
+      fullResponse += partialContent;
+      sendProgressUpdate(clientId, { content: partialContent, isPartial: true });
+    };
 
     // Generate the revised scene
     const response = await openai.chat.completions.create({
@@ -476,6 +493,14 @@ ONLY RESPOND WITH THE REVISED SCENE. DO NOT WRITE ANY COMMENTS OR EXPLANATIONS.
     // Send the final revised scene
     sendProgressUpdate(clientId, { content: revisedScene, isPartial: false });
 
+    await logger.logSceneFeedback(req.user.id, {
+      status: 'success',
+      clientId,
+      revisedSceneLength: revisedScene.length,
+      revisedScenePreview: revisedScene.substring(0, 200) + '...',
+      fullResponse: fullResponse.substring(0, 1000) + '...' // Log first 1000 chars of the response
+    });
+
     // Clean up
     const client = progressClients.get(clientId);
     if (client) {
@@ -486,19 +511,12 @@ ONLY RESPOND WITH THE REVISED SCENE. DO NOT WRITE ANY COMMENTS OR EXPLANATIONS.
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Scene revision error:', error);
+    await logger.logError(req.user.id, error);
+    cleanup();
     res.status(500).json({ 
       success: false, 
       error: error.message || 'Failed to revise scene' 
     });
-
-    // Clean up on error
-    const client = progressClients.get(clientId);
-    if (client) {
-      client.end();
-      progressClients.delete(clientId);
-    }
-    abortControllers.delete(clientId);
   }
 });
 
@@ -543,21 +561,26 @@ app.post('/api/stories/cancel', authenticateUser, async (req, res) => {
 // Initialize story generation
 app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
   const clientId = req.body.clientId;
-  const controller = abortControllers.get(clientId);
-  const signal = controller ? controller.signal : null;
+
+  await logger.logStoryGeneration(req.user.id, {
+    requestType: 'initialize_story',
+    clientId,
+    timestamp: new Date().toISOString()
+  });
 
   try {
-    // Check if the request has been aborted
+    const controller = abortControllers.get(clientId);
+    const signal = controller ? controller.signal : null;
+
     if (signal?.aborted) {
-      console.log(`Story generation already cancelled for client ${clientId}`);
+      await logger.logError(req.user.id, new Error('Story generation cancelled'));
       throw new Error('Story generation cancelled');
     }
 
     let isAborted = false;
-    // Add signal check to abort immediately if cancelled
     signal?.addEventListener('abort', () => {
-      console.log(`Story generation aborted for client ${clientId}`);
       isAborted = true;
+      logger.logError(req.user.id, new Error('Story generation aborted'));
     });
 
     // Generate a unique UUID for the story
@@ -565,103 +588,94 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
 
     // Generate story idea
     sendProgressUpdate(clientId, 0);
-    console.log("Step 1: Generating story idea...");
-    try {
-      const storyIdea = await storyIdeas(req);
-      if (!storyIdea) {
-        throw new Error('Failed to generate story idea');
-      }
-      console.log("Story idea generated successfully");
-
-      // Generate title
-      sendProgressUpdate(clientId, 1);
-      console.log("Step 2: Creating title...");
-      const title = await createTitle(storyIdea, req);
-      if (!title) {
-        throw new Error('Failed to generate title');
-      }
-      console.log("Title created successfully");
-
-      // Create outline
-      sendProgressUpdate(clientId, 2);
-      console.log("Step 3: Building plot outline...");
-      const outline = await createOutline(storyIdea, req);
-      if (!outline) {
-        throw new Error('Failed to create outline');
-      }
-      console.log("Outline created successfully");
-
-      // Generate characters
-      sendProgressUpdate(clientId, 3);
-      console.log("Step 4: Developing characters...");
-      const characters = await charactersFn(outline, req);
-      if (!characters) {
-        throw new Error('Failed to generate characters');
-      }
-      console.log("Characters generated successfully");
-
-      // Save to database
-      sendProgressUpdate(clientId, 4);
-      console.log("Step 5: Saving story...");
-      
-      // Only save to database if the generation wasn't cancelled
-      if (isAborted) {
-        throw new Error('Story generation cancelled');
-      }
-
-      const { data, error } = await supabase
-        .from('stories')
-        .insert([{
-          id: storyId, // Use UUID v4 instead of clientId
-          user_id: req.user.id,
-          title: title,
-          story_idea: storyIdea,
-          plot_outline: JSON.stringify(outline),
-          characters: characters,
-          created_at: new Date().toISOString()
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      console.log("Story saved successfully");
-
-      // Close the SSE connection
-      const client = progressClients.get(clientId);
-      if (client) {
-        client.end();
-        progressClients.delete(clientId);
-      }
-      // Clean up the abort controller
-      abortControllers.delete(clientId);
-
-      res.json({
-        success: true,
-        story: data
-      });
-
-    } catch (error) {
-      console.error('Story initialization error:', error);
-      // Close the SSE connection on error
-      const client = progressClients.get(clientId);
-      if (client) {
-        client.end();
-        progressClients.delete(clientId);
-      }
-      // Clean up the abort controller
-      abortControllers.delete(clientId);
-
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+    const storyIdea = await storyIdeas(req);
+    if (!storyIdea) {
+      throw new Error('Failed to generate story idea');
     }
-  } catch (error) {
-    console.error('Story initialization error:', error);
-    // Close the SSE connection on error
+    await logger.logStoryGeneration(req.user.id, {
+      step: 'story_idea',
+      storyIdea,
+      prompt: 'Generate a unique and engaging story idea',
+      response: storyIdea
+    });
+
+    // Generate title
+    sendProgressUpdate(clientId, 1);
+    const title = await createTitle(storyIdea, req);
+    if (!title) {
+      throw new Error('Failed to generate title');
+    }
+    await logger.logStoryGeneration(req.user.id, {
+      step: 'title',
+      title,
+      prompt: `Generate a title for the story idea: ${storyIdea}`,
+      response: title
+    });
+
+    // Create outline
+    sendProgressUpdate(clientId, 2);
+    const outline = await createOutline(storyIdea, req);
+    if (!outline) {
+      throw new Error('Failed to create outline');
+    }
+    await logger.logStoryGeneration(req.user.id, {
+      step: 'outline',
+      outlineLength: outline.length,
+      prompt: `Create a detailed outline for the story: ${storyIdea}`,
+      response: JSON.stringify(outline).substring(0, 1000) + '...'
+    });
+
+    // Generate characters
+    sendProgressUpdate(clientId, 3);
+    const characters = await charactersFn(outline, req);
+    if (!characters) {
+      throw new Error('Failed to generate characters');
+    }
+    await logger.logStoryGeneration(req.user.id, {
+      step: 'characters',
+      characters,
+      prompt: `Generate characters for the story with outline: ${JSON.stringify(outline).substring(0, 200)}...`,
+      response: JSON.stringify(characters)
+    });
+
+    // Save to database
+    sendProgressUpdate(clientId, 4);
+    
+    if (isAborted) {
+      throw new Error('Story generation cancelled');
+    }
+
+    const { data, error } = await supabase
+      .from('stories')
+      .insert([{
+        id: storyId,
+        user_id: req.user.id,
+        title: title,
+        story_idea: storyIdea,
+        plot_outline: JSON.stringify(outline),
+        characters: characters,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await logger.logStoryGeneration(req.user.id, {
+      status: 'success',
+      storyId,
+      title,
+      storyIdea,
+      outlineLength: outline.length,
+      finalResponse: {
+        title,
+        storyIdea,
+        outlinePreview: JSON.stringify(outline).substring(0, 200) + '...',
+        charactersPreview: JSON.stringify(characters).substring(0, 200) + '...'
+      }
+    });
+
+    // Close the SSE connection
     const client = progressClients.get(clientId);
     if (client) {
       client.end();
@@ -670,6 +684,14 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
     // Clean up the abort controller
     abortControllers.delete(clientId);
 
+    res.json({
+      success: true,
+      story: data
+    });
+
+  } catch (error) {
+    await logger.logError(req.user.id, error);
+    cleanup();
     res.status(500).json({
       success: false,
       error: error.message
