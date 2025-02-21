@@ -76,7 +76,7 @@ export function StoryCard({ story, onDelete }: StoryCardProps) {
   };
 
   return (
-    <div className="p-6 border rounded-lg hover:bg-accent/50 transition-colors group">
+    <div className="p-6 rounded-lg bg-muted hover:bg-accent/50 transition-colors group">
       <div 
         className="cursor-pointer relative"
         onClick={() => navigate(`/editor/${story.id}`)}
