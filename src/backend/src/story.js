@@ -460,9 +460,6 @@ Like a man terrified of elevators and worried the box will drop out at any secon
 - Use the character's pronouns if you don't write the character's name. Avoid using they/them pronouns, use the character's pronouns instead.
 - You MUST write ALL dialogue you can in the scene.
 
-## Use the following text as a template for your writing style, pay attention to the sentence structure and word choice:
-${sampleText}
-
 ## SCENE CONTEXT AND CONTINUITY
 # Characters
 ${characters}
@@ -798,17 +795,83 @@ The final scene beat must state it's the final scene beat of the story and how t
 ${generateSceneTemplate(numScenes)}
 
 ## Story Idea:
-${idea}
-        `;
+${idea}`;
 
         const response = await req.openRouter.chat.completions.create({
           model: req.userSettings.openrouter_model,
-          temperature: 1,
           messages: [{ role: "user", content: userMessage }]
         });
         const text = response.choices[0].message.content;
 
-        const outline = formatScenes(text);
+        console.log("Plot outline:", text);
+
+        const prompt2 = `
+## Instructions
+Review and improve the following JSON plot outline. Fix any plot and timeline errors, make time jumps and setting changes more specific, and optimize the beginning to hook readers.
+
+IMPORTANT: Your entire response must be valid JSON. Do not include any text before or after the JSON array.
+The JSON must follow this exact structure:
+[
+  {
+    "scene_number": number,
+    "scene_beat": "scene description"
+  }
+]
+
+Plot outline:
+${text}`;
+
+        const response2 = await req.openRouter.chat.completions.create({
+          model: req.userSettings.reasoning_model,
+          messages: [
+            {
+              role: "system",
+              content: "You are a JSON-only response bot. You must only output valid JSON arrays containing scene data. Never include any explanatory text or comments in your response."
+            },
+            { 
+              role: "user", 
+              content: prompt2 
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 4000
+        });
+        const text2 = response2.choices[0].message.content;
+
+        console.log("Raw response from reasoning model:", text2);
+
+        // Try to clean the response if it's not pure JSON
+        let cleanedText2 = text2;
+        try {
+          // Remove any text before the first [
+          const jsonStart = text2.indexOf('[');
+          if (jsonStart === -1) {
+            console.log("No JSON array start found in response, using original outline");
+            cleanedText2 = text;
+          } else {
+            cleanedText2 = text2.substring(jsonStart);
+            // Remove any text after the last ]
+            const jsonEnd = cleanedText2.lastIndexOf(']');
+            if (jsonEnd === -1) {
+              console.log("No JSON array end found in response, using original outline");
+              cleanedText2 = text;
+            } else {
+              cleanedText2 = cleanedText2.substring(0, jsonEnd + 1);
+            }
+          }
+          
+          // Verify it's valid JSON before proceeding
+          JSON.parse(cleanedText2);
+          console.log("Successfully parsed revised JSON outline");
+        } catch (jsonError) {
+          console.error("Error parsing revised outline JSON:", jsonError);
+          console.log("Using original outline instead");
+          cleanedText2 = text; // Fall back to original outline if parsing fails
+        }
+
+        console.log("Final outline to be used:", cleanedText2);
+
+        const outline = formatScenes(cleanedText2);
         if (!outline) {
           console.log("Error: Empty outline generated.");
           retries += 1;

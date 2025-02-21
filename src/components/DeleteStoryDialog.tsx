@@ -1,4 +1,3 @@
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +18,7 @@ interface DeleteStoryDialogProps {
 
 export function DeleteStoryDialog({ story, onClose, onConfirm }: DeleteStoryDialogProps) {
   return (
-    <AlertDialog open={!!story} onOpenChange={onClose}>
+    <AlertDialog open={!!story}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -29,10 +28,10 @@ export function DeleteStoryDialog({ story, onClose, onConfirm }: DeleteStoryDial
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-red-600 hover:bg-red-700 text-white dark:text-white"
           >
             Delete
           </AlertDialogAction>
