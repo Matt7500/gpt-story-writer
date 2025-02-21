@@ -154,21 +154,33 @@ export function AISettings({
         isValid,
         message: isValid ? 
           "Valid OpenRouter model format" : 
-          "Invalid model format. Should include a provider prefix like 'openai/gpt-4' or 'anthropic/claude-3'"
+          "Invalid OpenRouter model format. Should include a provider prefix like 'openai/gpt-4' or 'anthropic/claude-3'"
       };
     }
   };
 
-  const validateReasoningModel = (model: string): ModelValidation => {
+  const validateReasoningModel = (model: string, isOpenAI: boolean): ModelValidation => {
     if (!model) return { isValid: false, message: "Model name is required" };
     
-    const isValid = REASONING_MODEL_PATTERN.test(model);
-    return {
-      isValid,
-      message: isValid ? 
-        "Valid model format" : 
-        "Invalid model format. Should start with 'o', 'llama', or include a provider prefix like 'openai/gpt-4'"
-    };
+    if (isOpenAI) {
+      // For OpenAI, model should start with 'o''
+      const isValid = /^o/.test(model);
+      return {
+        isValid,
+        message: isValid ? 
+          "Valid model format" : 
+          "Invalid model format."
+      };
+    } else {
+      // For OpenRouter, model must include a provider prefix (contain '/')
+      const isValid = model.includes('/');
+      return {
+        isValid,
+        message: isValid ? 
+          "Valid OpenRouter model format" : 
+          "Invalid model format. Should include a provider prefix like 'openai/gpt-4'"
+      };
+    }
   };
 
   useEffect(() => {
@@ -189,9 +201,9 @@ export function AISettings({
 
   useEffect(() => {
     if (isEditingReasoningModel) {
-      setReasoningModelValidation(validateReasoningModel(reasoningModel));
+      setReasoningModelValidation(validateReasoningModel(reasoningModel, useOpenAIForStoryGen));
     }
-  }, [reasoningModel, isEditingReasoningModel]);
+  }, [reasoningModel, isEditingReasoningModel, useOpenAIForStoryGen]);
 
   const handleKeyChange = (value: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate') => {
     setEditingKeys(prev => ({ ...prev, [type]: true }));
@@ -332,6 +344,39 @@ export function AISettings({
       <X className="h-4 w-4 text-red-500" />;
   };
 
+  const handleProviderChange = (checked: boolean) => {
+    // Validate both story generation and reasoning models for the new provider
+    const currentStoryModel = storyGenerationModel;
+    const storyValidation = validateModel(currentStoryModel, checked);
+    
+    const currentReasoningModel = reasoningModel;
+    const reasoningValidation = validateReasoningModel(currentReasoningModel, checked);
+    
+    let validationMessages = [];
+    
+    if (!storyValidation.isValid) {
+      validationMessages.push(`Story Generation Model "${currentStoryModel}" is not valid for ${checked ? 'OpenAI' : 'OpenRouter'}. ${checked ? 'OpenAI models should start with "gpt-"' : 'OpenRouter models should include a provider prefix like "openai/gpt-4"'}`);
+    }
+    
+    if (!reasoningValidation.isValid) {
+      validationMessages.push(`Reasoning Model "${currentReasoningModel}" is not valid for ${checked ? 'OpenAI' : 'OpenRouter'}. ${checked ? 'Should start with "o" or "llama"' : 'Should include a provider prefix like "openai/gpt-4"'}`);
+    }
+    
+    if (validationMessages.length > 0) {
+      toast({
+        title: `Invalid Model Configuration`,
+        description: validationMessages.join('\n\n'),
+        variant: "destructive",
+      });
+    }
+    
+    setIsEditingStoryModel(true);
+    setIsEditingReasoningModel(true);
+    setModelValidation(storyValidation);
+    setReasoningModelValidation(reasoningValidation);
+    onUseOpenAIForStoryGenChange(checked);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -347,7 +392,7 @@ export function AISettings({
           <Switch
             id="story-gen-provider"
             checked={useOpenAIForStoryGen}
-            onCheckedChange={onUseOpenAIForStoryGenChange}
+            onCheckedChange={handleProviderChange}
           />
           <Label htmlFor="story-gen-provider">
             Use OpenAI for Story Generation
@@ -355,6 +400,14 @@ export function AISettings({
         </div>
         <p className="text-sm text-muted-foreground">
           When enabled, OpenAI will be used for story generation. When disabled, OpenRouter will be used instead.
+          {(isEditingStoryModel && !modelValidation.isValid) || (isEditingReasoningModel && !reasoningModelValidation.isValid) ? (
+            <span className="block mt-1 text-red-500">
+              {!modelValidation.isValid && "Story Generation Model format is invalid for selected provider."}
+              {!modelValidation.isValid && !reasoningModelValidation.isValid && " "}
+              {!reasoningModelValidation.isValid && "Reasoning Model format is invalid."}
+              {" "}Please update the model names.
+            </span>
+          ) : null}
         </p>
 
         <div className="space-y-2">
@@ -414,7 +467,7 @@ export function AISettings({
                 const newValue = e.target.value;
                 onReasoningModelChange(newValue);
                 setIsEditingReasoningModel(true);
-                setReasoningModelValidation(validateReasoningModel(newValue));
+                setReasoningModelValidation(validateReasoningModel(newValue, useOpenAIForStoryGen));
               }}
               onBlur={() => {
                 if (!isEditingReasoningModel) return;
@@ -423,7 +476,9 @@ export function AISettings({
                   setReasoningModelValidation({ isValid: true, message: "" });
                 }
               }}
-              placeholder="Enter model name"
+              placeholder={useOpenAIForStoryGen ? 
+                "Enter model name (e.g., o-llama-3, llama-3.1-sonar)" : 
+                "Enter model name (e.g., openai/gpt-4, anthropic/claude-3)"}
               className={cn(
                 "pr-8",
                 isEditingReasoningModel && reasoningModelValidation.message && (

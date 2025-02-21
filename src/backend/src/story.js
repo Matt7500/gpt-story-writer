@@ -302,16 +302,35 @@ async function writeScene(sceneBeat, characters, num, totalScenes, previousScene
 - YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
 - Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
 
-## CORE REQUIREMENTS
-- Write in plain text only, do not include any markdown formatting.
-- Write from first-person narrator perspective only
-- Begin with a clear connection to the previous scene's ending
-- Include full, natural dialogue
-- Write the dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
-- Write everything that the narrator sees, hears, and everything that happens in the scene.
-- Write the entire scene and include everything in the scene beat given, do not leave anything out.
-- Use the character's pronouns if you don't write the character's name. Avoid using they/them pronouns, use the character's pronouns instead.
-- You MUST write ALL dialogue you can in the scene.
+# Core Requirements
+    - Write from first-person narrator perspective only
+    - Begin with a clear connection to the previous scene's ending
+    - Include full, natural dialogue
+    - Write the dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
+    - Write everything that the narrator sees, hears, and everything that happens in the scene.
+    - Write the entire scene and include everything in the scene beat given, do not leave anything out.
+    - Use the character's pronouns if you don't write the character's name. Avoid using they/them pronouns, use the character's pronouns instead.
+    
+    # Pacing and Suspense
+    - Maintain steady, escalating suspense
+    - Use strategic pauses and silence for impact
+    - Build tension in small, deliberate increments
+    - Balance action with reflection
+
+    # Writing Style
+    - Use concise, sensory-rich language
+    - Vary sentence length based on tension:
+        * Shorter sentences for action/tension
+        * Longer sentences for introspection
+    - Show emotions through implications rather than stating them
+    - Write dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
+    
+    # Scene Structure
+    - Write tight, focused paragraphs
+    - Layer the scene from normal to unsettling
+    - Break up dialogue with introspection and description
+    - Include moments of dark humor sparingly
+    - Allow for natural processing of events
 
 ## SCENE CONTEXT AND CONTINUITY
 # Characters
