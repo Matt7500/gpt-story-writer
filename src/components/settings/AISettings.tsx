@@ -121,6 +121,8 @@ export function AISettings({
     isValid: true,
     message: ""
   });
+  const [isEditingStoryModel, setIsEditingStoryModel] = useState(false);
+  const [isEditingReasoningModel, setIsEditingReasoningModel] = useState(false);
 
   const validateKey = (key: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate'): APIKeyValidation => {
     if (!key) return { isValid: false, message: "" };
@@ -179,13 +181,17 @@ export function AISettings({
   }, [openai_key, openAIKey, elevenLabsKey, replicateKey, editingKeys]);
 
   useEffect(() => {
-    const currentModel = useOpenAIForStoryGen ? storyGenerationModel : openAIModel;
-    setModelValidation(validateModel(currentModel, useOpenAIForStoryGen));
-  }, [useOpenAIForStoryGen, storyGenerationModel, openAIModel]);
+    if (isEditingStoryModel) {
+      const currentModel = useOpenAIForStoryGen ? storyGenerationModel : openAIModel;
+      setModelValidation(validateModel(currentModel, useOpenAIForStoryGen));
+    }
+  }, [useOpenAIForStoryGen, storyGenerationModel, openAIModel, isEditingStoryModel]);
 
   useEffect(() => {
-    setReasoningModelValidation(validateReasoningModel(reasoningModel));
-  }, [reasoningModel]);
+    if (isEditingReasoningModel) {
+      setReasoningModelValidation(validateReasoningModel(reasoningModel));
+    }
+  }, [reasoningModel, isEditingReasoningModel]);
 
   const handleKeyChange = (value: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate') => {
     setEditingKeys(prev => ({ ...prev, [type]: true }));
@@ -363,21 +369,30 @@ export function AISettings({
                 } else {
                   onOpenAIModelChange(newValue);
                 }
+                setIsEditingStoryModel(true);
                 setModelValidation(validateModel(newValue, useOpenAIForStoryGen));
+              }}
+              onBlur={() => {
+                if (!isEditingStoryModel) return;
+                const currentModel = useOpenAIForStoryGen ? storyGenerationModel : openAIModel;
+                if (!currentModel) {
+                  setIsEditingStoryModel(false);
+                  setModelValidation({ isValid: true, message: "" });
+                }
               }}
               placeholder={`Enter model name (e.g., ${useOpenAIForStoryGen ? "gpt-4" : "openai/gpt-4-turbo-preview"})`}
               className={cn(
                 "pr-8",
-                modelValidation.message && (
+                isEditingStoryModel && modelValidation.message && (
                   modelValidation.isValid ? "border-green-500" : "border-red-500"
                 )
               )}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              {modelValidation.message && <ValidationIcon {...modelValidation} />}
+              {isEditingStoryModel && modelValidation.message && <ValidationIcon {...modelValidation} />}
             </div>
           </div>
-          {modelValidation.message && (
+          {isEditingStoryModel && modelValidation.message && (
             <p className={cn(
               "text-xs",
               modelValidation.isValid ? "text-green-500" : "text-red-500"
@@ -398,21 +413,29 @@ export function AISettings({
               onChange={(e) => {
                 const newValue = e.target.value;
                 onReasoningModelChange(newValue);
+                setIsEditingReasoningModel(true);
                 setReasoningModelValidation(validateReasoningModel(newValue));
+              }}
+              onBlur={() => {
+                if (!isEditingReasoningModel) return;
+                if (!reasoningModel) {
+                  setIsEditingReasoningModel(false);
+                  setReasoningModelValidation({ isValid: true, message: "" });
+                }
               }}
               placeholder="Enter model name"
               className={cn(
                 "pr-8",
-                reasoningModelValidation.message && (
+                isEditingReasoningModel && reasoningModelValidation.message && (
                   reasoningModelValidation.isValid ? "border-green-500" : "border-red-500"
                 )
               )}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              {reasoningModelValidation.message && <ValidationIcon {...reasoningModelValidation} />}
+              {isEditingReasoningModel && reasoningModelValidation.message && <ValidationIcon {...reasoningModelValidation} />}
             </div>
           </div>
-          {reasoningModelValidation.message && (
+          {isEditingReasoningModel && reasoningModelValidation.message && (
             <p className={cn(
               "text-xs",
               reasoningModelValidation.isValid ? "text-green-500" : "text-red-500"
