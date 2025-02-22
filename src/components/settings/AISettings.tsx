@@ -265,14 +265,23 @@ export function AISettings({
 
   const handleSaveAISettings = async () => {
     try {
-      // Validate the current model based on the selected provider
-      const effectiveStoryGenModel = useOpenAIForStoryGen ? storyGenerationModel : storyGenerationModel;
-      const modelValid = validateModel(effectiveStoryGenModel, useOpenAIForStoryGen);
+      // Use the same model values and validation as the UI
+      const currentStoryModel = useOpenAIForStoryGen ? storyGenerationModel : openAIModel;
+      const storyModelValid = validateModel(currentStoryModel, useOpenAIForStoryGen);
+      const reasoningModelValid = validateReasoningModel(reasoningModel, useOpenAIForStoryGen);
 
-      if (!modelValid.isValid) {
+      const validationErrors = [];
+      if (!storyModelValid.isValid) {
+        validationErrors.push(`Story Generation Model: ${storyModelValid.message}`);
+      }
+      if (!reasoningModelValid.isValid) {
+        validationErrors.push(`Reasoning Model: ${reasoningModelValid.message}`);
+      }
+
+      if (validationErrors.length > 0) {
         toast({
-          title: "Invalid Model",
-          description: modelValid.message,
+          title: "Invalid Model Format",
+          description: validationErrors.join('\n'),
           variant: "destructive",
         });
         return;
@@ -286,7 +295,7 @@ export function AISettings({
         title_fine_tune_model: titleFineTuneModel,
         rewriting_model: rewritingModel,
         rewrite_model: rewriteModel,
-        story_generation_model: effectiveStoryGenModel,
+        story_generation_model: currentStoryModel,
         use_openai_for_story_gen: useOpenAIForStoryGen,
         elevenlabs_key: elevenLabsKey,
         elevenlabs_model: elevenLabsModel,
@@ -302,7 +311,7 @@ export function AISettings({
         title_fine_tune_model: titleFineTuneModel,
         rewriting_model: rewritingModel,
         rewrite_model: rewriteModel,
-        story_generation_model: effectiveStoryGenModel,
+        story_generation_model: currentStoryModel,
         use_openai_for_story_gen: useOpenAIForStoryGen,
         elevenlabs_key: elevenLabsKey,
         elevenlabs_model: elevenLabsModel,

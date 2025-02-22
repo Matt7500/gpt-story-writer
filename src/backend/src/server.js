@@ -207,6 +207,16 @@ const authenticateUser = async (req, res, next) => {
 const progressClients = new Map();
 const abortControllers = new Map();
 
+// Helper function to clean up clients and controllers
+const cleanup = (clientId) => {
+  const client = progressClients.get(clientId);
+  if (client) {
+    client.end();
+    progressClients.delete(clientId);
+  }
+  abortControllers.delete(clientId);
+};
+
 // Helper function to send progress updates
 const sendProgressUpdate = (clientId, data) => {
   const client = progressClients.get(clientId);
@@ -394,8 +404,7 @@ ${sceneBeat}`
     res.json({ success: true });
   } catch (error) {
     await logger.logError(req.user.id, error);
-    
-    cleanup();
+    cleanup(clientId);
     res.status(500).json({ 
       success: false, 
       error: error.message || 'Failed to generate scene' 
@@ -512,7 +521,7 @@ ONLY RESPOND WITH THE REVISED SCENE. DO NOT WRITE ANY COMMENTS OR EXPLANATIONS.
     res.json({ success: true });
   } catch (error) {
     await logger.logError(req.user.id, error);
-    cleanup();
+    cleanup(clientId);
     res.status(500).json({ 
       success: false, 
       error: error.message || 'Failed to revise scene' 
@@ -691,7 +700,7 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
 
   } catch (error) {
     await logger.logError(req.user.id, error);
-    cleanup();
+    cleanup(clientId);
     res.status(500).json({
       success: false,
       error: error.message
