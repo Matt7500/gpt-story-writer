@@ -109,11 +109,11 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       // Clear cache and get fresh settings
       userSettingsService.clearCache(session.user.id);
       const settings = await userSettingsService.getSettings(session.user.id);
-      if (!settings.rewrite_model) {
-        throw new Error('Rewrite model not configured. Please configure it in settings.');
+      if (!settings.story_generation_model) {
+        throw new Error('Story generation model not configured. Please configure it in settings.');
       }
 
-      // Process each chapter through callTune4
+      // Process each chapter through rewriteInChunks
       const processedChapters = [];
       for (let i = 0; i < chapters.length; i++) {
         // Check if export was cancelled
@@ -126,15 +126,16 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
         setProgress((i / chapters.length) * 100);
 
         try {
-          const response = await fetch("http://localhost:3001/api/tune4", {
+          const response = await fetch("http://localhost:3001/api/rewrite", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${session.access_token}`
             },
             body: JSON.stringify({ 
-              scene: chapter.content,
-              model: settings.rewrite_model
+              text: chapter.content,
+              useOpenAI: settings.use_openai_for_story_gen,
+              model: settings.story_generation_model
             }),
             signal: newController.signal
           });
@@ -196,7 +197,11 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       setController(null);
       // Only show error message if it wasn't a cancellation
       if (error.message !== 'Export cancelled') {
-        alert(error.message || "Error exporting story");
+        toast({
+          title: "Export Failed",
+          description: error.message || "Error exporting story",
+          variant: "destructive",
+        });
       }
     }
   };

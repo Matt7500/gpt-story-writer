@@ -117,6 +117,71 @@ function replaceWords(text) {
 }
 
 //
+// rewriteInChunks: Process text in smaller chunks
+//
+async function rewriteInChunks(text, req) {
+  // Split text into paragraphs
+  const paragraphs = text.split('\n\n').filter(p => p.trim());
+  const chunks = [];
+  let currentChunk = [];
+  const processedChunks = [];
+
+  // Group paragraphs into chunks of 3 or less
+  for (const paragraph of paragraphs) {
+    currentChunk.push(paragraph);
+    if (currentChunk.length === 3) {
+      chunks.push(currentChunk.join('\n\n'));
+      currentChunk = [];
+    }
+  }
+
+  // Add any remaining paragraphs
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.join('\n\n'));
+  }
+
+  // Process each chunk
+  for (const chunk of chunks) {
+    try {
+      const client = req.userSettings.use_openai_for_story_gen ? req.openai : req.openRouter;
+      const model = req.userSettings.story_generation_model;
+
+      const response = await client.chat.completions.create({
+        model: model,
+        messages: [
+          {
+            role: "user",
+            content: `Remove all appositive phrases relating to people or objects in the given text, except those that contain foreshadowing.
+Remove all absolute phrases relating to people or objects in the given text, except those that provide sensory information or describe physical sensations.
+Remove all metaphors in the given text.
+Remove any sentences that add unnecessary detail or reflection without contributing new information to the scene.
+Remove any sentences that hinder the pacing of the scene by adding too many descriptions about the scene.
+Remove any phrases that mention the character's heart pounding or heart in their throat.
+
+If a paragraph doesn't need to be changed then just leave it as is in the returned text.
+
+Only respond with the modified text and nothing else.
+
+Text to edit:
+${chunk}`
+          }
+        ],
+        temperature: 0.5
+      });
+
+      processedChunks.push(response.choices[0].message.content);
+    } catch (err) {
+      console.error('Error processing chunk:', err);
+      // On error, keep original chunk to maintain story continuity
+      processedChunks.push(chunk);
+    }
+  }
+
+  // Combine all processed chunks with double newlines
+  return processedChunks.join('\n\n');
+}
+
+//
 // 1) initialize_clients: replicates your Python logic to create/verify clients
 //
 async function initializeClients() {
@@ -318,7 +383,7 @@ async function writeScene(sceneBeat, characters, num, totalScenes, previousScene
     - Balance action with reflection
 
     # Writing Style
-    - Use concise, sensory-rich language
+    - Use concise language
     - Vary sentence length based on tension:
         * Shorter sentences for action/tension
         * Longer sentences for introspection
@@ -327,9 +392,7 @@ async function writeScene(sceneBeat, characters, num, totalScenes, previousScene
     
     # Scene Structure
     - Write tight, focused paragraphs
-    - Layer the scene from normal to unsettling
     - Break up dialogue with introspection and description
-    - Include moments of dark humor sparingly
     - Allow for natural processing of events
 
 ## SCENE CONTEXT AND CONTINUITY
@@ -357,6 +420,7 @@ ${sceneBeat}
 
       const response = await client.chat.completions.create({
         model: model,
+        temperature: 0.5,
         messages: [{ role: "user", content: prompt }],
         max_tokens: 8000,
         stream: true
@@ -681,6 +745,7 @@ ${idea}`;
 
         const response = await client.chat.completions.create({
           model: model,
+          temperature: 0.7,
           messages: [{ role: "user", content: userMessage }]
         });
         const text = response.choices[0].message.content;
@@ -1021,5 +1086,6 @@ module.exports = {
   initializeClients,
   writeDetailedSceneDescription,
   writeSceneTransition,
-  callTune4
+  callTune4,
+  rewriteInChunks
 };

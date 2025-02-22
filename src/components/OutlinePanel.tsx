@@ -1,4 +1,3 @@
-
 import { Book, ChevronRight, LogOut, Library, Settings, CheckCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -90,7 +89,7 @@ export function OutlinePanel({
               className={cn(
                 "w-full justify-start gap-2 text-sm font-normal",
                 "hover:bg-accent dark:hover:bg-accent/90",
-                currentChapter === index && "bg-[#F1F0FB] dark:bg-primary/40",
+                currentChapter === index && "bg-[#E6E4F4] dark:bg-primary/10",
                 chapter.completed && "text-muted-foreground"
               )}
               onClick={() => onChapterSelect(index)}

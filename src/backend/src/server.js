@@ -27,7 +27,8 @@ const {
   charactersFn,
   initializeClients,
   writeScene,
-  callTune4
+  callTune4,
+  rewriteInChunks
 } = require('./story');
 
 // Initialize clients and start server
@@ -51,7 +52,10 @@ console.log('Imported functions:', {
   storyIdeas: typeof storyIdeas,
   createTitle: typeof createTitle,
   createOutline: typeof createOutline,
-  charactersFn: typeof charactersFn
+  charactersFn: typeof charactersFn,
+  writeScene: typeof writeScene,
+  callTune4: typeof callTune4,
+  rewriteInChunks: typeof rewriteInChunks
 });
 
 // Validate required environment variables
@@ -468,6 +472,7 @@ ONLY RESPOND WITH THE REVISED SCENE. DO NOT WRITE ANY COMMENTS OR EXPLANATIONS.
     // Generate the revised scene
     const response = await openai.chat.completions.create({
       model: process.env.OAI_MODEL || 'gpt-4',
+      temperature: 0.5,
       messages: [
         { role: "system", content: "You are an expert fiction writer tasked with revising a scene based on user feedback." },
         { role: "user", content: revisionPrompt }
@@ -1048,5 +1053,39 @@ app.delete('/api/fonts/:id', authenticateUser, async (req, res) => {
   } catch (error) {
     console.error('Delete font error:', error);
     res.status(500).json({ error: 'Failed to delete font' });
+  }
+});
+
+// Add the rewrite endpoint
+app.post('/api/rewrite', authenticateUser, async (req, res) => {
+  try {
+    const { text, useOpenAI, model } = req.body;
+    if (!text) {
+      console.log('Rewrite request rejected: missing text content');
+      return res.status(400).json({ error: 'Text content is required' });
+    }
+
+    console.log('Processing rewrite request:', {
+      textLength: text.length,
+      useOpenAI,
+      model
+    });
+
+    const processedText = await rewriteInChunks(text, req);
+    
+    console.log('Rewrite processing completed:', {
+      originalLength: text.length,
+      processedLength: processedText.length,
+      model
+    });
+
+    res.json({ content: processedText });
+  } catch (error) {
+    console.error('Error in rewrite endpoint:', {
+      error: error.message,
+      type: error.name,
+      aborted: error.name === 'AbortError'
+    });
+    res.status(500).json({ error: 'Failed to process text' });
   }
 }); 
