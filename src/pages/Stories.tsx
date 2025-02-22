@@ -6,6 +6,7 @@ import { StoryGenerationModal } from "@/components/StoryGenerationModal";
 import { StoriesHeader } from "@/components/StoriesHeader";
 import { StoryCard } from "@/components/StoryCard";
 import { DeleteStoryDialog } from "@/components/DeleteStoryDialog";
+import { StoryTypeModal } from "@/components/StoryTypeModal";
 import { Button } from "@/components/ui/button";
 import { Story } from "@/types/story";
 import { API_URL } from "@/lib/config";
@@ -14,6 +15,7 @@ export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showStoryTypeModal, setShowStoryTypeModal] = useState(false);
   const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
   const isMounted = useRef(false);
   const navigate = useNavigate();
@@ -112,7 +114,22 @@ export default function Stories() {
   };
 
   const handleCreateStory = () => {
+    setShowStoryTypeModal(true);
+  };
+
+  const handleManualStory = () => {
+    setShowStoryTypeModal(false);
     setIsGenerating(true);
+  };
+
+  const handleAutomatedStory = () => {
+    setShowStoryTypeModal(false);
+    // This will be implemented later
+    toast({
+      title: "Coming Soon",
+      description: "AI-assisted story writing will be available soon!",
+      duration: 3000,
+    });
   };
 
   const handleStoryGenerated = (storyId: string) => {
@@ -160,7 +177,14 @@ export default function Stories() {
   };
 
   return (
-    <div className="min-h-screen bg-secondary/30">
+    <div className="min-h-screen bg-zinc-900">
+      <StoryTypeModal
+        open={showStoryTypeModal}
+        onClose={() => setShowStoryTypeModal(false)}
+        onManual={handleManualStory}
+        onAutomated={handleAutomatedStory}
+      />
+
       <StoryGenerationModal 
         open={isGenerating} 
         onComplete={handleStoryGenerated}

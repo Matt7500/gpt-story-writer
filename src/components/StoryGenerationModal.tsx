@@ -33,12 +33,55 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
   const [eventSource, setEventSource] = useState<EventSource | null>(null);
   const [proposedTitle, setProposedTitle] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const cancelStoryGeneration = async () => {
+    if (isCancelling) return; // Prevent multiple cancellation attempts
+    
+    setIsCancelling(true);
+    try {
+      // First, send the cancellation request to the backend
+      if (clientId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const response = await fetch(`${API_URL}/api/stories/cancel`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({ clientId })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to cancel story generation');
+          }
+
+          // After the backend acknowledges the cancellation, close the SSE connection
+          if (eventSource) {
+            console.log('Closing SSE connection...');
+            eventSource.close();
+            setEventSource(null);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error cancelling story generation:', error);
+    } finally {
+      setCurrentStep(0);
+      setError(null);
+      setProposedTitle(null);
+      setClientId(null);
+      setIsCancelling(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
       setCurrentStep(0);
       setError(null);
       setProposedTitle(null);
+      setIsCancelling(false);
 
       const generateStory = async () => {
         try {
@@ -51,33 +94,57 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
           const newClientId = Math.random().toString(36).substring(7);
           setClientId(newClientId);
 
-          // Set up SSE connection
-          const newEventSource = new EventSource(`${API_URL}/api/stories/progress?clientId=${newClientId}`);
+          // Set up SSE connection with auth token
+          const newEventSource = new EventSource(
+            `${API_URL}/api/stories/progress?clientId=${newClientId}&auth_token=${session.access_token}`
+          );
           setEventSource(newEventSource);
           
           newEventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (typeof data.step === 'number') {
-              setCurrentStep(data.step);
+            // If we're cancelling, ignore any new messages
+            if (isCancelling) {
+              newEventSource.close();
+              return;
             }
-            if (data.title) {
-              setProposedTitle(data.title);
+
+            try {
+              const data = JSON.parse(event.data);
+              if (data.cancelled) {
+                newEventSource.close();
+                return;
+              }
+              
+              if (typeof data.step === 'number') {
+                setCurrentStep(data.step);
+              }
+              if (data.title) {
+                setProposedTitle(data.title);
+              }
+            } catch (error) {
+              console.error('Error processing SSE message:', error);
             }
           };
 
           newEventSource.onerror = () => {
+            if (newEventSource.readyState === EventSource.CLOSED) {
+              console.log('SSE connection closed');
+            } else {
+              console.error('SSE connection error');
+            }
             newEventSource.close();
             setEventSource(null);
           };
 
           // Start the story generation process
+          const controller = new AbortController();
           const response = await fetch(`${API_URL}/api/stories/initialize`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${session.access_token}`
             },
-            body: JSON.stringify({ clientId: newClientId })
+            body: JSON.stringify({ clientId: newClientId }),
+            signal: controller.signal
           });
 
           if (!response.ok) {
@@ -100,8 +167,11 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
             onComplete(data.story.id);
           }
         } catch (err: any) {
-          console.error('Story generation error:', err);
-          setError(err.message || 'An error occurred while generating the story');
+          // Don't show error if we're cancelling
+          if (!isCancelling) {
+            console.error('Story generation error:', err);
+            setError(err.message || 'An error occurred while generating the story');
+          }
           // Clean up SSE connection on error
           if (eventSource) {
             eventSource.close();
@@ -113,26 +183,15 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
       generateStory();
     }
 
-    // Cleanup function
     return () => {
-      if (eventSource) {
-        console.log('Cleaning up story generation...');
-        eventSource.close();
-        setEventSource(null);
+      if (eventSource || clientId) {
+        cancelStoryGeneration();
       }
     };
-  }, [open, onComplete]);
+  }, [open, onComplete, isCancelling]);
 
-  const handleClose = () => {
-    // Clean up SSE connection
-    if (eventSource) {
-      console.log('Cancelling story generation...');
-      eventSource.close();
-      setEventSource(null);
-    }
-    setCurrentStep(0);
-    setError(null);
-    setProposedTitle(null);
+  const handleClose = async () => {
+    await cancelStoryGeneration();
     onClose();
   };
 
@@ -170,17 +229,6 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
       setError(error.message || 'An error occurred while processing title approval');
     }
   };
-
-  // Add cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (eventSource) {
-        console.log('Cleaning up story generation...');
-        eventSource.close();
-        setEventSource(null);
-      }
-    };
-  }, [eventSource]);
 
   const progress = (currentStep / STEPS.length) * 100;
 

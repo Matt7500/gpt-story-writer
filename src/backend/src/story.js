@@ -758,6 +758,7 @@ ${idea}`;
 Review and improve the following JSON plot outline. Fix any plot and timeline errors, make time jumps and setting changes more specific, and optimize the beginning to hook readers.
 
 IMPORTANT: Your entire response must be valid JSON. Do not include any text before or after the JSON array.
+Do NOT remove any information from the scenes in the plot outline to make them shorter. Simply change the details of scenes to fix time jumps and setting changes.
 The JSON must follow this exact structure:
 [
   {
@@ -772,10 +773,6 @@ ${text}`;
         const response2 = await req.openRouter.chat.completions.create({
           model: req.userSettings.reasoning_model,
           messages: [
-            {
-              role: "system",
-              content: "You are a JSON-only response bot. You must only output valid JSON arrays containing scene data. Never include any explanatory text or comments in your response."
-            },
             { 
               role: "user", 
               content: prompt2 

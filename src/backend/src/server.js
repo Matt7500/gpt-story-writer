@@ -243,6 +243,9 @@ app.get('/api/stories/progress', (req, res) => {
     // Create an AbortController for this client
     const controller = new AbortController();
     abortControllers.set(clientId, controller);
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ connected: true })}\n\n`);
   }
 
   req.on('close', () => {
@@ -252,7 +255,7 @@ app.get('/api/stories/progress', (req, res) => {
       // Signal abort to cancel any ongoing operations
       controller.abort();
       abortControllers.delete(clientId);
-      console.log(`Story generation cancelled for client ${clientId}`);
+      console.log(`SSE connection closed for client ${clientId}`);
     }
     progressClients.delete(clientId);
   });
@@ -546,23 +549,36 @@ app.post('/api/stories/cancel', authenticateUser, async (req, res) => {
 
   try {
     // Get the abort controller for this client
-    const controller = abortControllers.get(clientId);
-    if (controller) {
-      // Abort any ongoing operations
-      controller.abort();
-      abortControllers.delete(clientId);
+    let controller = abortControllers.get(clientId);
+    if (!controller) {
+      console.log(`No abort controller found for client ${clientId}, creating new one`);
+      // Create a new controller if one doesn't exist
+      controller = new AbortController();
+      abortControllers.set(clientId, controller);
     }
 
-    // Clean up the SSE connection
+    // Abort any ongoing operations
+    controller.abort();
+    console.log(`Story generation cancelled for client ${clientId}`);
+
+    // Clean up the SSE connection and send cancellation message
     const client = progressClients.get(clientId);
     if (client) {
+      client.write(`data: ${JSON.stringify({ cancelled: true })}\n\n`);
       client.end();
-      progressClients.delete(clientId);
     }
+
+    // Clean up resources
+    progressClients.delete(clientId);
+    abortControllers.delete(clientId);
 
     res.json({ success: true });
   } catch (error) {
     console.error('Cancel error:', error);
+    // Clean up resources even if there's an error
+    progressClients.delete(clientId);
+    abortControllers.delete(clientId);
+    
     res.status(500).json({ 
       success: false, 
       error: error.message || 'Failed to cancel operation' 
@@ -570,7 +586,51 @@ app.post('/api/stories/cancel', authenticateUser, async (req, res) => {
   }
 });
 
-// API Endpoints
+// Add this function before the initialize endpoint
+async function generateStory(req, clientId, signal) {
+  // Generate story with abort signal
+  const storyId = uuidv4();
+
+  // Generate story idea
+  sendProgressUpdate(clientId, 0);
+  const storyIdea = await storyIdeas(req);
+  if (!storyIdea) throw new Error('Failed to generate story idea');
+
+  // Generate title
+  sendProgressUpdate(clientId, 1);
+  const title = await createTitle(storyIdea, req);
+  if (!title) throw new Error('Failed to generate title');
+
+  // Create outline
+  sendProgressUpdate(clientId, 2);
+  const outline = await createOutline(storyIdea, req);
+  if (!outline) throw new Error('Failed to create outline');
+
+  // Generate characters
+  sendProgressUpdate(clientId, 3);
+  const characters = await charactersFn(outline, req);
+  if (!characters) throw new Error('Failed to generate characters');
+
+  // Save to database
+  sendProgressUpdate(clientId, 4);
+  const { data, error } = await supabase
+    .from('stories')
+    .insert([{
+      id: storyId,
+      user_id: req.user.id,
+      title: title,
+      story_idea: storyIdea,
+      plot_outline: JSON.stringify(outline),
+      characters: characters,
+      created_at: new Date().toISOString()
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
+}
 
 // Initialize story generation
 app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
@@ -583,130 +643,58 @@ app.post('/api/stories/initialize', authenticateUser, async (req, res) => {
   });
 
   try {
-    const controller = abortControllers.get(clientId);
-    const signal = controller ? controller.signal : null;
+    // Create a new abort controller for this request
+    const controller = new AbortController();
+    abortControllers.set(clientId, controller);
 
-    if (signal?.aborted) {
-      await logger.logError(req.user.id, new Error('Story generation cancelled'));
-      throw new Error('Story generation cancelled');
-    }
-
-    let isAborted = false;
-    signal?.addEventListener('abort', () => {
-      isAborted = true;
-      logger.logError(req.user.id, new Error('Story generation aborted'));
-    });
-
-    // Generate a unique UUID for the story
-    const storyId = uuidv4();
-
-    // Generate story idea
-    sendProgressUpdate(clientId, 0);
-    const storyIdea = await storyIdeas(req);
-    if (!storyIdea) {
-      throw new Error('Failed to generate story idea');
-    }
-    await logger.logStoryGeneration(req.user.id, {
-      step: 'story_idea',
-      storyIdea,
-      prompt: 'Generate a unique and engaging story idea',
-      response: storyIdea
-    });
-
-    // Generate title
-    sendProgressUpdate(clientId, 1);
-    const title = await createTitle(storyIdea, req);
-    if (!title) {
-      throw new Error('Failed to generate title');
-    }
-    await logger.logStoryGeneration(req.user.id, {
-      step: 'title',
-      title,
-      prompt: `Generate a title for the story idea: ${storyIdea}`,
-      response: title
-    });
-
-    // Create outline
-    sendProgressUpdate(clientId, 2);
-    const outline = await createOutline(storyIdea, req);
-    if (!outline) {
-      throw new Error('Failed to create outline');
-    }
-    await logger.logStoryGeneration(req.user.id, {
-      step: 'outline',
-      outlineLength: outline.length,
-      prompt: `Create a detailed outline for the story: ${storyIdea}`,
-      response: JSON.stringify(outline).substring(0, 1000) + '...'
-    });
-
-    // Generate characters
-    sendProgressUpdate(clientId, 3);
-    const characters = await charactersFn(outline, req);
-    if (!characters) {
-      throw new Error('Failed to generate characters');
-    }
-    await logger.logStoryGeneration(req.user.id, {
-      step: 'characters',
-      characters,
-      prompt: `Generate characters for the story with outline: ${JSON.stringify(outline).substring(0, 200)}...`,
-      response: JSON.stringify(characters)
-    });
-
-    // Save to database
-    sendProgressUpdate(clientId, 4);
-    
-    if (isAborted) {
-      throw new Error('Story generation cancelled');
-    }
-
-    const { data, error } = await supabase
-      .from('stories')
-      .insert([{
-        id: storyId,
-        user_id: req.user.id,
-        title: title,
-        story_idea: storyIdea,
-        plot_outline: JSON.stringify(outline),
-        characters: characters,
-        created_at: new Date().toISOString()
-      }])
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    await logger.logStoryGeneration(req.user.id, {
-      status: 'success',
-      storyId,
-      title,
-      storyIdea,
-      outlineLength: outline.length,
-      finalResponse: {
-        title,
-        storyIdea,
-        outlinePreview: JSON.stringify(outline).substring(0, 200) + '...',
-        charactersPreview: JSON.stringify(characters).substring(0, 200) + '...'
+    // Add abort handler
+    controller.signal.addEventListener('abort', () => {
+      console.log(`Abort signal received for client ${clientId}`);
+      const client = progressClients.get(clientId);
+      if (client) {
+        client.write(`data: ${JSON.stringify({ cancelled: true })}\n\n`);
+        client.end();
+        progressClients.delete(clientId);
       }
+      abortControllers.delete(clientId);
     });
 
-    // Close the SSE connection
+    // Run the story generation process with the abort signal
+    const story = await Promise.race([
+      generateStory(req, clientId, controller.signal),
+      new Promise((_, reject) => {
+        controller.signal.addEventListener('abort', () => {
+          reject(new Error('Story generation cancelled'));
+        });
+      })
+    ]);
+
+    // Clean up
     const client = progressClients.get(clientId);
     if (client) {
       client.end();
       progressClients.delete(clientId);
     }
-    // Clean up the abort controller
     abortControllers.delete(clientId);
 
     res.json({
       success: true,
-      story: data
+      story
     });
-
   } catch (error) {
-    await logger.logError(req.user.id, error);
-    cleanup(clientId);
-    res.status(500).json({
+    console.error('Story generation error:', error);
+    // Clean up on error
+    const client = progressClients.get(clientId);
+    if (client) {
+      if (error.message === 'Story generation cancelled') {
+        client.write(`data: ${JSON.stringify({ cancelled: true })}\n\n`);
+      }
+      client.end();
+      progressClients.delete(clientId);
+    }
+    abortControllers.delete(clientId);
+
+    res.status(error.message === 'Story generation cancelled' ? 499 : 500).json({
       success: false,
       error: error.message
     });
