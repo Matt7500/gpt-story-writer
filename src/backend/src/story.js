@@ -630,7 +630,7 @@ async function storyIdeas(req) {
     console.log('Using prompt:', prompt);
 
     const response = await req.openai.chat.completions.create({
-      model: req.userSettings.title_fine_tune_model,
+      model: req.userSettings.story_idea_model,
       messages: [
         { 
           role: "system", 
@@ -965,7 +965,7 @@ async function createTitle(storyText, req) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const title = await req.openai.chat.completions.create({
-        model: req.userSettings.rewriting_model,
+        model: req.userSettings.title_fine_tune_model,
         max_tokens: 4000,
         messages: [
           {
