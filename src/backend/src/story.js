@@ -420,7 +420,7 @@ ${sceneBeat}
 
       const response = await client.chat.completions.create({
         model: model,
-        temperature: 0.5,
+        temperature: 0.3,
         messages: [{ role: "user", content: prompt }],
         max_tokens: 8000,
         stream: true
@@ -618,6 +618,7 @@ async function storyIdeas(req) {
   }
 
   try {
+
     const allProfiles = settings.load_story_profiles();
     const profile = allProfiles[settings.STORY_PROFILE];
     
@@ -629,8 +630,14 @@ async function storyIdeas(req) {
     const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
     console.log('Using prompt:', prompt);
 
-    const response = await req.openai.chat.completions.create({
-      model: req.userSettings.story_idea_model,
+    // Always use OpenAI client for story ideas since it uses fine-tuned models
+    const client = req.openai;
+    const model = req.userSettings.story_idea_model;
+
+    console.log(`Using OpenAI with model: ${model}`);
+
+    const response = await client.chat.completions.create({
+      model: model,
       messages: [
         { 
           role: "system", 
@@ -641,8 +648,7 @@ async function storyIdeas(req) {
           content: prompt 
         }
       ],
-      temperature: 0.9,
-      max_tokens: 500
+      temperature: 0.9
     });
 
     if (!response.choices || response.choices.length === 0) {
@@ -964,6 +970,7 @@ async function createTitle(storyText, req) {
   const maxRetries = 10;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      // Always use OpenAI client for titles since it uses fine-tuned models
       const title = await req.openai.chat.completions.create({
         model: req.userSettings.title_fine_tune_model,
         max_tokens: 4000,

@@ -16,6 +16,7 @@ export class UserSettingsService {
     elevenlabs_model: "eleven_multilingual_v2",
     rewrite_model: "gpt-4",
     story_generation_model: "gpt-4",
+    story_idea_model: "gpt-4",
     use_openai_for_story_gen: false
   };
 

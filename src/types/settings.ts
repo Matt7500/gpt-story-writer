@@ -10,6 +10,7 @@ export interface UserSettings {
   rewriting_model: string | null;
   rewrite_model: string | null;
   story_generation_model: string | null;
+  story_idea_model: string | null;
   use_openai_for_story_gen: boolean;
   elevenlabs_key: string | null;
   elevenlabs_model: string | null;
