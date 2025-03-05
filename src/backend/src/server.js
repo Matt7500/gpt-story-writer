@@ -94,8 +94,9 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:8080',
+  'http://localhost:8081',
   'http://localhost:3000',
-  'https://plotter-palette.vercel.app',
+  'https://story-writer.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 

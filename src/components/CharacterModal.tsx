@@ -24,7 +24,7 @@ export function CharacterModal({
 }: CharacterModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[650px]">
         <DialogHeader>
           <DialogTitle>Characters</DialogTitle>
         </DialogHeader>
