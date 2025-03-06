@@ -196,11 +196,6 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
                       <div className="mt-2 text-sm text-muted-foreground line-clamp-3">
                         {story.story_idea}
                       </div>
-                      {story.is_sequel && story.parent_story_id && (
-                        <div className="mt-2 text-xs text-blue-600">
-                          Sequel to previous story
-                        </div>
-                      )}
                     </div>
                     <ArrowRight className="h-4 w-4 text-muted-foreground mt-1 ml-2 flex-shrink-0" />
                   </div>

@@ -353,10 +353,6 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                     >
                       Series
                     </Badge>
-                  ) : isSequel(story) ? (
-                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 font-semibold">
-                      Sequel
-                    </Badge>
                   ) : null}
                 </div>
               </div>

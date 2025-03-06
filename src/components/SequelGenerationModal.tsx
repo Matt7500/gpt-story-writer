@@ -100,6 +100,7 @@ export function SequelGenerationModal({
           if (existingSeries) {
             // Use the existing series
             seriesId = existingSeries.id;
+            console.log(`Adding sequel to existing series: ${existingSeries.title} (${seriesId})`);
           } else if (originalStory.is_sequel || originalStory.parent_story_id) {
             // This is a sequel to a sequel, so we should create a series
             // First, find the original parent story (the first in the chain)
@@ -125,6 +126,7 @@ export function SequelGenerationModal({
             
             const series = await seriesService.createSeries(seriesTitle, seriesDescription);
             seriesId = series.id;
+            console.log(`Created new series: ${seriesTitle} (${seriesId})`);
             
             // Add the root story to the series
             await seriesService.addStoryToSeries(seriesId, rootStory.id, 0);
