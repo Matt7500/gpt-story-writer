@@ -420,6 +420,7 @@ ${idea}`;
             model: model,
             temperature: 0.5,
             messages: [{ role: "user", content: userMessage }],
+          }, {
             signal: signal
           });
           const text = response.choices[0].message.content || '';
@@ -487,6 +488,7 @@ ${outline.join('\n')}
           max_tokens: 4000,
           temperature: 0.7,
           messages: [{ role: "user", content: prompt }],
+        }, {
           signal: signal
         });
         return response.choices[0].message.content || null;
@@ -604,6 +606,8 @@ ${chunk}`
               content: storyText
             }
           ]
+        }, {
+          signal: signal
         });
 
         let titleText = title.choices[0].message.content?.replace(/"/g, '') || '';
@@ -836,6 +840,7 @@ Your sequel idea should be 2-3 paragraphs long, detailed enough to serve as the 
         ],
         temperature: 0.8,
         max_tokens: 500,
+      }, {
         signal: signal
       });
 

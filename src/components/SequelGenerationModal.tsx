@@ -232,39 +232,68 @@ export function SequelGenerationModal({
               
               <div className="py-4">
                 {error ? (
-                  <div className="text-red-500 mb-4">
-                    {error}
-                  </div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="bg-red-50 rounded-lg p-4 mb-4 text-red-800"
+                  >
+                    <div className="font-semibold mb-1">Error</div>
+                    <div className="text-sm">{error}</div>
+                  </motion.div>
                 ) : (
-                  <>
-                    <Progress value={progress} className="mb-4" />
-                    
-                    <div className="space-y-2">
-                      {STEPS.map((step, index) => (
-                        <div 
-                          key={index} 
-                          className="flex items-center gap-2"
-                        >
-                          {index < currentStep ? (
-                            <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
-                              <Check className="h-4 w-4 text-green-600" />
-                            </div>
-                          ) : index === currentStep ? (
-                            <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center">
-                              <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
-                            </div>
-                          ) : (
-                            <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
-                              <div className="h-2 w-2 rounded-full bg-muted-foreground" />
-                            </div>
-                          )}
-                          <span className={index <= currentStep ? "text-foreground" : "text-muted-foreground"}>
-                            {step}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key="sequel-generation-steps"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Progress value={progress} className="mb-4" />
+                      
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="space-y-2"
+                      >
+                        {STEPS.map((step, index) => (
+                          <motion.div 
+                            key={index} 
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ 
+                              opacity: 1, 
+                              x: 0,
+                              transition: { 
+                                delay: index * 0.1,
+                                duration: 0.3
+                              }
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            {index < currentStep ? (
+                              <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
+                                <Check className="h-4 w-4 text-green-600" />
+                              </div>
+                            ) : index === currentStep ? (
+                              <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center">
+                                <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                              </div>
+                            ) : (
+                              <div className="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
+                                <div className="h-2 w-2 rounded-full bg-gray-400"></div>
+                              </div>
+                            )}
+                            <span className={`text-sm ${index === currentStep ? 'font-medium' : 'text-muted-foreground'}`}>
+                              {step}
+                            </span>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </motion.div>
+                  </AnimatePresence>
                 )}
               </div>
               
