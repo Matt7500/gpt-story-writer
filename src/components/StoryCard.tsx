@@ -26,6 +26,7 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
   const [isSeriesOpen, setIsSeriesOpen] = useState(false);
   const [firstStoryTitle, setFirstStoryTitle] = useState<string>("");
   const [seriesInfo, setSeriesInfo] = useState<Series | null>(null);
+  const [hasSequel, setHasSequel] = useState(false);
 
   // Helper function to check if a story is a series
   const isSeries = (story: Story) => {
@@ -123,6 +124,29 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
     };
 
     fetchSeriesInfo();
+  }, [story.id]);
+
+  // Check if this story already has a sequel
+  useEffect(() => {
+    const checkForSequel = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('stories')
+          .select('id')
+          .eq('parent_story_id', story.id)
+          .limit(1);
+          
+        if (error) throw error;
+        
+        setHasSequel(data && data.length > 0);
+      } catch (error) {
+        console.error('Error checking for sequel:', error);
+      }
+    };
+    
+    if (!isSeries(story)) {
+      checkForSequel();
+    }
   }, [story.id]);
 
   // Calculate word and character counts
@@ -342,12 +366,15 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                  className={`text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 ${hasSequel ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCreateSequel(story);
+                    if (!hasSequel && onCreateSequel) {
+                      onCreateSequel(story);
+                    }
                   }}
-                  title="Create Sequel"
+                  title={hasSequel ? "This story already has a sequel" : "Create Sequel"}
+                  disabled={hasSequel}
                 >
                   <GitBranch className="h-4 w-4" />
                 </Button>
