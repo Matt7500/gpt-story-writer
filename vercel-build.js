@@ -7,14 +7,19 @@ if (!fs.existsSync('dist')) {
   fs.mkdirSync('dist', { recursive: true });
 }
 
-// Copy the _headers file to the dist directory
-if (fs.existsSync('public/_headers')) {
-  fs.copyFileSync('public/_headers', 'dist/_headers');
-}
-
-// Copy the _redirects file to the dist directory
-if (fs.existsSync('public/_redirects')) {
-  fs.copyFileSync('public/_redirects', 'dist/_redirects');
+// Copy all files from public to dist
+if (fs.existsSync('public')) {
+  const publicFiles = fs.readdirSync('public');
+  
+  publicFiles.forEach(file => {
+    const sourcePath = path.join('public', file);
+    const destPath = path.join('dist', file);
+    
+    if (fs.statSync(sourcePath).isFile()) {
+      fs.copyFileSync(sourcePath, destPath);
+      console.log(`Copied ${sourcePath} to ${destPath}`);
+    }
+  });
 }
 
 console.log('Vercel build preparation complete'); 
