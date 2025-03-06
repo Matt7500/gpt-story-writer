@@ -94,7 +94,6 @@ export default {
 	},
 	plugins: [
 		require("tailwindcss-animate"),
-		require("tailwind-scrollbar")(),
-		require("@tailwindcss/typography"),
+		require("tailwind-scrollbar")({ nocompatible: true }),
 	],
 } satisfies Config;
