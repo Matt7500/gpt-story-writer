@@ -36,6 +36,11 @@ export type Database = {
           title: string
           total_chunks: number | null
           user_id: string | null
+          is_series: boolean | null
+          is_sequel: boolean | null
+          parent_story_id: string | null
+          related_stories: Json | null
+          related_series_id: string | null
         }
         Insert: {
           chapters?: Json | null
@@ -48,6 +53,11 @@ export type Database = {
           title: string
           total_chunks?: number | null
           user_id?: string | null
+          is_series?: boolean | null
+          is_sequel?: boolean | null
+          parent_story_id?: string | null
+          related_stories?: Json | null
+          related_series_id?: string | null
         }
         Update: {
           chapters?: Json | null
@@ -60,6 +70,11 @@ export type Database = {
           title?: string
           total_chunks?: number | null
           user_id?: string | null
+          is_series?: boolean | null
+          is_sequel?: boolean | null
+          parent_story_id?: string | null
+          related_stories?: Json | null
+          related_series_id?: string | null
         }
         Relationships: []
       }

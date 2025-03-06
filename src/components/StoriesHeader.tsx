@@ -11,9 +11,9 @@ export function StoriesHeader({ onCreateStory, onSignOut }: StoriesHeaderProps) 
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-50">
-      <div className="max-w-4xl mx-auto p-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">My Stories</h1>
+    <header className="sticky top-0 z-50 w-full">
+      <div className="w-full px-6 py-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Story Writer</h1>
         <div className="flex items-center gap-4">
           <Button onClick={onCreateStory} className="gap-2">
             <Plus className="h-4 w-4" />

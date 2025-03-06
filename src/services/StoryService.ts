@@ -231,9 +231,10 @@ export class StoryService {
       // Generate a detailed summary of the post
       const summaryPrompt = `
 I need a detailed summary of the following horror story from r/nosleep. 
-Create a comprehensive summary that captures the key plot points, atmosphere, and horror elements.
-The summary should be detailed enough to serve as inspiration for a new horror story, but should not be a direct copy.
-Focus on the core narrative, key events, and the horror elements that make this story effective.
+Create a comprehensive summary about the story with as much detail as possible.
+The summary should be completely new and different from the given story to avoid copyright issues.
+You must change the characters, locations, and events to create a new story that is based on the original story but is not a direct copy.
+Focus on the core narrative, key events, and the horror elements that make this story effective when writing the new story summary.
 
 Story Title: ${randomPost.title}
 
@@ -631,22 +632,22 @@ ${chunk}`
   }
 
   // Get all stories for a user
-  public async getUserStories(): Promise<any[]> {
+  public async getUserStories(forceRefresh: boolean = false): Promise<any[]> {
     if (!this.userId) {
       throw new Error('User ID not set');
     }
 
     try {
-      // Check cache first
+      // Check cache first (unless force refresh is requested)
       const cacheKey = `user_stories_${this.userId}`;
-      const cachedStories = browserCache.get<any[]>(cacheKey);
+      const cachedStories = !forceRefresh ? browserCache.get<any[]>(cacheKey) : null;
       
       if (cachedStories) {
         console.log('Using cached stories');
         return cachedStories;
       }
 
-      // Fetch from Supabase if not in cache
+      // Fetch from Supabase if not in cache or force refresh requested
       const { data, error } = await supabase
         .from('stories')
         .select('*')
@@ -718,7 +719,10 @@ ${chunk}`
         chapters: typeof story.chapters === 'string'
           ? story.chapters
           : JSON.stringify(story.chapters || []),
-        user_id: this.userId
+        user_id: this.userId,
+        is_sequel: story.is_sequel || false,
+        parent_story_id: story.parent_story_id || null,
+        created_at: new Date().toISOString()
       };
 
       console.log('Saving story with data:', storyData);
@@ -728,31 +732,32 @@ ${chunk}`
         .insert([storyData])
         .select();
 
-      if (error) {
-        console.error('Supabase error details:', error);
-        throw new Error(`Failed to save story: ${error.message}`);
-      }
-      
-      if (!data || data.length === 0) {
-        throw new Error('No data returned after saving story');
-      }
+      if (error) throw error;
       
       // Invalidate the user stories cache
-      browserCache.remove(`user_stories_${this.userId}`);
+      if (this.userId) {
+        browserCache.remove(`user_stories_${this.userId}`);
+      }
       
-      return data[0].id;
-    } catch (error: any) {
+      return storyId;
+    } catch (error) {
       console.error('Error saving story:', error);
-      throw new Error(`Error saving story: ${error.message || 'Unknown error'}`);
+      throw error;
     }
   }
 
   // Update story in Supabase
   public async updateStory(storyId: string, updates: any): Promise<any> {
     try {
+      // Remove any fields that shouldn't be in the stories table
+      const { related_series_id, related_stories, is_series, ...validUpdates } = updates;
+      
+      // Add updated_at timestamp
+      validUpdates.updated_at = new Date().toISOString();
+      
       const { data, error } = await supabase
         .from('stories')
-        .update(updates)
+        .update(validUpdates)
         .eq('id', storyId)
         .select();
 
@@ -769,6 +774,202 @@ ${chunk}`
       return data[0];
     } catch (error) {
       console.error('Error updating story:', error);
+      throw error;
+    }
+  }
+
+  // Generate a sequel idea based on an existing story
+  public async generateSequelIdea(originalStory: any): Promise<string> {
+    try {
+      console.log('Starting generateSequelIdea for story:', originalStory?.title);
+      
+      if (!originalStory) {
+        console.error('Original story is null or undefined');
+        throw new Error('Original story is missing');
+      }
+      
+      // Get the appropriate client based on user settings
+      const client = this.getClient();
+      
+      // Use the story generation model for sequel ideas
+      const model = this.userSettings.use_openai_for_story_gen 
+        ? this.userSettings.story_generation_model || 'gpt-4o'
+        : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
+      
+      console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for sequel generation`);
+
+      // Extract the original story details
+      const originalTitle = originalStory.title;
+      const originalIdea = originalStory.story_idea;
+      const originalPlot = typeof originalStory.plot_outline === 'string' 
+        ? originalStory.plot_outline 
+        : JSON.stringify(originalStory.plot_outline || []);
+      
+      console.log('Original story details extracted:', {
+        title: originalTitle,
+        ideaLength: originalIdea?.length || 0,
+        plotLength: originalPlot?.length || 0
+      });
+      
+      // Create a prompt for the sequel
+      const prompt = `I need a sequel idea for a story titled "${originalTitle}". 
+      
+The original story idea was: "${originalIdea}"
+
+The original plot outline was: ${originalPlot}
+
+Create a compelling sequel idea that builds upon the original story, continuing where it left off or exploring new directions with the same characters or world. The sequel should feel like a natural continuation while introducing new conflicts or challenges.
+
+Your sequel idea should be 2-3 paragraphs long, detailed enough to serve as the foundation for a new story.`;
+
+      console.log('Sending prompt to AI model, length:', prompt.length);
+      
+      const response = await client.chat.completions.create({
+        model: model,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.8,
+        max_tokens: 500
+      });
+
+      console.log('Received response from AI model');
+      const sequelIdea = response.choices[0].message.content.trim();
+      console.log('Generated sequel idea, length:', sequelIdea.length);
+      
+      return sequelIdea;
+    } catch (error) {
+      console.error('Error generating sequel idea:', error);
+      throw new Error('Failed to generate sequel idea. Please try again.');
+    }
+  }
+
+  // Create a sequel story based on an original story
+  public async createSequel(originalStory: any): Promise<string> {
+    try {
+      // Generate a sequel idea based on the original story
+      const sequelIdea = await this.generateSequelIdea(originalStory);
+      
+      // Create a title for the sequel using the standard title function
+      const sequelTitle = await this.createTitle(sequelIdea);
+      
+      // Create an outline for the sequel
+      const outline = await this.createOutline(sequelIdea);
+      
+      if (!outline) {
+        throw new Error('Failed to create outline for sequel');
+      }
+      
+      // Generate characters for the sequel
+      const characters = await this.generateCharacters(outline);
+      
+      if (!characters) {
+        throw new Error('Failed to generate characters for sequel');
+      }
+      
+      // Create the sequel story data
+      const sequelData = {
+        title: sequelTitle,
+        story_idea: sequelIdea,
+        plot_outline: JSON.stringify(outline),
+        characters,
+        parent_story_id: originalStory.id,
+        is_sequel: true,
+        chapters: outline.map((sceneBeat, index) => ({
+          title: `Chapter ${index + 1}`,
+          content: '',
+          completed: false,
+          sceneBeat
+        }))
+      };
+      
+      // Save the sequel story
+      const sequelId = await this.saveStory(sequelData);
+      
+      // If the original story isn't part of a series yet, create one
+      if (!originalStory.is_series && !originalStory.parent_story_id) {
+        // Create a series that includes both stories
+        const seriesTitle = `The ${originalStory.title} Series`;
+        const seriesData = {
+          title: seriesTitle,
+          story_idea: `A series beginning with "${originalStory.title}" and continuing with "${sequelTitle}".`,
+          plot_outline: JSON.stringify([`Part 1: ${originalStory.title}`, `Part 2: ${sequelTitle}`]),
+          characters: characters,
+          is_series: true,
+          related_stories: JSON.stringify([originalStory.id, sequelId])
+        };
+        
+        await this.saveStory(seriesData);
+        
+        // Update the original story to mark it as part of a series
+        await this.updateStory(originalStory.id, {
+          is_sequel: false,
+          parent_story_id: null
+        });
+      }
+      
+      return sequelId;
+    } catch (error) {
+      console.error('Error creating sequel:', error);
+      throw new Error('Failed to create sequel. Please try again.');
+    }
+  }
+
+  // Delete a story by ID
+  public async deleteStory(storyId: string): Promise<void> {
+    if (!this.userId) {
+      throw new Error('User ID not set');
+    }
+
+    try {
+      // Check if the story exists and get its data
+      const { data: storyData, error: storyError } = await supabase
+        .from('stories')
+        .select('*')
+        .eq('id', storyId)
+        .single();
+
+      // If the story doesn't exist, just invalidate the cache and return
+      if (storyError && storyError.code === 'PGRST116') {
+        console.log(`Story ${storyId} not found in database, cleaning up cache`);
+        // Story doesn't exist, just clean up the cache
+        browserCache.remove(`user_stories_${this.userId}`);
+        browserCache.remove(`story_${storyId}`);
+        return;
+      } else if (storyError) {
+        // Some other error occurred
+        throw storyError;
+      }
+
+      // We'll handle series relationships in the database using triggers
+      // or let the SeriesService handle it
+
+      // Update any sequels to remove the parent reference
+      await supabase
+        .from('stories')
+        .update({ parent_story_id: null })
+        .eq('parent_story_id', storyId);
+
+      // Delete the story
+      const { error } = await supabase
+        .from('stories')
+        .delete()
+        .eq('id', storyId);
+
+      if (error) throw error;
+
+      // Invalidate the cache
+      browserCache.remove(`user_stories_${this.userId}`);
+      browserCache.remove(`story_${storyId}`);
+      
+      // Also invalidate any series caches - we don't know which ones might be affected
+      // so we'll just clear all user series
+      browserCache.remove(`user_series_${this.userId}`);
+    } catch (error) {
+      console.error('Error deleting story:', error);
       throw error;
     }
   }
