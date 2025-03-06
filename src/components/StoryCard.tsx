@@ -401,18 +401,6 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
           <p className="text-sm text-muted-foreground line-clamp-2 pl-9">
             {story.story_idea}
           </p>
-          {story.parent_story_id && parentStory && (
-            <div className="mt-2 pl-9 text-xs flex items-center gap-1">
-              <span className="text-muted-foreground">Sequel to:</span>
-              <button 
-                onClick={navigateToParentStory}
-                className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-              >
-                {parentStory.title}
-                <ArrowRight className="h-3 w-3" />
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
