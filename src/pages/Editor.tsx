@@ -8,6 +8,7 @@ import { CharacterModal } from "@/components/CharacterModal";
 import { ExportModal } from "@/components/ExportModal";
 import { useStoryService } from "@/hooks/use-story-service";
 import debounce from "lodash/debounce";
+import { setDocumentTitle } from "@/utils/document";
 
 interface Chapter {
   title: string;
@@ -369,6 +370,15 @@ export default function Editor() {
       setCurrentChapter(0);
     }
   }, [chapters, currentChapter]);
+
+  // Update document title when story loads
+  useEffect(() => {
+    if (story?.title) {
+      setDocumentTitle(`Editing: ${story.title}`);
+    } else {
+      setDocumentTitle("Story Editor");
+    }
+  }, [story?.title]);
 
   const handleSignOut = async () => {
     try {

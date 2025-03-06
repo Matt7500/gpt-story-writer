@@ -8,6 +8,7 @@ import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { AISettings } from "@/components/settings/AISettings";
 import type { UserSettings } from "@/types/settings";
 import { userSettingsService } from "@/services/UserSettingsService";
+import { setDocumentTitle } from "@/utils/document";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -29,6 +30,8 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setDocumentTitle("Settings");
+    
     if (!user) {
       navigate("/auth");
       return;

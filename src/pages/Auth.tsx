@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { setDocumentTitle } from "@/utils/document";
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -12,6 +13,10 @@ export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setDocumentTitle(isSignUp ? "Sign Up" : "Sign In");
+  }, [isSignUp]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

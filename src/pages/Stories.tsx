@@ -20,6 +20,7 @@ import { Series } from "@/types/series";
 import { useStoryService } from "@/hooks/use-story-service";
 import { useSeriesService } from "@/hooks/use-series-service";
 import { BookOpen, BookCopy } from "lucide-react";
+import { setDocumentTitle } from "@/utils/document";
 
 export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
@@ -41,6 +42,9 @@ export default function Stories() {
   const seriesService = useSeriesService();
 
   useEffect(() => {
+    // Set document title
+    setDocumentTitle("My Stories");
+    
     // Set mounted flag
     isMounted.current = true;
 
