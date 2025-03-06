@@ -68,8 +68,7 @@ export function SequelGenerationModal({
 
           // Step 2: Generate title
           setCurrentStep(1);
-          const title = await storyService.generateSequelTitle(
-            originalStory,
+          const title = await storyService.createTitle(
             sequelIdea,
             abortControllerRef.current?.signal
           );
@@ -77,8 +76,7 @@ export function SequelGenerationModal({
 
           // Step 3: Generate plot outline
           setCurrentStep(2);
-          const plotOutline = await storyService.generateSequelPlotOutline(
-            originalStory,
+          const plotOutline = await storyService.createOutline(
             sequelIdea,
             abortControllerRef.current?.signal
           );
@@ -86,9 +84,8 @@ export function SequelGenerationModal({
 
           // Step 4: Generate characters
           setCurrentStep(3);
-          const characters = await storyService.generateSequelCharacters(
-            originalStory,
-            sequelIdea,
+          const characters = await storyService.generateCharacters(
+            plotOutline || [],
             abortControllerRef.current?.signal
           );
           if (isCancelling) return;
@@ -143,21 +140,21 @@ export function SequelGenerationModal({
           const sequelData = {
             title,
             story_idea: sequelIdea,
-            plot_outline: plotOutline,
-            characters,
+            plot_outline: plotOutline ? JSON.stringify(plotOutline) : '',
+            characters: characters || '',
             is_sequel: true,
             parent_story_id: originalStory.id
           };
 
-          const sequel = await storyService.createStory(sequelData);
+          const sequelId = await storyService.saveStory(sequelData);
           
           // If we have a series, add the sequel to it
           if (seriesId) {
-            await seriesService.addStoryToSeries(seriesId, sequel.id);
+            await seriesService.addStoryToSeries(seriesId, sequelId);
           }
 
           // Complete the process
-          onComplete(sequel.id);
+          onComplete(sequelId);
           
         } catch (err: any) {
           if (err.name === 'AbortError') {
@@ -213,7 +210,6 @@ export function SequelGenerationModal({
         >
           <DialogContentWithoutCloseButton 
             className="max-w-2xl"
-            asChild
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}

@@ -34,7 +34,7 @@ export function CreateSequelDialog({ story, onClose, onConfirm }: CreateSequelDi
     <AnimatePresence>
       {story && (
         <Dialog open={!!story} onOpenChange={onClose}>
-          <DialogContent className="max-w-3xl max-h-[90vh]" asChild>
+          <DialogContent className="max-w-3xl max-h-[90vh]">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

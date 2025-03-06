@@ -164,7 +164,7 @@ export class StoryService {
   }
 
   // Generate story ideas from Reddit posts
-  public async generateStoryIdea(): Promise<string> {
+  public async generateStoryIdea(signal?: AbortSignal): Promise<string> {
     try {
       if (!this.userSettings) {
         await this.loadUserSettings();
@@ -361,7 +361,7 @@ Please provide a detailed summary in 400-600 words.
   }
 
   // Create outline from story idea
-  public async createOutline(idea: string): Promise<string[] | null> {
+  public async createOutline(idea: string, signal?: AbortSignal): Promise<string[] | null> {
     try {
       if (!this.userSettings) {
         await this.loadUserSettings();
@@ -419,7 +419,8 @@ ${idea}`;
           const response = await client.chat.completions.create({
             model: model,
             temperature: 0.5,
-            messages: [{ role: "user", content: userMessage }]
+            messages: [{ role: "user", content: userMessage }],
+            signal: signal
           });
           const text = response.choices[0].message.content || '';
 
@@ -447,7 +448,7 @@ ${idea}`;
   }
 
   // Generate characters for the story
-  public async generateCharacters(outline: string[]): Promise<string | null> {
+  public async generateCharacters(outline: string[], signal?: AbortSignal): Promise<string | null> {
     let retries = 0;
     while (retries < 10) {
       try {
@@ -485,7 +486,8 @@ ${outline.join('\n')}
           model: model,
           max_tokens: 4000,
           temperature: 0.7,
-          messages: [{ role: "user", content: prompt }]
+          messages: [{ role: "user", content: prompt }],
+          signal: signal
         });
         return response.choices[0].message.content || null;
       } catch (err) {
@@ -571,7 +573,7 @@ ${chunk}`
   }
 
   // Create a title for the story
-  public async createTitle(storyText: string): Promise<string> {
+  public async createTitle(storyText: string, signal?: AbortSignal): Promise<string> {
     if (!this.userSettings) {
       await this.loadUserSettings();
     }
@@ -779,7 +781,7 @@ ${chunk}`
   }
 
   // Generate a sequel idea based on an existing story
-  public async generateSequelIdea(originalStory: any): Promise<string> {
+  public async generateSequelIdea(originalStory: any, signal?: AbortSignal): Promise<string> {
     try {
       console.log('Starting generateSequelIdea for story:', originalStory?.title);
       
@@ -833,7 +835,8 @@ Your sequel idea should be 2-3 paragraphs long, detailed enough to serve as the 
           }
         ],
         temperature: 0.8,
-        max_tokens: 500
+        max_tokens: 500,
+        signal: signal
       });
 
       console.log('Received response from AI model');

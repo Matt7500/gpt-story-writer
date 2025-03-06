@@ -5,7 +5,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogClose
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Check, RefreshCw, Edit, ChevronDown, ChevronUp, X } from "lucide-react";
@@ -13,9 +12,9 @@ import { useStoryService } from "@/hooks/use-story-service";
 import { Button } from "./ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "./ui/input";
-import { Textarea } from "./ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { AnimatePresence, motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface StoryGenerationModalProps {
   open: boolean;
@@ -24,11 +23,31 @@ interface StoryGenerationModalProps {
 }
 
 const STEPS = [
-  "Generating story idea...",
-  "Creating title...",
-  "Building plot outline...",
-  "Developing characters...",
-  "Saving story..."
+  {
+    id: "idea",
+    title: "Generating story idea",
+    description: "Creating a unique and engaging story concept"
+  },
+  {
+    id: "title",
+    title: "Creating title",
+    description: "Crafting the perfect title for your story"
+  },
+  {
+    id: "outline",
+    title: "Building plot outline",
+    description: "Developing the structure and key scenes"
+  },
+  {
+    id: "characters",
+    title: "Developing characters",
+    description: "Creating memorable characters for your story"
+  },
+  {
+    id: "saving",
+    title: "Saving story",
+    description: "Finalizing and saving your new story"
+  }
 ];
 
 export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerationModalProps) {
@@ -85,7 +104,9 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
 
           // Step 1: Generate story idea
           setCurrentStep(0);
-          const idea = await storyService.generateStoryIdea();
+          const idea = await storyService.generateStoryIdea(
+            abortControllerRef.current?.signal
+          );
           
           // Check if we're cancelling after story idea generation
           if (isCancelling || !abortControllerRef.current) return;
@@ -94,7 +115,10 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
           
           // Step 2: Create title from story idea
           setCurrentStep(1);
-          const title = await storyService.createTitle(idea);
+          const title = await storyService.createTitle(
+            idea,
+            abortControllerRef.current?.signal
+          );
           
           // Check if we're cancelling after title generation
           if (isCancelling || !abortControllerRef.current) return;
@@ -160,7 +184,10 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
       if (!approved) {
         // Generate a new title
         setProposedTitle(null);
-        const newTitle = await storyService.createTitle(storyIdea);
+        const newTitle = await storyService.createTitle(
+          storyIdea,
+          abortControllerRef.current?.signal
+        );
         
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
@@ -192,7 +219,10 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
         
         // Step 3: Build plot outline
         setCurrentStep(2);
-        const outline = await storyService.createOutline(storyIdea);
+        const outline = await storyService.createOutline(
+          storyIdea,
+          abortControllerRef.current?.signal
+        );
         
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
@@ -203,7 +233,10 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
         
         // Step 4: Develop characters
         setCurrentStep(3);
-        const characters = await storyService.generateCharacters(outline);
+        const characters = await storyService.generateCharacters(
+          outline,
+          abortControllerRef.current?.signal
+        );
         
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
@@ -250,7 +283,8 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
         toast({
           title: "Error",
           description: error.message || 'An error occurred while processing title approval',
-          variant: "destructive"
+          variant: "destructive",
+          duration: 3000,
         });
       }
     }
@@ -264,173 +298,244 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
     setCustomTitle(e.target.value);
   };
 
-  const progress = (currentStep / STEPS.length) * 100;
+  // Calculate progress percentage
+  const progress = proposedTitle 
+    ? (currentStep / STEPS.length) * 100 
+    : Math.min(20, (currentStep / STEPS.length) * 100);
 
-  // Animation variants for the title approval section
-  const titleApprovalVariants = {
-    hidden: { 
-      opacity: 0, 
-      height: 0,
-      marginTop: 0,
-      transition: { 
-        duration: 0.2,
-        ease: "easeInOut"
-      }
-    },
+  // Get current step info
+  const currentStepInfo = STEPS[currentStep];
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0, scale: 0.95 },
     visible: { 
       opacity: 1, 
-      height: "auto",
-      marginTop: 24,
+      scale: 1,
       transition: { 
-        duration: 0.2,
-        ease: "easeInOut"
+        duration: 0.2, 
+        ease: "easeOut" 
+      }
+    },
+    exit: { 
+      opacity: 0, 
+      scale: 0.95,
+      transition: { 
+        duration: 0.2, 
+        ease: "easeIn" 
       }
     }
   };
 
   return (
-    <Dialog 
-      open={open} 
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          handleClose();
-        }
-      }}
-    >
-      <DialogContentWithoutCloseButton className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Generating Your Story</DialogTitle>
-          <DialogDescription>
-            Please wait while we create your story. This may take a few moments.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="py-4">
-          {error ? (
-            <div className="text-red-500 mb-4">
-              {error}
-            </div>
-          ) : (
-            <>
-              <Progress value={progress} className="mb-4" />
+    <AnimatePresence>
+      {open && (
+        <Dialog 
+          open={open} 
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              handleClose();
+            }
+          }}
+        >
+          <DialogContentWithoutCloseButton className="max-w-2xl">
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="flex flex-col"
+            >
+              {/* Header */}
+              <DialogHeader className="pb-4">
+                <DialogTitle className="text-xl font-bold">Story Creation</DialogTitle>
+                <DialogDescription className="text-base mt-1">
+                  {proposedTitle 
+                    ? `Creating "${proposedTitle}"` 
+                    : "Creating your new story"}
+                </DialogDescription>
+              </DialogHeader>
               
-              <div className="space-y-4">
-                {STEPS.map((step, index) => (
-                  <div
-                    key={step}
-                    className="flex items-center gap-3"
-                  >
-                    {index === currentStep ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    ) : index < currentStep ? (
-                      <Check className="h-4 w-4 text-primary" />
-                    ) : (
-                      <div className="h-4 w-4 rounded-full border" />
-                    )}
-                    <span className={index <= currentStep ? "text-foreground" : "text-muted-foreground"}>
-                      {step}
-                    </span>
+              {/* Main content */}
+              <div className="py-4">
+                {error ? (
+                  <div className="bg-red-50 rounded-lg p-4 mb-4 text-red-800">
+                    <div className="font-semibold mb-1">Error</div>
+                    <div className="text-sm">{error}</div>
                   </div>
-                ))}
-              </div>
-
-              {/* Title Approval UI with Animation */}
-              <AnimatePresence>
-                {proposedTitle && currentStep === 1 && (
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
-                    variants={titleApprovalVariants}
-                    className="space-y-4 overflow-hidden"
-                  >
-                    {/* Story Idea Collapsible */}
-                    {storyIdea && (
-                      <Collapsible
-                        open={isStoryIdeaOpen}
-                        onOpenChange={setIsStoryIdeaOpen}
-                        className="bg-muted/50 rounded-lg shadow-sm"
-                      >
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" className="flex w-full justify-between p-4">
-                            <span className="font-medium">View Story Idea</span>
-                            {isStoryIdeaOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="px-4 pb-4">
-                          <Textarea 
-                            value={storyIdea} 
-                            readOnly 
-                            className="w-full h-40 resize-none bg-background/80"
-                          />
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-                    
-                    {/* Title Section */}
-                    <div className="bg-muted/50 rounded-lg p-4 shadow-sm">
+                ) : proposedTitle ? (
+                  <div className="space-y-6">
+                    {/* Title approval section */}
+                    <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-lg font-semibold">
-                          {isEditingTitle ? "Edit Title:" : "Proposed Title:"}
-                        </h3>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={toggleEditTitle}
-                        >
-                          {isEditingTitle ? (
-                            <>Cancel Editing</>
-                          ) : (
-                            <>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Create Custom Title
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                      
-                      {isEditingTitle ? (
-                        <Input
-                          value={customTitle}
-                          onChange={handleCustomTitleChange}
-                          placeholder="Enter your custom title"
-                          className="mb-4 bg-background/80"
-                        />
-                      ) : (
-                        <p className="text-xl mb-4 px-3 py-2 bg-background/80 rounded-md">{proposedTitle}</p>
-                      )}
-                      
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="default" 
-                          onClick={() => handleTitleApproval(true)}
-                        >
-                          <Check className="h-4 w-4 mr-2" />
-                          {isEditingTitle ? "Use Custom Title" : "Accept Title"}
-                        </Button>
+                        <h3 className="font-medium text-blue-800 dark:text-blue-300">Proposed Title</h3>
                         {!isEditingTitle && (
                           <Button 
-                            variant="outline" 
-                            onClick={() => handleTitleApproval(false)}
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={toggleEditTitle}
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-7 px-2"
                           >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Generate New Title
+                            <Edit className="h-3.5 w-3.5 mr-1" />
+                            Edit
                           </Button>
                         )}
                       </div>
+                      
+                      {isEditingTitle ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Input 
+                              value={customTitle} 
+                              onChange={handleCustomTitleChange} 
+                              className="focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 flex-1"
+                              placeholder="Enter your custom title"
+                              autoFocus
+                            />
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={toggleEditTitle}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">Enter a custom title for your story</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-lg font-semibold">{proposedTitle}</p>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between mt-4 pt-3">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleTitleApproval(false)}
+                          className="text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Generate New Title
+                        </Button>
+                        <Button 
+                          onClick={() => handleTitleApproval(true)}
+                          className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white"
+                        >
+                          <Check className="h-4 w-4 mr-2" />
+                          Use This Title
+                        </Button>
+                      </div>
                     </div>
-                  </motion.div>
+                    
+                    {/* Story idea preview */}
+                    <Collapsible 
+                      open={isStoryIdeaOpen} 
+                      onOpenChange={setIsStoryIdeaOpen}
+                      className="rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900/30"
+                    >
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-left">
+                        <div className="font-medium">Story Idea Preview</div>
+                        <div className="text-muted-foreground">
+                          <motion.div
+                            animate={{ rotate: isStoryIdeaOpen ? 180 : 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </motion.div>
+                        </div>
+                      </CollapsibleTrigger>
+                      <AnimatePresence initial={false}>
+                        {isStoryIdeaOpen && (
+                          <CollapsibleContent forceMount className="overflow-hidden" asChild>
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3, ease: "easeInOut" }}
+                            >
+                              <div className="px-4 pb-4">
+                                <div className="bg-white/50 dark:bg-slate-800/50 p-3 rounded text-sm text-muted-foreground max-h-[200px] overflow-y-auto">
+                                  {storyIdea}
+                                </div>
+                              </div>
+                            </motion.div>
+                          </CollapsibleContent>
+                        )}
+                      </AnimatePresence>
+                    </Collapsible>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Steps visualization */}
+                    <div className="space-y-3">
+                      {STEPS.map((step, index) => (
+                        <div
+                          key={step.id}
+                          className={cn(
+                            "flex items-start gap-3 p-3 rounded-lg transition-all",
+                            index === currentStep 
+                              ? "bg-blue-50/40 dark:bg-blue-900/20" 
+                              : "bg-transparent",
+                            index < currentStep 
+                              ? "opacity-70" 
+                              : index === currentStep 
+                                ? "opacity-100" 
+                                : "opacity-50"
+                          )}
+                        >
+                          <div className="flex-shrink-0 mt-0.5">
+                            {index === currentStep ? (
+                              <div className="h-5 w-5 rounded-full bg-blue-100/70 dark:bg-blue-800/50 flex items-center justify-center">
+                                <Loader2 className="h-3 w-3 text-blue-600 dark:text-blue-400 animate-spin" />
+                              </div>
+                            ) : index < currentStep ? (
+                              <div className="h-5 w-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                                <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                              </div>
+                            ) : (
+                              <div className="h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                <div className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className={cn(
+                              "font-medium text-sm",
+                              index === currentStep ? "text-foreground" : 
+                              index < currentStep ? "text-muted-foreground" : 
+                              "text-muted-foreground"
+                            )}>
+                              {step.title}
+                            </h4>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {step.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </AnimatePresence>
-            </>
-          )}
-        </div>
-        
-        <Button variant="destructive" onClick={handleClose} className="mt-2">
-          <X className="h-4 w-4 mr-2" />
-          Cancel Story Generation
-        </Button>
-      </DialogContentWithoutCloseButton>
-    </Dialog>
+              </div>
+              
+              {/* Footer */}
+              {!proposedTitle && (
+                <div className="pt-2 flex justify-start">
+                  <Button 
+                    variant="destructive"
+                    onClick={handleClose}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </motion.div>
+          </DialogContentWithoutCloseButton>
+        </Dialog>
+      )}
+    </AnimatePresence>
   );
 } 
