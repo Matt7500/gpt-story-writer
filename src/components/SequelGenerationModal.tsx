@@ -14,6 +14,7 @@ import { Button } from "./ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Story } from "@/types/story";
 import { supabase } from "@/integrations/supabase/client";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface SequelGenerationModalProps {
   open: boolean;
@@ -48,155 +49,120 @@ export function SequelGenerationModal({
   // Create a new AbortController when the modal opens
   useEffect(() => {
     if (open) {
-      abortControllerRef.current = new AbortController();
-      setIsCancelling(false);
-    } else {
-      // Clean up when modal closes
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    }
-
-    return () => {
-      // Clean up on unmount
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (open && originalStory && !isCancelling) {
       setCurrentStep(0);
       setError(null);
-      
-      console.log('Starting sequel generation process for story:', originalStory.title);
+      setIsCancelling(false);
+      abortControllerRef.current = new AbortController();
 
       const generateSequel = async () => {
-        try {
-          // Check if we're cancelling
-          if (isCancelling || !abortControllerRef.current) return;
+        if (!originalStory || isCancelling) return;
 
+        try {
           // Step 1: Generate sequel idea
-          console.log('Step 1: Generating sequel idea');
           setCurrentStep(0);
-          const sequelIdea = await storyService.generateSequelIdea(originalStory);
-          console.log('Generated sequel idea:', sequelIdea.substring(0, 100) + '...');
-          
-          // Check if we're cancelling
-          if (isCancelling || !abortControllerRef.current) return;
-          
-          // Step 2: Create sequel title using the standard title generation function
-          console.log('Step 2: Creating sequel title using standard title function');
+          const sequelIdea = await storyService.generateSequelIdea(
+            originalStory,
+            abortControllerRef.current?.signal
+          );
+          if (isCancelling) return;
+
+          // Step 2: Generate title
           setCurrentStep(1);
-          const sequelTitle = await storyService.createTitle(sequelIdea);
-          console.log('Generated sequel title:', sequelTitle);
-          
-          // Check if we're cancelling
-          if (isCancelling || !abortControllerRef.current) return;
-          
-          // Step 3: Create outline for the sequel
-          console.log('Step 3: Creating outline');
+          const title = await storyService.generateSequelTitle(
+            originalStory,
+            sequelIdea,
+            abortControllerRef.current?.signal
+          );
+          if (isCancelling) return;
+
+          // Step 3: Generate plot outline
           setCurrentStep(2);
-          const outline = await storyService.createOutline(sequelIdea);
-          console.log('Generated outline with', outline ? outline.length : 0, 'scenes');
-          
-          // Check if we're cancelling
-          if (isCancelling || !abortControllerRef.current) return;
-          
-          if (!outline) {
-            throw new Error('Failed to create outline for sequel');
-          }
-          
-          // Step 4: Generate characters for the sequel
-          console.log('Step 4: Generating characters');
+          const plotOutline = await storyService.generateSequelPlotOutline(
+            originalStory,
+            sequelIdea,
+            abortControllerRef.current?.signal
+          );
+          if (isCancelling) return;
+
+          // Step 4: Generate characters
           setCurrentStep(3);
-          const characters = await storyService.generateCharacters(outline);
-          console.log('Generated characters');
-          
-          // Check if we're cancelling
-          if (isCancelling || !abortControllerRef.current) return;
-          
-          if (!characters) {
-            throw new Error('Failed to generate characters for sequel');
-          }
-          
-          // Step 5: Create or update series (if needed)
-          console.log('Step 5: Creating or updating series');
+          const characters = await storyService.generateSequelCharacters(
+            originalStory,
+            sequelIdea,
+            abortControllerRef.current?.signal
+          );
+          if (isCancelling) return;
+
+          // Step 5: Check if we need to create a series
           setCurrentStep(4);
+          let seriesId = null;
+
+          // Check if the original story is already part of a series
+          const existingSeries = await seriesService.getSeriesForStory(originalStory.id);
           
-          // Create the sequel story data
-          const sequelData = {
-            title: sequelTitle,
-            story_idea: sequelIdea,
-            plot_outline: JSON.stringify(outline),
-            characters,
-            parent_story_id: originalStory.id,
-            is_sequel: true,
-            chapters: outline.map((sceneBeat, index) => ({
-              title: `Chapter ${index + 1}`,
-              content: '',
-              completed: false,
-              sceneBeat
-            }))
-          };
-          
-          // Step 6: Save the sequel
-          console.log('Step 6: Saving sequel');
-          setCurrentStep(5);
-          const sequelId = await storyService.saveStory(sequelData);
-          console.log('Saved sequel with ID:', sequelId);
-          
-          // Check if we're cancelling
-          if (isCancelling || !abortControllerRef.current) return;
-          
-          // Series handling logic
-          console.log('Handling series relationships');
-          
-          // Check if the original story is part of a series
-          const { data: seriesStoryData, error: seriesStoryError } = await supabase
-            .from('series_stories')
-            .select('series_id')
-            .eq('story_id', originalStory.id);
+          if (existingSeries) {
+            // Use the existing series
+            seriesId = existingSeries.id;
+          } else if (originalStory.is_sequel || originalStory.parent_story_id) {
+            // This is a sequel to a sequel, so we should create a series
+            // First, find the original parent story (the first in the chain)
+            let rootStory = originalStory;
+            let parentId = rootStory.parent_story_id;
             
-          if (seriesStoryError) {
-            console.error('Error checking if story is in a series:', seriesStoryError);
-          }
-          
-          if (seriesStoryData && seriesStoryData.length > 0) {
-            // The original story is already part of a series
-            const seriesId = seriesStoryData[0].series_id;
-            console.log('Original story is part of series:', seriesId);
+            while (parentId) {
+              const { data, error } = await supabase
+                .from('stories')
+                .select('*')
+                .eq('id', parentId)
+                .single();
+                
+              if (error || !data) break;
+              
+              rootStory = data as unknown as Story;
+              parentId = rootStory.parent_story_id;
+            }
             
-            // Add the sequel to the existing series
-            await seriesService.addStoryToSeries(seriesId, sequelId);
-            console.log('Added sequel to existing series');
-          } else {
-            // The original story is not part of a series, create a new one
-            console.log('Creating new series for original story and sequel');
+            // Create a series with the root story and all sequels
+            const seriesTitle = `${rootStory.title} Series`;
+            const seriesDescription = `A series starting with "${rootStory.title}" and its sequels.`;
             
-            // Create a new series
-            const seriesTitle = `The ${originalStory.title} Series`;
-            const seriesDescription = `A series beginning with "${originalStory.title}" and continuing with "${sequelTitle}".`;
-            
-            // Create the series
             const series = await seriesService.createSeries(seriesTitle, seriesDescription);
-            console.log('Created new series with ID:', series.id);
+            seriesId = series.id;
             
-            // Add both stories to the series
-            await seriesService.addStoryToSeries(series.id, originalStory.id, 0);
-            await seriesService.addStoryToSeries(series.id, sequelId, 1);
-            console.log('Added both stories to the new series');
+            // Add the root story to the series
+            await seriesService.addStoryToSeries(seriesId, rootStory.id, 0);
+            
+            // Add any intermediate stories to the series
+            if (rootStory.id !== originalStory.id) {
+              await seriesService.addStoryToSeries(seriesId, originalStory.id, 1);
+            }
           }
+
+          // Step 6: Save the sequel
+          setCurrentStep(5);
+          const sequelData = {
+            title,
+            story_idea: sequelIdea,
+            plot_outline: plotOutline,
+            characters,
+            is_sequel: true,
+            parent_story_id: originalStory.id
+          };
+
+          const sequel = await storyService.createStory(sequelData);
           
+          // If we have a series, add the sequel to it
+          if (seriesId) {
+            await seriesService.addStoryToSeries(seriesId, sequel.id);
+          }
+
           // Complete the process
-          console.log('Sequel generation complete!');
-          onComplete(sequelId);
+          onComplete(sequel.id);
+          
         } catch (err: any) {
-          // Only show error if we're not cancelling
-          if (!isCancelling) {
+          if (err.name === 'AbortError') {
+            console.log('Sequel generation aborted');
+          } else {
             console.error('Sequel generation error:', err);
             setError(err.message || 'An error occurred while generating the sequel');
           }
@@ -235,63 +201,89 @@ export function SequelGenerationModal({
   const progress = (currentStep / STEPS.length) * 100;
 
   return (
-    <Dialog 
-      open={open} 
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          handleClose();
-        }
-      }}
-    >
-      <DialogContentWithoutCloseButton className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Creating Sequel</DialogTitle>
-          <DialogDescription>
-            {originalStory ? (
-              <>Creating a sequel to "{originalStory.title}". Please wait while we generate your sequel.</>
-            ) : (
-              <>Please wait while we generate your sequel.</>
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="py-4">
-          {error ? (
-            <div className="text-red-500 mb-4">
-              {error}
-            </div>
-          ) : (
-            <>
-              <Progress value={progress} className="mb-4" />
+    <AnimatePresence>
+      {open && (
+        <Dialog 
+          open={open} 
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              handleClose();
+            }
+          }}
+        >
+          <DialogContentWithoutCloseButton 
+            className="max-w-2xl"
+            asChild
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <DialogHeader>
+                <DialogTitle>Creating Sequel</DialogTitle>
+                <DialogDescription>
+                  {originalStory ? (
+                    <>Creating a sequel to "{originalStory.title}". Please wait while we generate your sequel.</>
+                  ) : (
+                    <>Please wait while we generate your sequel.</>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
               
-              <div className="space-y-4">
-                {STEPS.map((step, index) => (
-                  <div
-                    key={step}
-                    className="flex items-center gap-3"
-                  >
-                    {index === currentStep ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    ) : index < currentStep ? (
-                      <Check className="h-4 w-4 text-primary" />
-                    ) : (
-                      <div className="h-4 w-4 rounded-full border" />
-                    )}
-                    <span className={index <= currentStep ? "text-foreground" : "text-muted-foreground"}>
-                      {step}
-                    </span>
+              <div className="py-4">
+                {error ? (
+                  <div className="text-red-500 mb-4">
+                    {error}
                   </div>
-                ))}
+                ) : (
+                  <>
+                    <Progress value={progress} className="mb-4" />
+                    
+                    <div className="space-y-2">
+                      {STEPS.map((step, index) => (
+                        <div 
+                          key={index} 
+                          className="flex items-center gap-2"
+                        >
+                          {index < currentStep ? (
+                            <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
+                              <Check className="h-4 w-4 text-green-600" />
+                            </div>
+                          ) : index === currentStep ? (
+                            <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center">
+                              <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                            </div>
+                          ) : (
+                            <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+                              <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+                            </div>
+                          )}
+                          <span className={index <= currentStep ? "text-foreground" : "text-muted-foreground"}>
+                            {step}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-            </>
-          )}
-        </div>
-        
-        <Button variant="destructive" onClick={handleClose} className="mt-2">
-          <X className="h-4 w-4 mr-2" />
-          Cancel Sequel Generation
-        </Button>
-      </DialogContentWithoutCloseButton>
-    </Dialog>
+              
+              <div className="flex justify-center mt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={handleClose}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Cancel Sequel Generation
+                </Button>
+              </div>
+            </motion.div>
+          </DialogContentWithoutCloseButton>
+        </Dialog>
+      )}
+    </AnimatePresence>
   );
 } 

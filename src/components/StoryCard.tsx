@@ -242,8 +242,8 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
     const hue = Math.abs(hash) % 360;
     
     return {
-      bg: `hsla(${hue}, 85%, 95%, 1)`,
-      text: `hsla(${hue}, 85%, 35%, 1)`,
+      bg: `hsla(${hue}, 85%, 92%, 1)`,
+      text: `hsla(${hue}, 90%, 25%, 1)`,
       hover: `hsla(${hue}, 85%, 90%, 1)`
     };
   };
@@ -345,7 +345,7 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                   {seriesInfo ? (
                     <Badge 
                       variant="secondary" 
-                      className="text-xs font-medium"
+                      className="text-xs font-semibold"
                       style={{
                         backgroundColor: getSeriesColor(seriesInfo.id).bg,
                         color: getSeriesColor(seriesInfo.id).text
@@ -354,7 +354,7 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                       Series
                     </Badge>
                   ) : isSequel(story) ? (
-                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200">
+                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200 font-semibold">
                       Sequel
                     </Badge>
                   ) : null}

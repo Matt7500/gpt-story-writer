@@ -75,8 +75,8 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
     const hue = Math.abs(hash) % 360;
     
     return {
-      bg: `hsla(${hue}, 85%, 95%, 1)`,
-      text: `hsla(${hue}, 85%, 35%, 1)`,
+      bg: `hsla(${hue}, 85%, 92%, 1)`,
+      text: `hsla(${hue}, 90%, 25%, 1)`,
       hover: `hsla(${hue}, 85%, 90%, 1)`
     };
   };
@@ -103,7 +103,7 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
                     </span>
                     <Badge 
                       variant="secondary" 
-                      className="text-xs font-medium"
+                      className="text-xs font-semibold"
                       style={{
                         backgroundColor: seriesColors.bg,
                         color: seriesColors.text
@@ -168,7 +168,6 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-4 pl-9 space-y-3">
-          <h4 className="text-sm font-medium text-muted-foreground">Stories in this series:</h4>
           {loading ? (
             <div className="text-sm text-muted-foreground">Loading stories...</div>
           ) : seriesWithStories?.stories && seriesWithStories.stories.length > 0 ? (
@@ -184,7 +183,7 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
                       <div className="flex items-center gap-2">
                         <Badge 
                           variant="outline" 
-                          className="text-xs font-medium"
+                          className="text-xs font-semibold"
                           style={{
                             backgroundColor: seriesColors.bg,
                             color: seriesColors.text
@@ -210,20 +209,6 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
             </div>
           ) : (
             <div className="text-sm text-muted-foreground">No stories in this series yet.</div>
-          )}
-          {onAddStory && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddStory(series);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Story to Series
-            </Button>
           )}
         </CollapsibleContent>
       </Collapsible>

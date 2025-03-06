@@ -176,11 +176,15 @@ export default function Stories() {
     // Store the original story for the sequel generation modal
     setOriginalStoryForSequel(storyForSequel);
     
-    // Close the confirmation dialog
-    setStoryForSequel(null);
-    
-    // Open the sequel generation modal
+    // First open the sequel generation modal while the confirmation dialog is still open
+    // This ensures there's no gap between closing one and opening the other
     setIsSequelGenerating(true);
+    
+    // Then close the confirmation dialog after a short delay
+    // This creates a smoother transition as the new modal is already visible
+    setTimeout(() => {
+      setStoryForSequel(null);
+    }, 100);
   };
   
   const handleSequelGenerated = (sequelId: string) => {

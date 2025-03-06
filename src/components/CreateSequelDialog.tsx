@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Story } from "@/types/story";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface CreateSequelDialogProps {
   story: Story | null;
@@ -30,31 +31,42 @@ export function CreateSequelDialog({ story, onClose, onConfirm }: CreateSequelDi
   const storyIdeaHeight = getIdealHeight(story.story_idea);
 
   return (
-    <Dialog open={!!story} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh]">
-        <DialogHeader className="pb-3">
-          <DialogTitle className="text-xl">Create Sequel</DialogTitle>
-          <DialogDescription className="text-base">
-            This will generate a new story that continues where "{story.title}" left off.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="bg-muted/50 p-4 rounded-md my-4">
-          <h4 className="font-medium mb-3 text-base">Original Story Idea:</h4>
-          <ScrollArea style={{ height: `${storyIdeaHeight}px` }} type="auto">
-            <p className="text-base text-muted-foreground pr-6 leading-relaxed">{story.story_idea}</p>
-          </ScrollArea>
-        </div>
-        
-        <DialogFooter className="flex sm:justify-between pt-3">
-          <Button variant="outline" size="lg" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="lg" onClick={onConfirm}>
-            Create Sequel
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <AnimatePresence>
+      {story && (
+        <Dialog open={!!story} onOpenChange={onClose}>
+          <DialogContent className="max-w-3xl max-h-[90vh]" asChild>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <DialogHeader className="pb-3">
+                <DialogTitle className="text-xl">Create Sequel</DialogTitle>
+                <DialogDescription className="text-base">
+                  This will generate a new story that continues where "{story.title}" left off.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="bg-muted/50 p-4 rounded-md my-4">
+                <h4 className="font-medium mb-3 text-base">Original Story Idea:</h4>
+                <ScrollArea style={{ height: `${storyIdeaHeight}px` }} type="auto">
+                  <p className="text-base text-muted-foreground pr-6 leading-relaxed">{story.story_idea}</p>
+                </ScrollArea>
+              </div>
+              
+              <DialogFooter className="flex sm:justify-between pt-3">
+                <Button variant="outline" size="lg" onClick={onClose}>
+                  Cancel
+                </Button>
+                <Button size="lg" onClick={onConfirm}>
+                  Create Sequel
+                </Button>
+              </DialogFooter>
+            </motion.div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </AnimatePresence>
   );
 } 
