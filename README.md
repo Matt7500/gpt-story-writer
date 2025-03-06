@@ -1,69 +1,176 @@
-# Welcome to your Lovable project
+# Plotter Palette
 
-## Project info
+A web application for generating and managing story ideas, outlines, and characters.
 
-**URL**: https://lovable.dev/projects/14c4e294-31fb-4f02-98e3-40a974b594bc
+## Frontend-Only Version
 
-## How can I edit this code?
+This version of Plotter Palette has been refactored to run entirely in the browser without requiring a backend server. All API calls are made directly from the frontend, and data is stored in Supabase.
 
-There are several ways of editing your application.
+## Prerequisites
 
-**Use Lovable**
+- Node.js & npm installed
+- An OpenAI API key
+- A Supabase account and project
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/14c4e294-31fb-4f02-98e3-40a974b594bc) and start prompting.
+## Environment Variables
 
-Changes made via Lovable will be committed automatically to this repo.
+Create a `.env` file in the root directory with the following variables:
 
-**Use your preferred IDE**
+```
+# Supabase
+VITE_SUPABASE_URL="your-supabase-url"
+VITE_SUPABASE_ANON_KEY="your-supabase-anon-key"
+```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+You don't need to include your OpenAI API key in the environment variables as it will be stored in the user settings in Supabase.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Getting Started
 
-Follow these steps:
+1. Install dependencies:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+npm install --legacy-peer-deps
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+> **Note:** The `--legacy-peer-deps` flag is required to resolve peer dependency conflicts.
 
-# Step 3: Install the necessary dependencies.
-npm i
+2. Start the development server:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+3. Open your browser and navigate to `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+4. Sign in or create an account
 
-**Use GitHub Codespaces**
+5. Go to Settings and add your OpenAI API key
+   - The API key should start with `sk-` and be followed by a series of characters
+   - You can get an API key from [OpenAI's platform](https://platform.openai.com/api-keys)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+6. Start creating stories!
 
-## What technologies are used for this project?
+## Database Setup
 
-This project is built with .
+The application requires the following tables in your Supabase database:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### user_settings
 
-## How can I deploy this project?
+```sql
+CREATE TABLE user_settings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  openrouter_key TEXT,
+  openai_key TEXT,
+  openrouter_model TEXT DEFAULT 'gpt-4o-mini',
+  reasoning_model TEXT DEFAULT 'llama-3.1-sonar-small-128k-online',
+  title_fine_tune_model TEXT DEFAULT 'gpt-4',
+  rewriting_model TEXT DEFAULT 'gpt-4',
+  rewrite_model TEXT DEFAULT 'gpt-4',
+  story_generation_model TEXT DEFAULT 'gpt-4',
+  use_openai_for_story_gen BOOLEAN DEFAULT false,
+  elevenlabs_key TEXT,
+  elevenlabs_model TEXT DEFAULT 'eleven_multilingual_v2',
+  elevenlabs_voice_id TEXT,
+  replicate_key TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
 
-Simply open [Lovable](https://lovable.dev/projects/14c4e294-31fb-4f02-98e3-40a974b594bc) and click on Share -> Publish.
+-- Add RLS policies
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 
-## I want to use a custom domain - is that possible?
+CREATE POLICY "Users can view their own settings"
+  ON user_settings FOR SELECT
+  USING (auth.uid() = user_id);
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+CREATE POLICY "Users can insert their own settings"
+  ON user_settings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own settings"
+  ON user_settings FOR UPDATE
+  USING (auth.uid() = user_id);
+```
+
+### stories
+
+```sql
+CREATE TABLE stories (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  story_idea TEXT,
+  plot_outline TEXT,
+  characters TEXT,
+  chapters JSONB,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Add RLS policies
+ALTER TABLE stories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own stories"
+  ON stories FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own stories"
+  ON stories FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own stories"
+  ON stories FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own stories"
+  ON stories FOR DELETE
+  USING (auth.uid() = user_id);
+```
+
+## Building for Production
+
+To build the application for production:
+
+```sh
+npm run build --legacy-peer-deps
+```
+
+The built files will be in the `dist` directory, which can be deployed to any static hosting service.
+
+## Deployment Options
+
+You can deploy this application to any static hosting service, such as:
+
+- Vercel
+- Netlify
+- GitHub Pages
+- Cloudflare Pages
+- Firebase Hosting
+
+Simply connect your repository to the hosting service and configure it to build with `npm run build --legacy-peer-deps`.
+
+## Troubleshooting
+
+### Dependency Issues
+
+If you encounter dependency conflicts during installation, use the `--legacy-peer-deps` flag:
+
+```sh
+npm install --legacy-peer-deps
+```
+
+This is necessary due to some peer dependency conflicts between packages.
+
+### API Key Issues
+
+If you encounter errors related to the OpenAI API key:
+
+1. Make sure you've entered your API key in the Settings page
+2. Verify that your API key is valid and has not expired
+3. Check that you have sufficient credits in your OpenAI account
+4. Try refreshing the page or signing out and back in
+
+## License
+
+MIT

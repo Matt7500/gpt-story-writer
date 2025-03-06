@@ -265,83 +265,36 @@ export function AISettings({
 
   const handleSaveAISettings = async () => {
     try {
-      // Use the same model values and validation as the UI
-      const currentStoryModel = useOpenAIForStoryGen ? storyGenerationModel : openAIModel;
-      const storyModelValid = validateModel(currentStoryModel, useOpenAIForStoryGen);
-      const reasoningModelValid = validateReasoningModel(reasoningModel, useOpenAIForStoryGen);
-
-      const validationErrors = [];
-      if (!storyModelValid.isValid) {
-        validationErrors.push(`Story Generation Model: ${storyModelValid.message}`);
-      }
-      if (!reasoningModelValid.isValid) {
-        validationErrors.push(`Reasoning Model: ${reasoningModelValid.message}`);
-      }
-
-      if (validationErrors.length > 0) {
-        toast({
-          title: "Invalid Model Format",
-          description: validationErrors.join('\n'),
-          variant: "destructive",
-        });
-        return;
-      }
-
-      console.log('Saving settings:', {
-        openrouter_model: openAIModel,
+      const updatedSettings = {
         openrouter_key: openAIKey,
         openai_key: openai_key,
+        openrouter_model: openAIModel,
         reasoning_model: reasoningModel,
         title_fine_tune_model: titleFineTuneModel,
         rewriting_model: rewritingModel,
         rewrite_model: rewriteModel,
-        story_generation_model: currentStoryModel,
+        story_generation_model: storyGenerationModel,
         use_openai_for_story_gen: useOpenAIForStoryGen,
         elevenlabs_key: elevenLabsKey,
         elevenlabs_model: elevenLabsModel,
         elevenlabs_voice_id: elevenLabsVoiceId,
         replicate_key: replicateKey
-      });
+      };
 
-      const updatedSettings = await userSettingsService.updateSettings(userId, { 
-        openrouter_model: openAIModel,
-        openrouter_key: openAIKey,
-        openai_key: openai_key,
-        reasoning_model: reasoningModel,
-        title_fine_tune_model: titleFineTuneModel,
-        rewriting_model: rewritingModel,
-        rewrite_model: rewriteModel,
-        story_generation_model: currentStoryModel,
-        use_openai_for_story_gen: useOpenAIForStoryGen,
-        elevenlabs_key: elevenLabsKey,
-        elevenlabs_model: elevenLabsModel,
-        elevenlabs_voice_id: elevenLabsVoiceId,
-        replicate_key: replicateKey
-      });
-
-      console.log('Settings updated successfully:', updatedSettings);
-
-      // Reset editing state after successful save
-      setEditingKeys({
-        openai: false,
-        openrouter: false,
-        elevenlabs: false,
-        replicate: false
-      });
-
-      // Clear the cache to ensure fresh data
-      userSettingsService.clearCache(userId);
+      await userSettingsService.updateSettings(userId, updatedSettings);
 
       toast({
-        title: "Success",
-        description: "AI settings updated successfully",
+        title: "Settings saved",
+        description: "Your AI settings have been updated.",
+        duration: 3000,
       });
-    } catch (error) {
-      console.error("Error updating AI settings:", error);
+    } catch (error: any) {
+      console.error("Error saving settings:", error);
       toast({
         title: "Error",
-        description: "Failed to update AI settings",
+        description: error.message || "Failed to save settings",
         variant: "destructive",
+        duration: 3000,
       });
     }
   };

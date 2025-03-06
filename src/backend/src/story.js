@@ -618,42 +618,144 @@ async function storyIdeas(req) {
   }
 
   try {
-    const allProfiles = settings.load_story_profiles();
-    const profile = allProfiles[settings.STORY_PROFILE];
-    
-    if (!profile) {
-      console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
-      return null;
+    // Initialize Reddit client if not already initialized
+    if (!reddit && process.env.REDDIT_CLIENT_ID) {
+      reddit = new Snoowrap({
+        userAgent: 'Reddit posts',
+        clientId: process.env.REDDIT_CLIENT_ID,
+        clientSecret: process.env.REDDIT_CLIENT_SECRET,
+        refreshToken: process.env.REDDIT_REFRESH_TOKEN
+      });
+      console.log("Reddit client initialized for story ideas");
     }
 
-    const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
-    console.log('Using prompt:', prompt);
+    if (!reddit) {
+      throw new Error('Reddit client not initialized. Check your environment variables.');
+    }
 
-    const response = await req.openai.chat.completions.create({
-      model: req.userSettings.title_fine_tune_model,
+    // Get top posts from r/nosleep
+    console.log('Searching for top posts on r/nosleep...');
+    const subreddit = await reddit.getSubreddit('nosleep');
+    const topPosts = await subreddit.getTop({time: 'all', limit: 100});
+    
+    // Filter posts: >20,000 characters, no "Series" flair
+    const eligiblePosts = [];
+    for (let post of topPosts) {
+      if (post.selftext.length >= 20000 && 
+          post.link_flair_text !== 'Series' && 
+          !post.title.toLowerCase().includes('part')) {
+        eligiblePosts.push(post);
+      }
+    }
+    
+    if (eligiblePosts.length === 0) {
+      console.log('No eligible posts found. Falling back to default story idea generation.');
+      // Fall back to original method
+      const allProfiles = settings.load_story_profiles();
+      const profile = allProfiles[settings.STORY_PROFILE];
+      
+      if (!profile) {
+        console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
+        return null;
+      }
+
+      const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
+      console.log('Using prompt:', prompt);
+
+      const response = await req.openai.chat.completions.create({
+        model: req.userSettings.title_fine_tune_model,
+        messages: [
+          { 
+            role: "system", 
+            content: profile.system_prompt 
+          },
+          { 
+            role: "user", 
+            content: prompt 
+          }
+        ],
+        temperature: 0.9,
+        max_tokens: 500
+      });
+
+      return response.choices[0].message.content;
+    }
+    
+    // Select a random post from eligible posts
+    const randomPost = eligiblePosts[Math.floor(Math.random() * eligiblePosts.length)];
+    console.log(`Selected post: "${randomPost.title}" (${randomPost.selftext.length} characters)`);
+    
+    // Generate a detailed summary of the post
+    const summaryPrompt = `
+I need a detailed summary of the following horror story from r/nosleep. 
+Create a comprehensive summary that captures the key plot points, atmosphere, and horror elements.
+Focus on the core narrative, key events, and the horror elements that make this story effective.
+
+Story Content:
+${randomPost.selftext}
+
+Please provide a detailed summary in 400-600 words.
+`;
+
+    const summaryResponse = await req.openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [
         { 
           role: "system", 
-          content: profile.system_prompt 
+          content: "You are an expert at analyzing and summarizing horror stories. Your summaries capture the essence of the original while highlighting the most impactful elements." 
         },
         { 
           role: "user", 
-          content: prompt 
+          content: summaryPrompt 
         }
       ],
-      temperature: 0.9,
-      max_tokens: 500
+      temperature: 0.3,
+      max_tokens: 1000
     });
 
-    if (!response.choices || response.choices.length === 0) {
-      console.error('No choices in response:', response);
-      return null;
-    }
-
-    return response.choices[0].message.content;
+    const summary = summaryResponse.choices[0].message.content;
+    
+    // Add attribution and format the response
+    return `Story Idea based on r/nosleep post "${randomPost.title}" by u/${randomPost.author.name}:\n\n${summary}`;
+    
   } catch (err) {
-    console.error("Error generating story idea:", err);
-    throw err;  // Propagate the error up
+    console.error("Error generating story idea from Reddit:", err);
+    console.log("Falling back to default story idea generation...");
+    
+    // Fall back to original method if Reddit fails
+    try {
+      const allProfiles = settings.load_story_profiles();
+      const profile = allProfiles[settings.STORY_PROFILE];
+      
+      if (!profile) {
+        console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
+        return null;
+      }
+
+      const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
+      console.log('Using prompt:', prompt);
+
+      const response = await req.openai.chat.completions.create({
+        model: req.userSettings.title_fine_tune_model,
+        messages: [
+          { 
+            role: "system", 
+            content: profile.system_prompt 
+          },
+          { 
+            role: "user", 
+            content: prompt 
+          }
+        ],
+        temperature: 0.9,
+        max_tokens: 500
+      });
+
+      return response.choices[0].message.content;
+    } catch (fallbackErr) {
+      console.error("Error in fallback story idea generation:", fallbackErr);
+      throw fallbackErr;  // Propagate the error up
+    }
   }
 }
 

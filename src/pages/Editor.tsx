@@ -6,6 +6,7 @@ import { OutlinePanel } from "@/components/OutlinePanel";
 import { WritingArea } from "@/components/WritingArea";
 import { CharacterModal } from "@/components/CharacterModal";
 import { ExportModal } from "@/components/ExportModal";
+import { useStoryService } from "@/hooks/use-story-service";
 import debounce from "lodash/debounce";
 
 interface Chapter {
@@ -47,6 +48,7 @@ export default function Editor() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { id } = useParams(); // Get story ID from URL
+  const storyService = useStoryService();
   const [loading, setLoading] = useState(true);
   const [currentChapter, setCurrentChapter] = useState(0);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -89,7 +91,7 @@ export default function Editor() {
 
   // Save chapters to database with retry logic
   const saveToDatabase = useCallback(async (updatedChapters: Chapter[], isRetry = false) => {
-    if (!id) return;
+    if (!id || !story) return;
 
     try {
       setSaveState(prev => ({ ...prev, pendingChanges: true }));
@@ -104,14 +106,8 @@ export default function Editor() {
         completed: chapter.completed
       }));
 
-      const { error } = await supabase
-        .from('stories')
-        .update({ 
-          chapters: chapterData 
-        } as any)
-        .eq('id', id);
-
-      if (error) throw error;
+      // Use StoryService to update the story
+      await storyService.updateStory(id, { chapters: chapterData });
 
       // Update save state on success
       setSaveState(prev => ({
@@ -164,7 +160,7 @@ export default function Editor() {
         });
       }
     }
-  }, [id, saveToLocalStorage, toast]);
+  }, [id, story, saveToLocalStorage, toast, storyService]);
 
   // Auto-save handler with debounce
   useEffect(() => {
@@ -281,16 +277,8 @@ export default function Editor() {
         const localChapters = localStorage.getItem(`story_${id}_chapters`);
         const lastEdit = localStorage.getItem(`story_${id}_lastEdit`);
 
-        const { data: storyData, error } = await supabase
-          .from('stories')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (error) {
-          console.error('Error loading story:', error);
-          throw new Error(error.message || 'Story not found');
-        }
+        // Use StoryService to get the story
+        const storyData = await storyService.getStory(id);
 
         if (!storyData) {
           throw new Error('Story not found');
@@ -299,7 +287,7 @@ export default function Editor() {
         // Cast the story data to include chapters
         const storyWithChapters: Story = {
           ...storyData,
-          chapters: (storyData as any).chapters || null
+          chapters: storyData.chapters || null
         };
 
         setStory(storyWithChapters);
@@ -373,7 +361,7 @@ export default function Editor() {
     };
 
     loadStory();
-  }, [id, navigate, toast]);
+  }, [id, navigate, toast, storyService]);
 
   // Ensure currentChapter is valid
   useEffect(() => {

@@ -8,7 +8,7 @@ import { StoryCard } from "@/components/StoryCard";
 import { DeleteStoryDialog } from "@/components/DeleteStoryDialog";
 import { Button } from "@/components/ui/button";
 import { Story } from "@/types/story";
-import { API_URL } from "@/lib/config";
+import { useStoryService } from "@/hooks/use-story-service";
 
 export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
@@ -18,6 +18,7 @@ export default function Stories() {
   const isMounted = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const storyService = useStoryService();
 
   useEffect(() => {
     // Set mounted flag
@@ -58,13 +59,8 @@ export default function Stories() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !isMounted.current) return;
 
-      const { data, error } = await supabase
-        .from('stories')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error || !isMounted.current) throw error;
+      // Use the storyService to get user stories
+      const data = await storyService.getUserStories();
       
       // Transform the data to match Story type
       const transformedStories = (data || []).map(story => ({
@@ -125,20 +121,13 @@ export default function Stories() {
     if (!storyToDelete) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
+      // Delete the story using Supabase directly
+      const { error } = await supabase
+        .from('stories')
+        .delete()
+        .eq('id', storyToDelete.id);
 
-      const response = await fetch(`${API_URL}/api/stories/${storyToDelete.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete story');
-      }
+      if (error) throw error;
 
       toast({
         title: "Story deleted",

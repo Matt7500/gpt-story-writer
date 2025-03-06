@@ -1,18 +1,16 @@
 export interface UserSettings {
-  created_at: string;
-  updated_at: string;
   user_id: string;
-  openai_key: string | null;
-  openrouter_key: string | null;
-  openrouter_model: string | null;
-  reasoning_model: string | null;
-  title_fine_tune_model: string | null;
-  rewriting_model: string | null;
-  rewrite_model: string | null;
-  story_generation_model: string | null;
+  openai_key?: string;
+  openrouter_key?: string;
+  openrouter_model: string;
+  reasoning_model: string;
+  title_fine_tune_model?: string;
+  rewriting_model?: string;
+  rewrite_model: string;
+  story_generation_model: string;
   use_openai_for_story_gen: boolean;
-  elevenlabs_key: string | null;
-  elevenlabs_model: string | null;
-  elevenlabs_voice_id: string | null;
-  replicate_key: string | null;
+  elevenlabs_key?: string;
+  elevenlabs_model: string;
+  elevenlabs_voice_id?: string;
+  replicate_key?: string;
 }
