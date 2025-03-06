@@ -44,11 +44,26 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
   };
 
   const handleToggle = async () => {
+    // Toggle the open state
     setIsOpen(!isOpen);
     
-    // Fetch stories if not already loaded
-    if (!seriesWithStories && !loading) {
-      fetchSeriesStories();
+    // Fetch stories if not already loaded and we're opening the dropdown
+    if (!seriesWithStories && !loading && !isOpen) {
+      try {
+        setLoading(true);
+        const data = await seriesService.getSeriesWithStories(series.id);
+        setSeriesWithStories(data);
+      } catch (error: any) {
+        console.error("Error loading series stories:", error);
+        toast({
+          title: "Error loading stories",
+          description: error.message || "Failed to load stories for this series",
+          variant: "destructive",
+          duration: 3000,
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -120,10 +135,12 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-green-600 hover:text-green-700 hover:bg-green-100"
+                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onAddStory(series);
+                        if (onAddStory) {
+                          onAddStory(series);
+                        }
                       }}
                       title="Add Story to Series"
                     >
@@ -143,11 +160,12 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-                {isOpen ? (
-                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                ) : (
+                <motion.div
+                  animate={{ rotate: isOpen ? 180 : 0 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
                   <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                )}
+                </motion.div>
               </div>
             </div>
             <div className="pl-9">
@@ -167,45 +185,63 @@ export function SeriesCard({ series, onDelete, onAddStory }: SeriesCardProps) {
             </div>
           </div>
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-4 pl-9 space-y-3">
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading stories...</div>
-          ) : seriesWithStories?.stories && seriesWithStories.stories.length > 0 ? (
-            <div className="space-y-3">
-              {seriesWithStories.stories.map((story, index) => (
-                <div 
-                  key={story.id}
-                  className="p-4 bg-background rounded-md hover:bg-accent/30 cursor-pointer"
-                  onClick={(e) => navigateToStory(e, story.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          variant="outline" 
-                          className="text-xs font-semibold"
-                          style={{
-                            backgroundColor: seriesColors.bg,
-                            color: seriesColors.text
-                          }}
-                        >
-                          {formatStoryNumber(index, seriesWithStories.stories.length)}
-                        </Badge>
-                        <h4 className="font-medium text-base">{story.title}</h4>
-                      </div>
-                      <div className="mt-2 text-sm text-muted-foreground line-clamp-3">
-                        {story.story_idea}
-                      </div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground mt-1 ml-2 flex-shrink-0" />
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <CollapsibleContent className="mt-4 pl-9 space-y-3 overflow-hidden" forceMount>
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+              >
+                {loading ? (
+                  <div className="text-sm text-muted-foreground">Loading stories...</div>
+                ) : seriesWithStories?.stories && seriesWithStories.stories.length > 0 ? (
+                  <div className="space-y-3">
+                    {seriesWithStories.stories.map((story, index) => (
+                      <motion.div 
+                        key={story.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ 
+                          duration: 0.2, 
+                          delay: index * 0.05,
+                          ease: "easeOut"
+                        }}
+                        className="p-4 bg-background rounded-md hover:bg-accent/30 cursor-pointer"
+                        onClick={(e) => navigateToStory(e, story.id)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant="outline" 
+                                className="text-xs font-semibold"
+                                style={{
+                                  backgroundColor: seriesColors.bg,
+                                  color: seriesColors.text
+                                }}
+                              >
+                                {formatStoryNumber(index, seriesWithStories.stories.length)}
+                              </Badge>
+                              <h4 className="font-medium text-base">{story.title}</h4>
+                            </div>
+                            <div className="mt-2 text-sm text-muted-foreground line-clamp-3">
+                              {story.story_idea}
+                            </div>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground mt-1 ml-2 flex-shrink-0" />
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">No stories in this series yet.</div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">No stories in this series yet.</div>
+                )}
+              </motion.div>
+            </CollapsibleContent>
           )}
-        </CollapsibleContent>
+        </AnimatePresence>
       </Collapsible>
     </div>
   );
