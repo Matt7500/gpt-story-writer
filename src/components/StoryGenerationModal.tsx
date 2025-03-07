@@ -83,97 +83,119 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
           abortControllerRef.current?.signal
         );
         
-        // Check if we're cancelling after title generation
+        // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
         
         setProposedTitle(title);
         setCustomTitle(title);
         
-        // Store partial story data
+        // Create initial story data
         setStoryData({
           title,
           story_idea: customIdea
         });
-      } else {
-        // Otherwise, generate a story idea based on the selected source
-        // Step 1: Generate story idea
-        setCurrentStep(0);
-        const idea = await storyService.generateStoryIdea(
-          abortControllerRef.current?.signal,
-          source === 'custom' ? 'reddit' : source // Fallback to reddit if source is custom but no idea
-        );
         
-        // Check if we're cancelling after story idea generation
-        if (isCancelling || !abortControllerRef.current) return;
-        
-        setStoryIdea(idea);
-        
-        // Step 2: Create title from story idea
-        setCurrentStep(1);
-        const title = await storyService.createTitle(
-          idea,
-          abortControllerRef.current?.signal
-        );
-        
-        // Check if we're cancelling after title generation
-        if (isCancelling || !abortControllerRef.current) return;
-        
-        setProposedTitle(title);
-        setCustomTitle(title);
-        
-        // Store partial story data
-        setStoryData({
-          title,
-          story_idea: idea
-        });
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('Story idea generation aborted');
         return;
       }
       
-      // Only show error if we're not cancelling
-      if (!isCancelling) {
-        console.error('Story generation error:', error);
+      // For non-custom sources, we need to generate a story idea first
+      setCurrentStep(0);
+      
+      let idea;
+      if (source === 'fine-tune') {
+        idea = await storyService.generateStoryIdea(
+          abortControllerRef.current?.signal,
+          'fine-tune'
+        );
+      } else {
+        // Default to reddit source
+        idea = await storyService.generateStoryIdea(
+          abortControllerRef.current?.signal,
+          'reddit'
+        );
+      }
+      
+      // Check if we're cancelling
+      if (isCancelling || !abortControllerRef.current) return;
+      
+      setStoryIdea(idea);
+      
+      // Generate title from the idea
+      setCurrentStep(1);
+      const title = await storyService.createTitle(
+        idea,
+        abortControllerRef.current?.signal
+      );
+      
+      // Check if we're cancelling
+      if (isCancelling || !abortControllerRef.current) return;
+      
+      setProposedTitle(title);
+      setCustomTitle(title);
+      
+      // Create initial story data
+      setStoryData({
+        title,
+        story_idea: idea
+      });
+    } catch (error: any) {
+      // Only set error if we're not cancelling
+      if (error.name === 'AbortError' || isCancelling || !abortControllerRef.current) {
+        console.log('Story idea generation aborted');
+      } else {
+        console.error('Error generating story idea:', error);
         setError(error.message || 'An error occurred while generating the story idea');
       }
     }
-  }, [customIdea, isCancelling, source, storyService]);
+  }, [source, customIdea, storyService, isCancelling]);
 
   // Create a new AbortController when the modal opens
   useEffect(() => {
+    let isActive = true; // Flag to track if this effect is still active
+    
     if (open) {
-      abortControllerRef.current = new AbortController();
+      // Reset all state
       setCurrentStep(0);
       setError(null);
+      setIsCancelling(false);
       setProposedTitle(null);
       setStoryData(null);
       setStoryIdea(null);
       setIsEditingTitle(false);
       setCustomTitle("");
       setIsStoryIdeaOpen(false);
-      setIsCancelling(false);
       
-      // Start the generation process
+      // Create a new AbortController
+      abortControllerRef.current = new AbortController();
+      
+      // Start the story generation process
       generateStoryIdea();
     }
     
+    // Cleanup function to handle component unmount or modal close
     return () => {
-      // Clean up when the component unmounts or the modal closes
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
+      isActive = false; // Mark this effect as inactive
+      
+      // If the modal is closing, ensure we clean up properly
+      if (open) {
+        // Abort any in-progress requests
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
       }
     };
   }, [open, generateStoryIdea]);
 
   const handleClose = () => {
+    console.log('Cancelling story generation process');
+    
     // Set cancelling flag to true
     setIsCancelling(true);
     
     // Abort any in-progress requests
     if (abortControllerRef.current) {
+      console.log('Aborting in-progress requests');
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
@@ -200,7 +222,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
   };
 
   const handleTitleApproval = async (approved: boolean) => {
-    if (!storyData || !storyIdea || isCancelling) return;
+    if (!storyData || !storyIdea || isCancelling || !abortControllerRef.current) return;
 
     try {
       if (!approved) {
@@ -230,8 +252,8 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
         
-        // Use custom title if editing, otherwise use proposed title
-        const finalTitle = isEditingTitle ? customTitle : proposedTitle;
+        // Use the current title (either the proposed one or the custom one)
+        const finalTitle = isEditingTitle ? customTitle : storyData.title;
         
         // Update story data with the final title
         setStoryData({
@@ -239,12 +261,9 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
           title: finalTitle
         });
         
-        // Reset proposedTitle to switch back to the progress steps view
-        setProposedTitle(null);
-        
-        // Step 3: Build plot outline
+        // Generate plot outline
         setCurrentStep(2);
-        const outline = await storyService.createOutline(
+        const plotOutline = await storyService.createOutline(
           storyIdea,
           abortControllerRef.current?.signal
         );
@@ -252,57 +271,52 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
         
-        if (!outline) {
-          throw new Error('Failed to create outline');
-        }
-        
-        // Step 4: Develop characters
+        // Generate characters
         setCurrentStep(3);
         const characters = await storyService.generateCharacters(
-          outline,
+          plotOutline || [],
           abortControllerRef.current?.signal
         );
         
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
         
-        if (!characters) {
-          throw new Error('Failed to generate characters');
-        }
-        
-        // Update story data with outline and characters
-        const updatedStoryData = {
-          ...storyData,
+        // Save the story
+        setCurrentStep(4);
+        const storyToSave = {
           title: finalTitle,
-          plot_outline: JSON.stringify(outline),
-          characters,
-          chapters: outline.map((sceneBeat, index) => ({
-            title: `Chapter ${index + 1}`,
-            content: '',
-            completed: false,
-            sceneBeat
-          }))
+          story_idea: storyIdea,
+          plot_outline: plotOutline ? JSON.stringify(plotOutline) : '',
+          characters: characters || ''
         };
         
-        // Step 5: Save story
-        setCurrentStep(4);
-        const storyId = await storyService.saveStory(updatedStoryData);
+        const storyId = await storyService.saveStory(storyToSave);
         
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
         
         // Complete the process
         onComplete(storyId);
-      } catch (err: any) {
-        // Only show error if we're not cancelling
-        if (!isCancelling) {
-          console.error('Story generation error:', err);
-          setError(err.message || 'An error occurred while generating the story');
+      } catch (error: any) {
+        // Only set error if we're not cancelling
+        if (error.name === 'AbortError' || isCancelling || !abortControllerRef.current) {
+          console.log('Process aborted after title approval');
+        } else {
+          console.error('Error after title approval:', error);
+          setError(error.message || 'An error occurred while generating the story');
+          toast({
+            title: "Error",
+            description: error.message || 'An error occurred while generating the story',
+            variant: "destructive",
+            duration: 3000,
+          });
         }
       }
     } catch (error: any) {
-      // Only show error if we're not cancelling
-      if (!isCancelling) {
+      // Only set error if we're not cancelling
+      if (error.name === 'AbortError' || isCancelling || !abortControllerRef.current) {
+        console.log('Title approval process aborted');
+      } else {
         console.error('Title approval error:', error);
         setError(error.message || 'An error occurred while processing title approval');
         toast({
@@ -359,6 +373,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
           open={open} 
           onOpenChange={(isOpen) => {
             if (!isOpen) {
+              console.log('Dialog closing, triggering handleClose');
               handleClose();
             }
           }}
