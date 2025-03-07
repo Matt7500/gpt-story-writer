@@ -895,7 +895,198 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     }
   }
 
-  // Create a sequel story based on an original story
+  // Write a scene based on the scene beat, characters, and previous scenes
+  public async writeScene(
+    sceneBeat: string,
+    characters: string,
+    previousScenes: string[],
+    onProgress?: (chunk: string) => void,
+    signal?: AbortSignal
+  ): Promise<string> {
+    
+    const recentContext = previousScenes && previousScenes.length
+      ? previousScenes.slice(-4)
+      : ["No previous context. This is the first scene of the story."];
+    const context = recentContext.join('\n\n');
+
+    try {
+      if (!this.userSettings) {
+        await this.loadUserSettings();
+      }
+
+      const client = this.getClient();
+      
+      // Prepare context from previous scenes
+      let previousScenesContext = "";
+      if (previousScenes && previousScenes.length > 0) {
+        previousScenesContext = "Previous scenes:\n\n" + previousScenes.map((scene, index) => 
+          `Scene ${index + 1}:\n${scene}`
+        ).join("\n\n");
+      }
+
+      // Limit context length to avoid token limits
+      if (previousScenesContext.length > 8000) {
+        previousScenesContext = previousScenesContext.substring(0, 8000) + "...";
+      }
+
+      const prompt = `
+## Writing Instructions
+- You are an expert fiction writer. Write a fully immersive first-person scene that strictly follows the scene beat, capturing every detail provided without adding anything extra.
+- Write only what the narrator directly experiences—what they see, hear, feel, and notice. If the narrator wouldn’t know something, do not include it.
+- The passage of time at the beginning of the scene beat must feel organic—connect it seamlessly to the previous scene’s ending.
+
+## Core Requirements
+- First-person perspective only—narration should feel personal, introspective, and natural.
+- Start with a strong connection to the last scene, making it feel like a continuous thought or moment rather than an abrupt shift.
+- Full, natural dialogue that reveals personality through subtle implication rather than direct exposition.
+- Dialogue must always be in its own paragraph, separate from narration.
+- Include everything from the scene beat—do not omit any details.
+- Avoid summarizing events—let them unfold naturally.
+
+## Pacing & Suspense
+- Build gradual tension, letting the unease creep in through small, accumulating details rather than immediate shock.
+- Use silence, hesitations, and unfinished thoughts to create an undercurrent of unease.
+- Vary sentence structure to reflect pacing:
+  - Short, clipped sentences for tension and movement.
+  - Longer, introspective ones for reflection and realization.
+- Don’t explicitly state emotions—let them emerge from reactions, body language, and subtle cues.
+
+## Writing Style
+- Concise, immersive language—every word should pull the reader deeper into the character’s experience.
+- Organic integration of descriptions—blend sensory details into the flow rather than stopping to describe things.
+- Use natural breaks in action for introspection, allowing thoughts to flow in a way that feels true to the moment.
+- Maintain an undercurrent of uncertainty—things should feel just slightly off, even in normal moments.
+
+## Scene Structure
+- Tight, focused paragraphs—keep the momentum strong.
+- Break up dialogue with introspection and subtle observations—never let it feel like a script.
+- Let the narrator process events naturally—reaction time should match the pacing of the moment.
+
+## SCENE CONTEXT AND CONTINUITY
+
+#Characters
+${characters}
+
+Use the provided STORY CONTEXT to maintain consistency with previous scenes.
+
+## STORY CONTEXT
+<context> ${context} </context>
+
+## Scene Beat to Write
+${sceneBeat}
+`;
+
+      const stream = await client.chat.completions.create({
+        model: this.userSettings.story_generation_model,
+        messages: [
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.5,
+        max_tokens: 8000,
+        stream: true,
+        signal
+      });
+
+      let fullContent = '';
+      
+      // Process the stream
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullContent += content;
+          // Call the progress callback if provided
+          if (onProgress) {
+            onProgress(content);
+          }
+        }
+      }
+      
+      return fullContent || 'Failed to generate scene content';
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Scene generation aborted');
+        throw err;
+      }
+      console.error('Error generating scene:', err);
+      throw new Error('Failed to generate scene. Please try again.');
+    }
+  }
+
+  // Revise a scene based on feedback
+  public async reviseScene(
+    currentContent: string,
+    feedback: string,
+    sceneBeat: string,
+    characters: string,
+    onProgress?: (chunk: string) => void,
+    signal?: AbortSignal
+  ): Promise<string> {
+    try {
+      if (!this.userSettings) {
+        await this.loadUserSettings();
+      }
+
+      const client = this.getClient();
+      
+      const userMessage = `## Instructions
+Revise the given scene based on the feedback provided.
+Maintain the same narrative style, perspective, and tone of the original scene.
+Ensure the revised scene still aligns with the scene beat and character descriptions.
+Make specific changes requested in the feedback while preserving the overall structure and purpose of the scene.
+
+## Original Scene
+${currentContent}
+
+## Feedback
+${feedback}
+
+## Scene Beat
+${sceneBeat}
+
+## Characters
+${characters}
+
+## Output
+Write only the revised scene content, formatted as a polished narrative. Do not include any meta-commentary, explanations, or notes about the changes made.`;
+
+      const stream = await client.chat.completions.create({
+        model: this.userSettings?.model || 'gpt-4o',
+        messages: [
+          { role: "system", content: "You are a skilled fiction editor who revises scenes based on feedback." },
+          { role: "user", content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 4000,
+        stream: true,
+        signal
+      });
+
+      let fullContent = '';
+      
+      // Process the stream
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullContent += content;
+          // Call the progress callback if provided
+          if (onProgress) {
+            onProgress(content);
+          }
+        }
+      }
+      
+      return fullContent || 'Failed to revise scene content';
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Scene revision aborted');
+        throw err;
+      }
+      console.error('Error revising scene:', err);
+      throw new Error('Failed to revise scene. Please try again.');
+    }
+  }
+
+  // Create a sequel from an original story
   public async createSequel(originalStory: any): Promise<string> {
     try {
       // Generate a sequel idea based on the original story
@@ -1019,6 +1210,102 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     } catch (error) {
       console.error('Error deleting story:', error);
       throw error;
+    }
+  }
+
+  // Generate a transition between chapters
+  public async generateTransition(
+    previousChapterContent: string,
+    currentChapterContent: string,
+    sceneBeat: string,
+    onProgress?: (chunk: string) => void,
+    signal?: AbortSignal
+  ): Promise<string> {
+    try {
+      if (!this.userSettings) {
+        await this.loadUserSettings();
+      }
+
+      // Extract the last 4 paragraphs from the previous chapter
+      const previousParagraphs = previousChapterContent
+        .split(/\n\s*\n/)
+        .filter(p => p.trim().length > 0)
+        .slice(-4);
+
+      // Extract the first 4 paragraphs from the current chapter
+      const currentParagraphs = currentChapterContent
+        .split(/\n\s*\n/)
+        .filter(p => p.trim().length > 0)
+        .slice(0, 4);
+
+      // If there's not enough content to work with, return an error
+      if (previousParagraphs.length === 0 || currentParagraphs.length === 0) {
+        throw new Error('Not enough content in chapters to create a transition');
+      }
+
+      const client = this.getClient();
+      
+      const prompt = `
+## TRANSITION WRITING TASK
+Create a smooth transition that connects the end of the previous chapter to the beginning of the current chapter.
+
+# Previous Chapter (ending):
+${previousParagraphs.join('\n\n')}
+
+# Current Chapter (beginning):
+${currentParagraphs.join('\n\n')}
+
+# Scene Beat for Current Chapter:
+${sceneBeat}
+
+## Instructions:
+1. Write 1-4 paragraphs that bridge the gap between these chapters
+2. Maintain the same narrative voice and perspective
+3. Address any time or location changes explicitly
+4. Create a logical flow from the previous chapter's events to the current chapter's setting
+5. Incorporate elements from the scene beat to foreshadow what's coming
+6. The transition should feel natural and seamless, not forced
+7. Write in the same style as the existing content
+8. Write using concise words and casual language
+
+## Output:
+Write only the transition paragraph(s). Do not include any meta-commentary, explanations, or notes.
+`;
+
+      const stream = await client.chat.completions.create({
+        model: this.userSettings?.model || 'gpt-4o',
+        messages: [
+          { role: "system", content: "You are a skilled fiction writer who creates seamless transitions between scenes." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000,
+        stream: true,
+        signal
+      });
+
+      let fullContent = '';
+      
+      // Process the stream
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullContent += content;
+          // Call the progress callback if provided
+          if (onProgress) {
+            onProgress(content);
+          }
+        }
+      }
+      
+      return fullContent.trim();
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Transition generation aborted');
+        throw err;
+      }
+      console.error('Error generating transition:', err);
+      throw new Error('Failed to generate transition. Please try again.');
     }
   }
 }

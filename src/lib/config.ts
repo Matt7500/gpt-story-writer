@@ -1,7 +1,7 @@
-// Determine if we're in development mode
-const isDevelopment = window.location.hostname === 'localhost';
+// Application configuration settings
 
-// Use local server in development, production server otherwise
-export const API_URL = isDevelopment 
-  ? 'http://localhost:3001'
-  : (import.meta.env.VITE_API_URL || 'https://plotter-palette-server.onrender.com'); 
+// Add any global configuration settings here
+export const APP_NAME = "Plotter Palette";
+export const APP_VERSION = "1.0.0";
+
+// Other configuration settings can be added as needed 
