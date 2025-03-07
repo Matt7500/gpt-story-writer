@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Story } from "@/types/story";
 import { supabase } from "@/integrations/supabase/client";
 import { AnimatePresence, motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface SequelGenerationModalProps {
   open: boolean;
@@ -24,12 +25,36 @@ interface SequelGenerationModalProps {
 }
 
 const STEPS = [
-  "Generating sequel idea...",
-  "Creating title...",
-  "Building plot outline...",
-  "Developing characters...",
-  "Creating series...",
-  "Saving sequel..."
+  {
+    id: "idea",
+    title: "Generating sequel idea",
+    description: "Creating a continuation of your story"
+  },
+  {
+    id: "title",
+    title: "Creating title",
+    description: "Crafting the perfect title for your sequel"
+  },
+  {
+    id: "outline",
+    title: "Building plot outline",
+    description: "Developing the structure and key scenes"
+  },
+  {
+    id: "characters",
+    title: "Developing characters",
+    description: "Creating and evolving characters for your sequel"
+  },
+  {
+    id: "series",
+    title: "Creating series",
+    description: "Organizing your stories into a series"
+  },
+  {
+    id: "saving",
+    title: "Saving sequel",
+    description: "Finalizing and saving your new sequel"
+  }
 ];
 
 export function SequelGenerationModal({ 
@@ -197,7 +222,32 @@ export function SequelGenerationModal({
     });
   };
 
+  // Calculate progress percentage
   const progress = (currentStep / STEPS.length) * 100;
+
+  // Get current step info
+  const currentStepInfo = STEPS[currentStep];
+
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0, scale: 0.95 },
+    visible: { 
+      opacity: 1, 
+      scale: 1,
+      transition: { 
+        duration: 0.2, 
+        ease: "easeOut" 
+      }
+    },
+    exit: { 
+      opacity: 0, 
+      scale: 0.95,
+      transition: { 
+        duration: 0.2, 
+        ease: "easeIn" 
+      }
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -210,58 +260,54 @@ export function SequelGenerationModal({
             }
           }}
         >
-          <DialogContentWithoutCloseButton 
-            className="max-w-2xl"
-          >
+          <DialogContentWithoutCloseButton className="max-w-2xl">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="flex flex-col"
             >
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100">Creating Sequel</DialogTitle>
-                <DialogDescription className="text-base mt-1 text-gray-700 dark:text-gray-300">
+              {/* Header */}
+              <DialogHeader className="pb-4">
+                <DialogTitle className="text-xl font-bold">Sequel Creation</DialogTitle>
+                <DialogDescription className="text-base mt-1">
                   {originalStory ? (
-                    <>Creating a sequel to "{originalStory.title}". Please wait while we generate your sequel.</>
+                    <>Creating a sequel to "{originalStory.title}"</>
                   ) : (
-                    <>Please wait while we generate your sequel.</>
+                    <>Creating your new sequel</>
                   )}
                 </DialogDescription>
               </DialogHeader>
               
+              {/* Main content */}
               <div className="py-4">
                 {error ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 mb-4 text-red-800 dark:text-red-300"
-                  >
+                  <div className="bg-red-50 rounded-lg p-4 mb-4 text-red-800">
                     <div className="font-semibold mb-1">Error</div>
                     <div className="text-sm">{error}</div>
-                  </motion.div>
+                  </div>
                 ) : (
                   <AnimatePresence mode="wait">
-                    <motion.div
-                      key="sequel-generation-steps"
+                    <motion.div 
+                      key="steps-section"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.3 }}
+                      className="space-y-6"
                     >
-                      <Progress value={progress} className="mb-4 bg-gray-200/50 dark:bg-gray-700/50" />
-                      
+                      {/* Steps visualization */}
                       <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="space-y-2 p-4 bg-gray-100/50 dark:bg-gray-800/50 rounded-lg"
+                        className="space-y-3"
                       >
                         {STEPS.map((step, index) => (
-                          <motion.div 
-                            key={index} 
+                          <motion.div
+                            key={step.id}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ 
                               opacity: 1, 
@@ -271,24 +317,46 @@ export function SequelGenerationModal({
                                 duration: 0.3
                               }
                             }}
-                            className="flex items-center gap-2"
-                          >
-                            {index < currentStep ? (
-                              <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-800/50 flex items-center justify-center">
-                                <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                              </div>
-                            ) : index === currentStep ? (
-                              <div className="h-6 w-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                                <Loader2 className="h-4 w-4 text-gray-700 dark:text-gray-300 animate-spin" />
-                              </div>
-                            ) : (
-                              <div className="h-6 w-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                                <div className="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-500"></div>
-                              </div>
+                            className={cn(
+                              "flex items-start gap-3 p-3 rounded-lg transition-all",
+                              index === currentStep 
+                                ? "bg-gray-100 dark:bg-gray-800/70" 
+                                : "bg-transparent",
+                              index < currentStep 
+                                ? "opacity-70" 
+                                : index === currentStep 
+                                  ? "opacity-100" 
+                                  : "opacity-50"
                             )}
-                            <span className={`text-sm ${index === currentStep ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-muted-foreground'}`}>
-                              {step}
-                            </span>
+                          >
+                            <div className="flex-shrink-0 mt-0.5">
+                              {index === currentStep ? (
+                                <div className="h-5 w-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                  <Loader2 className="h-3 w-3 text-gray-700 dark:text-gray-300 animate-spin" />
+                                </div>
+                              ) : index < currentStep ? (
+                                <div className="h-5 w-5 rounded-full bg-green-100 dark:bg-green-800/50 flex items-center justify-center">
+                                  <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                </div>
+                              ) : (
+                                <div className="h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                                  <div className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className={cn(
+                                "font-medium text-sm",
+                                index === currentStep ? "text-foreground" : 
+                                index < currentStep ? "text-muted-foreground" : 
+                                "text-muted-foreground"
+                              )}>
+                                {step.title}
+                              </h4>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {step.description}
+                              </p>
+                            </div>
                           </motion.div>
                         ))}
                       </motion.div>
@@ -297,14 +365,15 @@ export function SequelGenerationModal({
                 )}
               </div>
               
-              <div className="flex justify-center mt-4">
+              {/* Footer */}
+              <div className="pt-2 flex justify-start">
                 <Button 
-                  variant="outline" 
+                  variant="destructive"
                   onClick={handleClose}
-                  className="gap-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="gap-2"
                 >
                   <X className="h-4 w-4" />
-                  Cancel Sequel Generation
+                  Cancel
                 </Button>
               </div>
             </motion.div>

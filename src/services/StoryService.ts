@@ -405,17 +405,16 @@ Please provide a detailed summary in 400-600 words.
       
       while (retries < 5) {
         try {
-          const userMessage = `
-## IMPORTANT
-The plot outline must contain ${numScenes} scenes.
+          const userMessage = `## Instructions
 Write a full plot outline for the given story idea.
-Write in third person point of view from the perspective of the protagonist, this means you cannot write anything the narrator wouldn't know.
-Each scene beat must be as detailed as possible.
-You MUST write EXACTLY what happens in the story outline, DO NOT change any details or events.
-
-## Instructions
-Explicitly state the change of time and setting between scenes at the start of each scene.
+Write the plot outline as a list of all the scenes in the story. Each scene must be a highly detailed paragraph on what happens in that scene.
+Each scene beat must include as much detail as you can about the events that happen in the scene.
+Explicitly state the change of time between scenes if necessary.
 Mention any locations by name.
+Create a slow build up of tension and suspense throughout the story.
+A scene in the story is defined as when there is a change in the setting in the story.
+The plot outline must contain ${numScenes} scenes.
+The plot outline must follow and word things in a way that are from the protagonist's perspective, do not write anything from an outside character's perspective that the protagonist wouldn't know.
 Only refer to the protagonist in the story as "The Protagonist" in the plot outline.
 Each scene must smoothly transition from the previous scene and to the next scene without unexplained time and setting jumps.
 Ensure key story elements (e.g., character motivations, mysteries, and plot developments) are resolved by the end.
@@ -437,13 +436,13 @@ ${idea}`;
           // Use the story_generation_model for outline creation
           const model = this.userSettings.use_openai_for_story_gen 
             ? this.userSettings.story_generation_model || 'gpt-4o'
-            : this.userSettings.openrouter_model || 'openai/gpt-4o';
+            : this.userSettings.story_generation_model || 'openai/gpt-4o';
           
           console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for outline creation`);
           
           const response = await client.chat.completions.create({
             model: model,
-            temperature: 0.3,
+            temperature: 0.7,
             messages: [{ role: "user", content: userMessage }],
           }, {
             signal: signal
@@ -618,6 +617,7 @@ ${chunk}`
         
         const title = await client.chat.completions.create({
           model: model,
+          temperature: 0.9,
           messages: [
             {
               role: "system",
