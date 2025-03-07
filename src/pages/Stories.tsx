@@ -23,6 +23,7 @@ import { BookOpen, BookCopy } from "lucide-react";
 import { setDocumentTitle } from "@/utils/document";
 import { StorySourceSelectionModal, StorySource } from "@/components/StorySourceSelectionModal";
 import { CustomStoryIdeaModal } from "@/components/CustomStoryIdeaModal";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
@@ -41,6 +42,7 @@ export default function Stories() {
   const [selectedSource, setSelectedSource] = useState<StorySource | null>(null);
   const [isCustomIdeaModalOpen, setIsCustomIdeaModalOpen] = useState(false);
   const [customStoryIdea, setCustomStoryIdea] = useState<string>("");
+  const [previousTab, setPreviousTab] = useState<string | null>(null);
   const isMounted = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -314,13 +316,23 @@ export default function Stories() {
     
     return (
       <div className="grid gap-4">
-        {stories.map((story) => (
-          <StoryCard
+        {stories.map((story, index) => (
+          <motion.div
             key={story.id}
-            story={story}
-            onDelete={setStoryToDelete}
-            onCreateSequel={handleCreateSequel}
-          />
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.2,
+              delay: index * 0.05, // Stagger effect
+              ease: "easeOut"
+            }}
+          >
+            <StoryCard
+              story={story}
+              onDelete={setStoryToDelete}
+              onCreateSequel={handleCreateSequel}
+            />
+          </motion.div>
         ))}
       </div>
     );
@@ -347,16 +359,45 @@ export default function Stories() {
     
     return (
       <div className="grid gap-4">
-        {series.map((seriesItem) => (
-          <SeriesCard
+        {series.map((seriesItem, index) => (
+          <motion.div
             key={seriesItem.id}
-            series={seriesItem}
-            onDelete={setSeriesToDelete}
-            onAddStory={handleAddStoryToSeries}
-          />
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.2,
+              delay: index * 0.05, // Stagger effect
+              ease: "easeOut"
+            }}
+          >
+            <SeriesCard
+              series={seriesItem}
+              onDelete={setSeriesToDelete}
+              onAddStory={handleAddStoryToSeries}
+            />
+          </motion.div>
         ))}
       </div>
     );
+  };
+
+  // Handle tab change with animation direction tracking
+  const handleTabChange = (value: string) => {
+    setPreviousTab(activeTab);
+    setActiveTab(value);
+  };
+
+  // Determine animation direction based on tab change
+  const getAnimationDirection = (tabValue: string) => {
+    if (!previousTab) return 0;
+    
+    if (tabValue === "stories" && previousTab === "series") {
+      return -1; // Slide from left
+    } else if (tabValue === "series" && previousTab === "stories") {
+      return 1; // Slide from right
+    }
+    
+    return 0;
   };
 
   return (
@@ -435,7 +476,7 @@ export default function Stories() {
         <Tabs 
           defaultValue="stories" 
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={handleTabChange}
           className="w-full"
         >
           <div className="flex justify-center mb-6">
@@ -473,19 +514,39 @@ export default function Stories() {
             </TabsList>
           </div>
           
-          <TabsContent 
-            value="stories" 
-            className="space-y-4 transition-all duration-300 ease-in-out"
-          >
-            {renderStories()}
-          </TabsContent>
-          
-          <TabsContent 
-            value="series" 
-            className="space-y-4 transition-all duration-300 ease-in-out"
-          >
-            {renderSeries()}
-          </TabsContent>
+          <div className="relative overflow-hidden">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeTab}
+                initial={{ 
+                  opacity: 0
+                }}
+                animate={{ 
+                  opacity: 1
+                }}
+                exit={{ 
+                  opacity: 0
+                }}
+                transition={{ 
+                  duration: 0.2,
+                  ease: "easeOut"
+                }}
+                className="w-full"
+              >
+                {activeTab === "stories" && (
+                  <div className="space-y-4">
+                    {renderStories()}
+                  </div>
+                )}
+                
+                {activeTab === "series" && (
+                  <div className="space-y-4">
+                    {renderSeries()}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </Tabs>
       </main>
     </div>
