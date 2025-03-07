@@ -94,6 +94,7 @@ export function SequelGenerationModal({
       setCustomTitle("");
       setSequelIdea(null);
       setStoryData(null);
+      setIsSequelIdeaOpen(false);
       
       // Create a new AbortController
       abortControllerRef.current = new AbortController();
@@ -177,10 +178,17 @@ export function SequelGenerationModal({
   }, [open, originalStory, storyService, seriesService, isCancelling, onComplete]);
 
   const handleTitleApproval = async (approved: boolean) => {
-    if (!storyData || !sequelIdea || isCancelling || !abortControllerRef.current) return;
+    console.log('handleTitleApproval called with approved:', approved);
+    console.log('Current state:', { storyData, sequelIdea, isCancelling, abortControllerRef: !!abortControllerRef.current });
+    
+    if (!storyData || !sequelIdea || isCancelling || !abortControllerRef.current) {
+      console.log('Early return from handleTitleApproval due to missing data or cancellation');
+      return;
+    }
 
     try {
       if (!approved) {
+        console.log('Generating new title');
         // Generate a new title
         setProposedTitle(null);
         const newTitle = await storyService.createTitle(
@@ -191,6 +199,7 @@ export function SequelGenerationModal({
         // Check if we're cancelling
         if (isCancelling || !abortControllerRef.current) return;
         
+        console.log('Setting new title:', newTitle);
         setProposedTitle(newTitle);
         setCustomTitle(newTitle);
         
@@ -202,6 +211,7 @@ export function SequelGenerationModal({
         return;
       }
       
+      console.log('Title approved, continuing with sequel generation');
       // Continue with the story generation process
       try {
         // Check if we're cancelling
@@ -209,12 +219,16 @@ export function SequelGenerationModal({
         
         // Use the current title (either the proposed one or the custom one)
         const finalTitle = isEditingTitle ? customTitle : storyData.title;
+        console.log('Using final title:', finalTitle);
         
         // Update story data with the final title
         setStoryData({
           ...storyData,
           title: finalTitle
         });
+        
+        // Reset proposedTitle to switch back to the progress steps view
+        setProposedTitle(null);
         
         // Step 3: Generate plot outline
         setCurrentStep(2);
@@ -353,6 +367,7 @@ export function SequelGenerationModal({
     setCustomTitle("");
     setSequelIdea(null);
     setStoryData(null);
+    setIsSequelIdeaOpen(false);
     
     // Notify parent component
     onClose();
@@ -530,7 +545,7 @@ export function SequelGenerationModal({
                         </motion.div>
                       </AnimatePresence>
                       
-                      {/* Sequel idea preview */}
+                      {/* Sequel idea preview - Enhanced scrollability */}
                       {sequelIdea && (
                         <Collapsible 
                           open={isSequelIdeaOpen} 
@@ -550,13 +565,26 @@ export function SequelGenerationModal({
                               </motion.div>
                             </div>
                           </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <ScrollArea className="p-4 max-h-[300px]">
-                              <div className="pr-4">
-                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{sequelIdea}</p>
-                              </div>
-                            </ScrollArea>
-                          </CollapsibleContent>
+                          <AnimatePresence initial={false}>
+                            {isSequelIdeaOpen && (
+                              <CollapsibleContent forceMount className="overflow-hidden" asChild>
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                                >
+                                  <div className="p-4">
+                                    <ScrollArea className="max-h-[200px] overflow-auto bg-white/30 dark:bg-gray-700/30 rounded">
+                                      <div className="p-3 pr-6">
+                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{sequelIdea}</p>
+                                      </div>
+                                    </ScrollArea>
+                                  </div>
+                                </motion.div>
+                              </CollapsibleContent>
+                            )}
+                          </AnimatePresence>
                         </Collapsible>
                       )}
                     </motion.div>
@@ -632,29 +660,22 @@ export function SequelGenerationModal({
                           </motion.div>
                         ))}
                       </motion.div>
-                      
-                      {/* Progress bar */}
-                      <div className="space-y-2">
-                        <Progress value={progress} className="h-2" />
-                        <p className="text-xs text-muted-foreground text-center">
-                          {currentStepInfo ? currentStepInfo.title : "Initializing..."}
-                        </p>
-                      </div>
                     </motion.div>
                   </AnimatePresence>
                 )}
               </div>
               
               {/* Footer */}
-              <div className="pt-4 flex justify-end">
+              <div className="pt-4 flex justify-between">
                 <Button 
-                  variant="outline" 
+                  variant="destructive" 
                   onClick={handleClose}
-                  className="text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="flex items-center"
                 >
                   <X className="h-4 w-4 mr-2" />
                   Cancel
                 </Button>
+                <div></div> {/* Empty div to maintain the justify-between spacing */}
               </div>
             </motion.div>
           </DialogContentWithoutCloseButton>
