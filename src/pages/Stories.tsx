@@ -21,6 +21,8 @@ import { useStoryService } from "@/hooks/use-story-service";
 import { useSeriesService } from "@/hooks/use-series-service";
 import { BookOpen, BookCopy } from "lucide-react";
 import { setDocumentTitle } from "@/utils/document";
+import { StorySourceSelectionModal, StorySource } from "@/components/StorySourceSelectionModal";
+import { CustomStoryIdeaModal } from "@/components/CustomStoryIdeaModal";
 
 export default function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
@@ -35,6 +37,10 @@ export default function Stories() {
   const [originalStoryForSequel, setOriginalStoryForSequel] = useState<Story | null>(null);
   const [isSequelGenerating, setIsSequelGenerating] = useState(false);
   const [seriesForAddStory, setSeriesForAddStory] = useState<Series | null>(null);
+  const [isSourceSelectionOpen, setIsSourceSelectionOpen] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<StorySource | null>(null);
+  const [isCustomIdeaModalOpen, setIsCustomIdeaModalOpen] = useState(false);
+  const [customStoryIdea, setCustomStoryIdea] = useState<string>("");
   const isMounted = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -141,8 +147,30 @@ export default function Stories() {
     if (activeTab === "series") {
       setIsCreatingSeries(true);
     } else {
+      // Open the source selection modal instead of directly starting generation
+      setIsSourceSelectionOpen(true);
+    }
+  };
+
+  const handleSourceSelection = (source: StorySource) => {
+    setSelectedSource(source);
+    setIsSourceSelectionOpen(false);
+    
+    if (source === 'custom') {
+      // Open the custom idea modal
+      setIsCustomIdeaModalOpen(true);
+    } else {
+      // Start generating with the selected source
       setIsGenerating(true);
     }
+  };
+
+  const handleCustomIdeaSubmit = async (customIdea: string) => {
+    setIsCustomIdeaModalOpen(false);
+    setCustomStoryIdea(customIdea);
+    
+    // Show the StoryGenerationModal with the custom idea
+    setIsGenerating(true);
   };
 
   const handleCreateSeries = async (title: string, description: string) => {
@@ -166,6 +194,7 @@ export default function Stories() {
 
   const handleStoryGenerated = (storyId: string) => {
     setIsGenerating(false);
+    setSelectedSource(null);
     fetchData(true);
     navigate(`/editor/${storyId}`);
   };
@@ -273,7 +302,10 @@ export default function Stories() {
           <p className="text-muted-foreground mb-4">
             Start writing your first story!
           </p>
-          <Button onClick={() => setIsGenerating(true)}>
+          <Button 
+            onClick={() => setIsSourceSelectionOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white"
+          >
             Create New Story
           </Button>
         </div>
@@ -329,10 +361,28 @@ export default function Stories() {
 
   return (
     <div className="min-h-screen bg-secondary/30">
+      <StorySourceSelectionModal
+        open={isSourceSelectionOpen}
+        onClose={() => setIsSourceSelectionOpen(false)}
+        onSelectSource={handleSourceSelection}
+      />
+      
+      <CustomStoryIdeaModal
+        open={isCustomIdeaModalOpen}
+        onClose={() => setIsCustomIdeaModalOpen(false)}
+        onSubmit={handleCustomIdeaSubmit}
+      />
+      
       <StoryGenerationModal 
         open={isGenerating} 
         onComplete={handleStoryGenerated}
-        onClose={() => setIsGenerating(false)}
+        onClose={() => {
+          setIsGenerating(false);
+          setSelectedSource(null);
+          setCustomStoryIdea("");
+        }}
+        source={selectedSource as 'reddit' | 'fine-tune' | 'custom'}
+        customIdea={customStoryIdea}
       />
       
       <SequelGenerationModal

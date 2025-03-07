@@ -16,7 +16,9 @@ export class UserSettingsService {
     elevenlabs_model: "eleven_multilingual_v2",
     rewrite_model: "gpt-4",
     story_generation_model: "gpt-4",
-    use_openai_for_story_gen: false
+    use_openai_for_story_gen: false,
+    title_fine_tune_model: "gpt-4o",
+    story_idea_model: "gpt-4o"
   };
 
   private constructor() {
@@ -59,12 +61,20 @@ export class UserSettingsService {
       }
 
       if (settingsData) {
+        // Ensure all required fields are present
+        const completeSettings: UserSettings = {
+          ...this.defaultSettings,
+          ...settingsData,
+          user_id: userId
+        } as UserSettings;
+
         // Update cache
         this.cache.set(userId, {
-          settings: settingsData as UserSettings,
+          settings: completeSettings,
           timestamp: Date.now()
         });
-        return settingsData as UserSettings;
+        
+        return completeSettings;
       }
 
       // If no settings found, create default
@@ -79,7 +89,7 @@ export class UserSettingsService {
     const defaultUserSettings = {
       user_id: userId,
       ...this.defaultSettings
-    };
+    } as UserSettings;
 
     const { data: newSettings, error: insertError } = await supabase
       .from("user_settings")
@@ -89,13 +99,19 @@ export class UserSettingsService {
 
     if (insertError) throw insertError;
 
+    // Ensure all required fields are present
+    const completeSettings: UserSettings = {
+      ...defaultUserSettings,
+      ...newSettings
+    };
+
     // Update cache with new settings
     this.cache.set(userId, {
-      settings: newSettings as UserSettings,
+      settings: completeSettings,
       timestamp: Date.now()
     });
 
-    return newSettings as UserSettings;
+    return completeSettings;
   }
 
   public async updateSettings(userId: string, settings: Partial<UserSettings>): Promise<UserSettings> {
@@ -109,13 +125,20 @@ export class UserSettingsService {
 
       if (error) throw error;
 
+      // Ensure all required fields are present
+      const completeSettings: UserSettings = {
+        ...this.defaultSettings,
+        ...updatedSettings,
+        user_id: userId
+      } as UserSettings;
+
       // Update cache
       this.cache.set(userId, {
-        settings: updatedSettings as UserSettings,
+        settings: completeSettings,
         timestamp: Date.now()
       });
 
-      return updatedSettings as UserSettings;
+      return completeSettings;
     } catch (error) {
       console.error("Error updating user settings:", error);
       throw error;

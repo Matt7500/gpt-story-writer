@@ -2,45 +2,49 @@
   "categories": [
     {
       "name": "Horror",
-      "flair_exclude": "Series",
       "prompts": [
-        "Create a horror story idea about a protagonist who discovers something terrifying in their new home.",
-        "Create a horror story idea about a protagonist who experiences strange occurrences after purchasing an antique item.",
-        "Create a horror story idea about a protagonist who begins to suspect their neighbor is hiding a dark secret.",
-        "Create a horror story idea about a protagonist who starts experiencing strange phenomena after moving to a small town.",
-        "Create a horror story idea about a protagonist who discovers an old journal that reveals disturbing secrets about their family history."
+        "Write a small town creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a wilderness creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a forest ranger creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a strange new job creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a camping creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a government secret creepypasta idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a military creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a military secret creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write an urban exploration creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a national park creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying discovery creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a strange rules creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a backwoods creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a scary creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a scary wendigo creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a scary skinwalker creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying urban legend creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying event/day creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying experiment creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying fire lookout tower creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write a terrifying space creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically.",
+        "Write an emergency alert creepypasta story idea. Focus on maintaining story continuity and keeping the details consistent throughout the story idea. The story ideas must make sense logically."
       ],
-      "system_prompt": "You are a creative horror writer who specializes in creating unique and terrifying story ideas. Your ideas should be original, atmospheric, and contain elements of psychological horror, supernatural phenomena, or disturbing revelations. Focus on creating a premise that builds tension and dread throughout the narrative.",
-      "model": "gpt-4o-mini",
+      "subreddit": "nosleep",
+      "system_prompt": "Create a creepypasta story idea for Insomnia Stories.",
+      "min_length": 10000,
+      "flair_exclude": "Series",
+      "use_reddit": false,
       "num_scenes": 8
     },
     {
-      "name": "Mystery",
-      "flair_exclude": "Series",
+      "name": "Cheating",
       "prompts": [
-        "Create a mystery story idea about a detective investigating a series of seemingly unrelated disappearances in a small coastal town.",
-        "Create a mystery story idea about a protagonist who receives cryptic messages leading them to uncover a conspiracy.",
-        "Create a mystery story idea about a cold case that suddenly has new evidence emerge decades later.",
-        "Create a mystery story idea about a protagonist who witnesses something they shouldn't have and becomes entangled in a dangerous investigation.",
-        "Create a mystery story idea about a series of impossible crimes that challenge a brilliant but flawed detective."
+        "Write a revenge-driven highly detailed story summary about a husband who discovers his wife has been cheating on him for an extended period. The story must capture the husband's emotional journey from shock, to betrayal, to cold, calculated revenge. The tone should be one of growing tension and meticulous planning, as the protagonist seeks to not only end the marriage but ensure the wife suffers the full consequences of her actions. The husband should feel a sense of control as he gathers evidence, plans his revenge, and watches the wife's world unravel.\n\nThe wife's affairs must include one of the following:\n\nHer boss, using the relationship to gain professional benefits like promotions and raises.\nA coworker, using work trips and late nights at the office as cover.\nA neighbor, carrying on the affair under the guise of casual neighborhood friendships.\nHis best friend, exploiting his trust and their long-standing friendship.\nA fitness trainer, using gym sessions as an alibi.\nHer ex-boyfriend, rekindling a secret romance behind the husband's back.\nA family member, such as the husband's brother or cousin, creating a devastating betrayal.\nStrangers from dating apps, portraying herself as single to pursue anonymous flings.\nA married friend's spouse, forming a clandestine relationship during couples' gatherings.\nA college professor, engaging in an affair while taking courses to advance her career.\nThe husband methodically uncovers each affair, leveraging this knowledge to dismantle the wife's personal, professional, and social standing, ensuring that the full weight of her betrayal becomes public.\nThe story must focus on the husband's internal thoughts, emotions, and strategic decisions, as well as the gradual breakdown of the wife's life when she is confronted with the results of his plan. The wife's affairs must involve people close to the couple (neighbors, friends, or co-workers), adding layers of betrayal. The husband's revenge should be psychological and legal rather than physical, with each step carefully planned to strip the wife of her support systems, reputation, and financial stability. Ensure that the story has a natural conclusion, with the husband achieving his revenge and moving on, without open-ended scenarios."
       ],
-      "system_prompt": "You are a skilled mystery writer who excels at creating intriguing and complex story ideas. Your ideas should feature compelling mysteries with clever twists, red herrings, and satisfying resolutions. Focus on creating a premise that keeps readers guessing until the very end.",
-      "model": "gpt-4o-mini",
-      "num_scenes": 8
-    },
-    {
-      "name": "Thriller",
+      "model": "ft:gpt-4o-2024-08-06:personal:reddit-ideas:A8CdoEMP",
+      "num_scenes": 14,
+      "subreddit": "nosleep",
+      "system_prompt": "Create an r/nosleep style creepypasta story.",
+      "min_length": 5000,
       "flair_exclude": "Series",
-      "prompts": [
-        "Create a thriller story idea about a protagonist who becomes the target of a skilled assassin for reasons unknown to them.",
-        "Create a thriller story idea about a protagonist who discovers evidence of a conspiracy that puts their life in danger.",
-        "Create a thriller story idea about a protagonist who must race against time to prevent a catastrophic event.",
-        "Create a thriller story idea about a protagonist with a specialized skill set who is forced to use their abilities to save innocent lives.",
-        "Create a thriller story idea about a protagonist who is framed for a crime they didn't commit and must clear their name while evading capture."
-      ],
-      "system_prompt": "You are an expert thriller writer who specializes in creating high-stakes, adrenaline-pumping story ideas. Your ideas should feature tense situations, dangerous antagonists, and protagonists who must overcome seemingly impossible odds. Focus on creating a premise that keeps readers on the edge of their seats.",
-      "model": "gpt-4o-mini",
-      "num_scenes": 8
+      "use_reddit": false
     }
   ]
-} 
+}

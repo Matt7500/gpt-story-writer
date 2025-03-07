@@ -24,7 +24,7 @@ export const setDocumentTitle = (
   }
   
   if (includeAppName) {
-    fullTitle = `${fullTitle} | Plotter Palette`;
+    fullTitle = `${fullTitle}`;
   }
   
   if (suffix) {

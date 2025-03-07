@@ -8,6 +8,7 @@ export interface UserSettings {
   rewriting_model?: string;
   rewrite_model: string;
   story_generation_model: string;
+  story_idea_model?: string;
   use_openai_for_story_gen: boolean;
   elevenlabs_key?: string;
   elevenlabs_model: string;

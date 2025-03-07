@@ -220,8 +220,8 @@ export function SequelGenerationModal({
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
               <DialogHeader>
-                <DialogTitle>Creating Sequel</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100">Creating Sequel</DialogTitle>
+                <DialogDescription className="text-base mt-1 text-gray-700 dark:text-gray-300">
                   {originalStory ? (
                     <>Creating a sequel to "{originalStory.title}". Please wait while we generate your sequel.</>
                   ) : (
@@ -236,7 +236,7 @@ export function SequelGenerationModal({
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="bg-red-50 rounded-lg p-4 mb-4 text-red-800"
+                    className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 mb-4 text-red-800 dark:text-red-300"
                   >
                     <div className="font-semibold mb-1">Error</div>
                     <div className="text-sm">{error}</div>
@@ -250,14 +250,14 @@ export function SequelGenerationModal({
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <Progress value={progress} className="mb-4" />
+                      <Progress value={progress} className="mb-4 bg-gray-200/50 dark:bg-gray-700/50" />
                       
                       <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="space-y-2"
+                        className="space-y-2 p-4 bg-gray-100/50 dark:bg-gray-800/50 rounded-lg"
                       >
                         {STEPS.map((step, index) => (
                           <motion.div 
@@ -274,19 +274,19 @@ export function SequelGenerationModal({
                             className="flex items-center gap-2"
                           >
                             {index < currentStep ? (
-                              <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center">
-                                <Check className="h-4 w-4 text-green-600" />
+                              <div className="h-6 w-6 rounded-full bg-green-100 dark:bg-green-800/50 flex items-center justify-center">
+                                <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                               </div>
                             ) : index === currentStep ? (
-                              <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center">
-                                <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                              <div className="h-6 w-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                <Loader2 className="h-4 w-4 text-gray-700 dark:text-gray-300 animate-spin" />
                               </div>
                             ) : (
-                              <div className="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
-                                <div className="h-2 w-2 rounded-full bg-gray-400"></div>
+                              <div className="h-6 w-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                <div className="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-500"></div>
                               </div>
                             )}
-                            <span className={`text-sm ${index === currentStep ? 'font-medium' : 'text-muted-foreground'}`}>
+                            <span className={`text-sm ${index === currentStep ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-muted-foreground'}`}>
                               {step}
                             </span>
                           </motion.div>
@@ -301,7 +301,7 @@ export function SequelGenerationModal({
                 <Button 
                   variant="outline" 
                   onClick={handleClose}
-                  className="gap-2"
+                  className="gap-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   <X className="h-4 w-4" />
                   Cancel Sequel Generation

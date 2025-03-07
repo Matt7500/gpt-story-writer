@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Load profiles from a static JSON file
 import profilesData from '@/data/profiles.json';
+import openai from 'openai';
 
 // Settings object with profiles from JSON
 const settings = {
@@ -22,7 +23,6 @@ const settings = {
         flair_exclude: profile.flair_exclude || 'Series',
         prompts: profile.prompts,
         system_prompt: profile.system_prompt,
-        model: profile.model,
         num_scenes: profile.num_scenes || 8
       };
     });
@@ -163,13 +163,19 @@ export class StoryService {
     }
   }
 
-  // Generate story ideas from Reddit posts
-  public async generateStoryIdea(signal?: AbortSignal): Promise<string> {
+  // Generate story ideas from Reddit posts or fine-tuned model
+  public async generateStoryIdea(signal?: AbortSignal, source: 'reddit' | 'fine-tune' = 'reddit'): Promise<string> {
     try {
       if (!this.userSettings) {
         await this.loadUserSettings();
       }
 
+      // If source is fine-tune, use the fine-tuned model directly
+      if (source === 'fine-tune') {
+        return this.generateStoryIdeaFromFineTune(signal);
+      }
+
+      // Otherwise, use Reddit as the source (default behavior)
       // Get top posts from r/nosleep
       console.log('Searching for top posts on r/nosleep...');
       const topPosts = await getTopPosts('nosleep', 'all', 100);
@@ -180,44 +186,7 @@ export class StoryService {
       if (eligiblePosts.length === 0) {
         console.log('No eligible posts found. Falling back to default story idea generation.');
         // Fall back to original method
-        const allProfiles = settings.load_story_profiles();
-        const profile = allProfiles[settings.STORY_PROFILE];
-        
-        if (!profile) {
-          console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
-          return 'Failed to generate story idea';
-        }
-
-        const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
-        console.log('Using prompt:', prompt);
-
-        // Get the appropriate client based on user settings
-        const client = this.getClient();
-        
-        // Use the title_fine_tune_model for story idea generation
-        const model = this.userSettings.use_openai_for_story_gen 
-          ? this.userSettings.title_fine_tune_model || 'gpt-4o'
-          : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
-        
-        console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for story idea generation`);
-        
-        const response = await client.chat.completions.create({
-          model: model,
-          messages: [
-            { 
-              role: "system", 
-              content: profile.system_prompt 
-            },
-            { 
-              role: "user", 
-              content: prompt 
-            }
-          ],
-          temperature: 0.9,
-          max_tokens: 500
-        });
-
-        return response.choices[0].message.content || 'Failed to generate story idea';
+        return this.generateStoryIdeaFromFineTune(signal);
       }
       
       // Select a random post from eligible posts
@@ -280,49 +249,105 @@ Please provide a detailed summary in 400-600 words.
       console.log("Falling back to default story idea generation...");
       
       // Fall back to original method if Reddit fails
-      try {
-        const allProfiles = settings.load_story_profiles();
-        const profile = allProfiles[settings.STORY_PROFILE];
-        
-        if (!profile) {
-          console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
-          return 'Failed to generate story idea';
-        }
+      return this.generateStoryIdeaFromFineTune(signal);
+    }
+  }
 
-        const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
-        console.log('Using prompt:', prompt);
+  // Generate story idea from fine-tuned model
+  private async generateStoryIdeaFromFineTune(signal?: AbortSignal): Promise<string> {
+    try {
+      if (!this.userSettings) {
+        await this.loadUserSettings();
+      }
 
-        // Get the appropriate client based on user settings
-        const client = this.getClient();
-        
-        // Use the title_fine_tune_model for story idea generation
-        const model = this.userSettings.use_openai_for_story_gen 
-          ? this.userSettings.title_fine_tune_model || 'gpt-4o'
-          : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
-        
-        console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for story idea generation`);
-        
-        const response = await client.chat.completions.create({
-          model: model,
-          messages: [
-            { 
-              role: "system", 
-              content: profile.system_prompt 
-            },
-            { 
-              role: "user", 
-              content: prompt 
-            }
-          ],
-          temperature: 0.9,
-          max_tokens: 500
-        });
-
-        return response.choices[0].message.content || 'Failed to generate story idea';
-      } catch (fallbackErr) {
-        console.error("Error in fallback story idea generation:", fallbackErr);
+      const allProfiles = settings.load_story_profiles();
+      const profile = allProfiles[settings.STORY_PROFILE];
+      
+      if (!profile) {
+        console.log(`Error: Story profile '${settings.STORY_PROFILE}' not found`);
         return 'Failed to generate story idea';
       }
+
+      const prompt = profile.prompts[Math.floor(Math.random() * profile.prompts.length)];
+      console.log('Using prompt:', prompt);
+
+      // Get the appropriate client based on user settings
+      const client = this.getOpenAIClient();
+      
+      // Use the story_idea_model for story idea generation if available, otherwise fall back to appropriate defaults
+      const model = this.userSettings.story_idea_model || this.userSettings.story_generation_model
+      
+      console.log(`Using OpenAI with model: ${model} for story idea generation`);
+      
+      const response = await client.chat.completions.create({
+        model: model,
+        messages: [
+          { 
+            role: "system", 
+            content: profile.system_prompt 
+          },
+          { 
+            role: "user", 
+            content: prompt 
+          }
+        ],
+        temperature: 0.5
+      }, {
+        signal: signal
+      });
+
+      return response.choices[0].message.content || 'Failed to generate story idea';
+    } catch (fallbackErr) {
+      console.error("Error in fallback story idea generation:", fallbackErr);
+      return 'Failed to generate story idea';
+    }
+  }
+
+  // Create a story from a custom idea
+  public async createStoryFromCustomIdea(customIdea: string, signal?: AbortSignal): Promise<string> {
+    try {
+      if (!this.userSettings) {
+        await this.loadUserSettings();
+      }
+
+      // Step 1: Create title from custom story idea
+      const title = await this.createTitle(customIdea, signal);
+      
+      // Step 2: Create outline from custom story idea
+      const outline = await this.createOutline(customIdea, signal);
+      
+      if (!outline) {
+        throw new Error('Failed to create outline');
+      }
+      
+      // Step 3: Generate characters
+      const characters = await this.generateCharacters(outline, signal);
+      
+      if (!characters) {
+        throw new Error('Failed to generate characters');
+      }
+      
+      // Step 4: Create the story data
+      const storyData = {
+        title,
+        story_idea: customIdea,
+        plot_outline: JSON.stringify(outline),
+        characters,
+        chapters: outline.map((sceneBeat, index) => ({
+          title: `Chapter ${index + 1}`,
+          content: '',
+          completed: false,
+          sceneBeat
+        }))
+      };
+      
+      // Step 5: Save the story
+      const storyId = await this.saveStory(storyData);
+      
+      return storyId;
+    } catch (error) {
+      console.error('Error creating story from custom idea:', error);
+      throw new Error('Failed to create story from custom idea. Please try again.');
     }
   }
 
@@ -381,16 +406,16 @@ Please provide a detailed summary in 400-600 words.
       while (retries < 5) {
         try {
           const userMessage = `
-## Instructions
-Write a full plot outline for the given story idea.
-Write the plot outline as a list of all the scenes in the story. Each scene must be a highly detailed paragraph on what happens in that scene.
-Each scene beat must include as much detail as you can about the events that happen in the scene.
-Explicitly state the change of time between scenes if necessary.
-Mention any locations by name.
-Create a slow build up of tension and suspense throughout the story.
-A scene in the story is defined as when there is a change in the setting in the story.
+## IMPORTANT
 The plot outline must contain ${numScenes} scenes.
-The plot outline must follow and word things in a way that are from the protagonist's perspective, do not write anything from an outside character's perspective that the protagonist wouldn't know.
+Write a full plot outline for the given story idea.
+Write in third person point of view from the perspective of the protagonist, this means you cannot write anything the narrator wouldn't know.
+Each scene beat must be as detailed as possible.
+You MUST write EXACTLY what happens in the story outline, DO NOT change any details or events.
+
+## Instructions
+Explicitly state the change of time and setting between scenes at the start of each scene.
+Mention any locations by name.
 Only refer to the protagonist in the story as "The Protagonist" in the plot outline.
 Each scene must smoothly transition from the previous scene and to the next scene without unexplained time and setting jumps.
 Ensure key story elements (e.g., character motivations, mysteries, and plot developments) are resolved by the end.
@@ -412,13 +437,13 @@ ${idea}`;
           // Use the story_generation_model for outline creation
           const model = this.userSettings.use_openai_for_story_gen 
             ? this.userSettings.story_generation_model || 'gpt-4o'
-            : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
+            : this.userSettings.openrouter_model || 'openai/gpt-4o';
           
           console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for outline creation`);
           
           const response = await client.chat.completions.create({
             model: model,
-            temperature: 0.5,
+            temperature: 0.3,
             messages: [{ role: "user", content: userMessage }],
           }, {
             signal: signal
@@ -580,22 +605,19 @@ ${chunk}`
       await this.loadUserSettings();
     }
 
-    const maxRetries = 10;
+    const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         // Get the appropriate client based on user settings
-        const client = this.getClient();
+        const client = this.getOpenAIClient();
         
-        // Use the rewriting_model for title generation
-        const model = this.userSettings.use_openai_for_story_gen 
-          ? this.userSettings.rewriting_model || 'gpt-4o'
-          : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
+        // Use the title_fine_tune_model for title generation if available, otherwise fall back to appropriate defaults
+        const model = this.userSettings.title_fine_tune_model
         
-        console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for title generation`);
+        console.log(`Using OpenAI with model: ${model} for title generation`);
         
         const title = await client.chat.completions.create({
           model: model,
-          max_tokens: 4000,
           messages: [
             {
               role: "system",
@@ -603,38 +625,52 @@ ${chunk}`
             },
             {
               role: "user",
-              content: storyText
+              content: `${storyText}`
             }
           ]
         }, {
           signal: signal
         });
 
-        let titleText = title.choices[0].message.content?.replace(/"/g, '') || '';
-
-        if (storyText.includes('Horror') && !titleText.includes(',')) {
-          titleText = titleText.replace(' ', ', ', 1);
-        }
-
-        if (titleText.length <= 100 && titleText.length >= 70 && titleText.includes(',')) {
-          console.log(`Generated title: ${titleText}`);
+        let titleText = title.choices[0].message.content?.trim() || '';
+        
+        // Remove any quotes that might be in the response
+        titleText = titleText.replace(/["']/g, '');
+        
+        // Remove any trailing punctuation
+        titleText = titleText.replace(/[.!?]$/, '');
+        
+        console.log(`Generated title: ${titleText}`);
+        
+        // If we got a valid title, return it
+        if (titleText && titleText.length > 0 && titleText.length <= 100) {
           return titleText;
         }
 
         if (attempt === maxRetries - 1) {
-          console.log(`Warning: Could not generate valid title after ${maxRetries} attempts. Truncating...`);
-          return titleText.slice(0, 97) + "...";
+          // If we've tried the maximum number of times, just return a default title
+          return "Untitled Story";
         }
-
-      } catch (error) {
-        console.error(`Error on attempt ${attempt + 1}:`, error);
+      } catch (error: any) {
+        console.error(`Error generating title (attempt ${attempt + 1}):`, error);
+        
         if (attempt === maxRetries - 1) {
+          // If we've tried the maximum number of times, just return a default title
+          return "Untitled Story";
+        }
+        
+        // If it's an abort error, rethrow it
+        if (error.name === 'AbortError') {
           throw error;
         }
+        
+        // Otherwise, wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
-    throw new Error('Failed to generate a valid title after all attempts');
+    // Fallback title if all else fails
+    return "Untitled Story";
   }
 
   // Get all stories for a user
@@ -824,9 +860,14 @@ The original story idea was: "${originalIdea}"
 
 The original plot outline was: ${originalPlot}
 
-Create a compelling sequel idea that builds upon the original story, continuing where it left off or exploring new directions with the same characters or world. The sequel should feel like a natural continuation while introducing new conflicts or challenges.
+Create a compelling sequel plot that builds upon the original story, continuing where it left off or exploring new directions with the same character(s) or world. The sequel should feel like a natural continuation while introducing new conflicts or challenges.
+Be as detailed as possible in your sequel idea to include as much information as possible in the plot.
+Write from third person omniscient perspective.
+Write the names of all characters and locations whenever they are mentioned.
+When you write the narrator's name, write (The Narrator) next to their name.
+You must write the sequal idea as a summary style with paragraphs.
 
-Your sequel idea should be 2-3 paragraphs long, detailed enough to serve as the foundation for a new story.`;
+Only write the sequel idea and nothing else. DO NOT write any comments or explanations.`;
 
       console.log('Sending prompt to AI model, length:', prompt.length);
       
@@ -838,8 +879,7 @@ Your sequel idea should be 2-3 paragraphs long, detailed enough to serve as the 
             content: prompt
           }
         ],
-        temperature: 0.8,
-        max_tokens: 500,
+        temperature: 0.7
       }, {
         signal: signal
       });

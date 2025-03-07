@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Dialog,
   DialogContentWithoutCloseButton,
@@ -20,6 +20,8 @@ interface StoryGenerationModalProps {
   open: boolean;
   onClose: () => void;
   onComplete: (storyId: string) => void;
+  source?: 'reddit' | 'fine-tune' | 'custom';
+  customIdea?: string;
 }
 
 const STEPS = [
@@ -35,7 +37,7 @@ const STEPS = [
   },
   {
     id: "outline",
-    title: "Building plot outline",
+    title: "Creating outline",
     description: "Developing the structure and key scenes"
   },
   {
@@ -50,7 +52,7 @@ const STEPS = [
   }
 ];
 
-export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerationModalProps) {
+export function StoryGenerationModal({ open, onClose, onComplete, source = 'reddit', customIdea = '' }: StoryGenerationModalProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [proposedTitle, setProposedTitle] = useState<string | null>(null);
@@ -64,30 +66,85 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
   const storyService = useStoryService();
   const { toast } = useToast();
 
+  // Define the generateStoryIdea function using useCallback to avoid dependency issues
+  const generateStoryIdea = useCallback(async () => {
+    try {
+      // Check if we're cancelling
+      if (isCancelling || !abortControllerRef.current) return;
+
+      if (source === 'custom' && customIdea) {
+        // If we have a custom idea, use it directly
+        setStoryIdea(customIdea);
+        setCurrentStep(1); // Skip to the next step
+        
+        // Generate title from the custom idea
+        const title = await storyService.createTitle(
+          customIdea,
+          abortControllerRef.current?.signal
+        );
+        
+        // Check if we're cancelling after title generation
+        if (isCancelling || !abortControllerRef.current) return;
+        
+        setProposedTitle(title);
+        setCustomTitle(title);
+        
+        // Store partial story data
+        setStoryData({
+          title,
+          story_idea: customIdea
+        });
+      } else {
+        // Otherwise, generate a story idea based on the selected source
+        // Step 1: Generate story idea
+        setCurrentStep(0);
+        const idea = await storyService.generateStoryIdea(
+          abortControllerRef.current?.signal,
+          source === 'custom' ? 'reddit' : source // Fallback to reddit if source is custom but no idea
+        );
+        
+        // Check if we're cancelling after story idea generation
+        if (isCancelling || !abortControllerRef.current) return;
+        
+        setStoryIdea(idea);
+        
+        // Step 2: Create title from story idea
+        setCurrentStep(1);
+        const title = await storyService.createTitle(
+          idea,
+          abortControllerRef.current?.signal
+        );
+        
+        // Check if we're cancelling after title generation
+        if (isCancelling || !abortControllerRef.current) return;
+        
+        setProposedTitle(title);
+        setCustomTitle(title);
+        
+        // Store partial story data
+        setStoryData({
+          title,
+          story_idea: idea
+        });
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Story idea generation aborted');
+        return;
+      }
+      
+      // Only show error if we're not cancelling
+      if (!isCancelling) {
+        console.error('Story generation error:', error);
+        setError(error.message || 'An error occurred while generating the story idea');
+      }
+    }
+  }, [customIdea, isCancelling, source, storyService]);
+
   // Create a new AbortController when the modal opens
   useEffect(() => {
     if (open) {
       abortControllerRef.current = new AbortController();
-      setIsCancelling(false);
-    } else {
-      // Clean up when modal closes
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    }
-
-    return () => {
-      // Clean up on unmount
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (open && !isCancelling) {
       setCurrentStep(0);
       setError(null);
       setProposedTitle(null);
@@ -96,55 +153,20 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
       setIsEditingTitle(false);
       setCustomTitle("");
       setIsStoryIdeaOpen(false);
-
-      const generateStoryIdea = async () => {
-        try {
-          // Check if we're cancelling
-          if (isCancelling || !abortControllerRef.current) return;
-
-          // Step 1: Generate story idea
-          setCurrentStep(0);
-          const idea = await storyService.generateStoryIdea(
-            abortControllerRef.current?.signal
-          );
-          
-          // Check if we're cancelling after story idea generation
-          if (isCancelling || !abortControllerRef.current) return;
-          
-          setStoryIdea(idea);
-          
-          // Step 2: Create title from story idea
-          setCurrentStep(1);
-          const title = await storyService.createTitle(
-            idea,
-            abortControllerRef.current?.signal
-          );
-          
-          // Check if we're cancelling after title generation
-          if (isCancelling || !abortControllerRef.current) return;
-          
-          setProposedTitle(title);
-          setCustomTitle(title);
-          
-          // Store partial story data
-          setStoryData({
-            title,
-            story_idea: idea
-          });
-          
-          // Wait for title approval before continuing
-        } catch (err: any) {
-          // Only show error if we're not cancelling
-          if (!isCancelling) {
-            console.error('Story generation error:', err);
-            setError(err.message || 'An error occurred while generating the story idea');
-          }
-        }
-      };
-
+      setIsCancelling(false);
+      
+      // Start the generation process
       generateStoryIdea();
     }
-  }, [open, storyService, isCancelling]);
+    
+    return () => {
+      // Clean up when the component unmounts or the modal closes
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, [open, generateStoryIdea]);
 
   const handleClose = () => {
     // Set cancelling flag to true
@@ -385,16 +407,16 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20 }}
                             transition={{ duration: 0.3, ease: "easeInOut" }}
-                            className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4"
+                            className="bg-gray-100 dark:bg-gray-800/70 rounded-lg p-4"
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <h3 className="font-medium text-blue-800 dark:text-blue-300">Proposed Title</h3>
+                              <h3 className="font-medium text-gray-800 dark:text-gray-200">Proposed Title</h3>
                               {!isEditingTitle && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm" 
                                   onClick={toggleEditTitle}
-                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-7 px-2"
+                                  className="text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100 hover:bg-gray-200/50 dark:hover:bg-gray-700/50 h-7 px-2"
                                 >
                                   <Edit className="h-3.5 w-3.5 mr-1" />
                                   Edit
@@ -416,7 +438,7 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                                     <Input 
                                       value={customTitle} 
                                       onChange={handleCustomTitleChange} 
-                                      className="focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 flex-1"
+                                      className="focus-visible:ring-primary-500 dark:focus-visible:ring-primary-400 flex-1"
                                       placeholder="Enter your custom title"
                                       autoFocus
                                     />
@@ -448,14 +470,14 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                               <Button 
                                 variant="outline" 
                                 onClick={() => handleTitleApproval(false)}
-                                className="text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                className="text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                               >
                                 <RefreshCw className="h-4 w-4 mr-2" />
                                 Generate New Title
                               </Button>
                               <Button 
                                 onClick={() => handleTitleApproval(true)}
-                                className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white"
+                                className="bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white"
                               >
                                 <Check className="h-4 w-4 mr-2" />
                                 Use This Title
@@ -468,7 +490,7 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                         <Collapsible 
                           open={isStoryIdeaOpen} 
                           onOpenChange={setIsStoryIdeaOpen}
-                          className="rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900/30"
+                          className="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800/50"
                         >
                           <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-left">
                             <div className="font-medium">Story Idea Preview</div>
@@ -491,7 +513,7 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                                   transition={{ duration: 0.3, ease: "easeInOut" }}
                                 >
                                   <div className="px-4 pb-4">
-                                    <div className="bg-white/50 dark:bg-slate-800/50 p-3 rounded text-sm text-muted-foreground max-h-[200px] overflow-y-auto">
+                                    <div className="bg-white/50 dark:bg-gray-700/50 p-3 rounded text-sm text-muted-foreground max-h-[200px] overflow-y-auto">
                                       {storyIdea}
                                     </div>
                                   </div>
@@ -533,7 +555,7 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                               className={cn(
                                 "flex items-start gap-3 p-3 rounded-lg transition-all",
                                 index === currentStep 
-                                  ? "bg-blue-50/40 dark:bg-blue-900/20" 
+                                  ? "bg-gray-100 dark:bg-gray-800/70" 
                                   : "bg-transparent",
                                 index < currentStep 
                                   ? "opacity-70" 
@@ -544,16 +566,16 @@ export function StoryGenerationModal({ open, onClose, onComplete }: StoryGenerat
                             >
                               <div className="flex-shrink-0 mt-0.5">
                                 {index === currentStep ? (
-                                  <div className="h-5 w-5 rounded-full bg-blue-100/70 dark:bg-blue-800/50 flex items-center justify-center">
-                                    <Loader2 className="h-3 w-3 text-blue-600 dark:text-blue-400 animate-spin" />
+                                  <div className="h-5 w-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                    <Loader2 className="h-3 w-3 text-gray-700 dark:text-gray-300 animate-spin" />
                                   </div>
                                 ) : index < currentStep ? (
-                                  <div className="h-5 w-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                                  <div className="h-5 w-5 rounded-full bg-green-100 dark:bg-green-800/50 flex items-center justify-center">
                                     <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
                                   </div>
                                 ) : (
-                                  <div className="h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                                  <div className="h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                                    <div className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-400" />
                                   </div>
                                 )}
                               </div>

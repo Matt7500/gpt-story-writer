@@ -276,10 +276,11 @@ export function WritingArea({
               </Button>
             ) : (
               <Button 
-                variant="outline" 
+                variant="default" 
                 size="sm" 
                 onClick={handleGenerateScene}
                 disabled={isGenerating || isRevising}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 <PenTool className="h-4 w-4 mr-2" />
                 Write Scene
