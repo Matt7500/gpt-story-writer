@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { AISettings } from "@/components/settings/AISettings";
 import type { UserSettings } from "@/types/settings";
 import { userSettingsService } from "@/services/UserSettingsService";
 import { setDocumentTitle } from "@/utils/document";
+import { motion } from "framer-motion";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -70,7 +71,11 @@ export default function Settings() {
   }, [user, navigate, toast]);
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-secondary/30 flex items-center justify-center">
+        <div className="text-lg text-muted-foreground">Loading settings...</div>
+      </div>
+    );
   }
 
   if (!user) return null;
@@ -80,50 +85,75 @@ export default function Settings() {
   };
 
   return (
-    <div className="container max-w-2xl mx-auto py-8">
-      <div className="flex items-center gap-2 mb-8">
-        <SettingsIcon className="h-5 w-5" />
-        <h1 className="text-2xl font-medium">Settings</h1>
-      </div>
+    <div className="min-h-screen bg-secondary/30">
+      <header className="sticky top-0 z-50 w-full">
+        <div className="w-full px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleGoBack}
+              className="mr-2"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <SettingsIcon className="h-6 w-6" />
+              Settings
+            </h1>
+          </div>
+        </div>
+      </header>
 
-      <div className="space-y-8">
-        <ProfileSettings userId={user.id} />
-        <AISettings
-          userId={user.id}
-          openAIKey={openAIKey}
-          openai_key={openaiKey}
-          openAIModel={openAIModel}
-          reasoningModel={reasoningModel}
-          titleFineTuneModel={titleFineTuneModel}
-          rewritingModel={rewritingModel}
-          rewriteModel={rewriteModel}
-          storyGenerationModel={storyGenerationModel}
-          useOpenAIForStoryGen={useOpenAIForStoryGen}
-          elevenLabsKey={elevenLabsKey}
-          elevenLabsModel={elevenLabsModel}
-          elevenLabsVoiceId={elevenLabsVoiceId}
-          replicateKey={replicateKey}
-          onOpenAIKeyChange={setOpenAIKey}
-          onOpenaiKeyChange={setOpenaiKey}
-          onOpenAIModelChange={setOpenAIModel}
-          onReasoningModelChange={setReasoningModel}
-          onTitleFineTuneModelChange={setTitleFineTuneModel}
-          onRewritingModelChange={setRewritingModel}
-          onRewriteModelChange={setRewriteModel}
-          onStoryGenerationModelChange={setStoryGenerationModel}
-          onUseOpenAIForStoryGenChange={setUseOpenAIForStoryGen}
-          onElevenLabsKeyChange={setElevenLabsKey}
-          onElevenLabsModelChange={setElevenLabsModel}
-          onElevenLabsVoiceIdChange={setElevenLabsVoiceId}
-          onReplicateKeyChange={setReplicateKey}
-        />
-      </div>
-
-      <div className="mt-8">
-        <Button variant="outline" onClick={handleGoBack}>
-          Back
-        </Button>
-      </div>
+      <main className="max-w-4xl mx-auto px-6 py-6">
+        <div className="space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="bg-muted rounded-lg p-6 shadow-sm"
+          >
+            <ProfileSettings userId={user.id} />
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="bg-muted rounded-lg p-6 shadow-sm"
+          >
+            <AISettings
+              userId={user.id}
+              openAIKey={openAIKey}
+              openai_key={openaiKey}
+              openAIModel={openAIModel}
+              reasoningModel={reasoningModel}
+              titleFineTuneModel={titleFineTuneModel}
+              rewritingModel={rewritingModel}
+              rewriteModel={rewriteModel}
+              storyGenerationModel={storyGenerationModel}
+              useOpenAIForStoryGen={useOpenAIForStoryGen}
+              elevenLabsKey={elevenLabsKey}
+              elevenLabsModel={elevenLabsModel}
+              elevenLabsVoiceId={elevenLabsVoiceId}
+              replicateKey={replicateKey}
+              onOpenAIKeyChange={setOpenAIKey}
+              onOpenaiKeyChange={setOpenaiKey}
+              onOpenAIModelChange={setOpenAIModel}
+              onReasoningModelChange={setReasoningModel}
+              onTitleFineTuneModelChange={setTitleFineTuneModel}
+              onRewritingModelChange={setRewritingModel}
+              onRewriteModelChange={setRewriteModel}
+              onStoryGenerationModelChange={setStoryGenerationModel}
+              onUseOpenAIForStoryGenChange={setUseOpenAIForStoryGen}
+              onElevenLabsKeyChange={setElevenLabsKey}
+              onElevenLabsModelChange={setElevenLabsModel}
+              onElevenLabsVoiceIdChange={setElevenLabsVoiceId}
+              onReplicateKeyChange={setReplicateKey}
+            />
+          </motion.div>
+        </div>
+      </main>
     </div>
   );
 }
