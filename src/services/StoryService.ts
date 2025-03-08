@@ -581,7 +581,7 @@ Text to edit:
 ${chunk}`
             }
           ],
-          temperature: 0.3
+          temperature: 0.5
         });
 
         const enhancedText = initialResponse.choices[0].message.content || chunk;
@@ -594,23 +594,23 @@ ${chunk}`
         
         console.log(`Using OpenAI with model: ${model} for text rewriting`);
 
-        const response = await client.chat.completions.create({
-          model: model,
-          messages: [
-            {
-              role: "system",
-              content: `You are an expert copy editor tasked with re-writing the given text in Insomnia Stories unique voice and style.`
-            },
-            {
-              role: "user",
-              content: `${enhancedText}`
-            }
-          ],
-          temperature: 0.5,
-          frequency_penalty: 0.3
-        });
+        // const response = await client.chat.completions.create({
+        //   model: model,
+        //   messages: [
+        //     {
+        //       role: "system",
+        //       content: `You are an expert copy editor tasked with re-writing the given text in Insomnia Stories unique voice and style.`
+        //     },
+        //     {
+        //       role: "user",
+        //       content: `${enhancedText}`
+        //     }
+        //   ],
+        //   temperature: 0.5,
+        //   frequency_penalty: 0.3
+        // });
 
-        processedChunks.push(response.choices[0].message.content || chunk);
+        processedChunks.push(enhancedText || chunk);
       } catch (err) {
         console.error('Error processing chunk:', err);
         // On error, keep original chunk to maintain story continuity
@@ -1284,7 +1284,7 @@ ${currentParagraphs.join('\n\n')}
 ${sceneBeat}
 
 ## Instructions:
-1. Write 1-4 paragraphs that bridge the gap between these chapters
+1. Write at least 2 paragraphs that bridge the gap between these chapters
 2. Maintain the same narrative voice and perspective
 3. Address any time or location changes explicitly
 4. Create a logical flow from the previous chapter's events to the current chapter's setting

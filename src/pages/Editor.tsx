@@ -256,7 +256,7 @@ export default function Editor() {
   // Add function to check if chapter should be marked as complete
   const isChapterComplete = (content: string) => {
     const wordCount = content.trim().split(/\s+/).length;
-    return wordCount >= 500; // Consider a chapter complete if it has at least 500 words
+    return wordCount >= 400; // Consider a chapter complete if it has at least 400 words
   };
 
   // Load story and handle recovery

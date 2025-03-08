@@ -676,7 +676,7 @@ ${chunk}
       
       {chapter.sceneBeat && (
         <div className="p-4 bg-muted rounded-lg">
-          <p className="text-sm font-medium mb-1">Scene Beat:</p>
+          <p className="text-sm font-medium mb-1">Chapter Summary:</p>
           <p className="text-sm text-muted-foreground">{chapter.sceneBeat}</p>
         </div>
       )}
