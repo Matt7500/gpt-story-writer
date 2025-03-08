@@ -261,6 +261,9 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
           title: finalTitle
         });
         
+        // Reset proposedTitle to switch back to the progress steps view
+        setProposedTitle(null);
+        
         // Generate plot outline
         setCurrentStep(2);
         const plotOutline = await storyService.createOutline(

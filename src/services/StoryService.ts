@@ -553,29 +553,27 @@ ${outline.join('\n')}
     // Process each chunk
     for (const chunk of chunks) {
       try {
-        // Get the appropriate client based on user settings
-        const client = this.getClient();
-        
-        // Use the rewrite_model for text rewriting
-        const model = this.userSettings.use_openai_for_story_gen 
-          ? this.userSettings.rewrite_model || 'gpt-4o'
-          : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
-        
-        console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for text rewriting`);
 
-        const response = await client.chat.completions.create({
-          model: model,
+        // Get the appropriate client based on user settings
+        const client1 = this.getClient();
+        
+        // First pass - use story generation model to analyze and enhance the text
+        const storyModel = this.userSettings.story_generation_model || 'gpt-4o';
+        
+        console.log(`Using model: ${storyModel} for initial text analysis`);
+
+        const initialResponse = await client1.chat.completions.create({
+          model: storyModel,
           messages: [
             {
-              role: "user",
-              content: `Remove all appositive phrases relating to people or objects in the given text, except those that contain foreshadowing.
-Remove all absolute phrases relating to people or objects in the given text, except those that provide sensory information or describe physical sensations.
-Remove all metaphors in the given text.
-Remove any sentences that add unnecessary detail or reflection without contributing new information to the scene.
-Remove any sentences that hinder the pacing of the scene by adding too many descriptions about the scene.
-Remove any phrases that mention the character's heart pounding or heart in their throat.
-
-If a paragraph doesn't need to be changed then just leave it as is in the returned text.
+              role: "user", 
+              content: `Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
+Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
+Eliminate all metaphors in the text.
+Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the scene.
+Eliminate all sentences that hinder the pacing of the scene by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
+Eliminate all phrases that mention the character's heart pounding or heart in their throat.
+If a paragraph doesn't need to be changed, leave it as is in the returned text.
 
 Only respond with the modified text and nothing else.
 
@@ -583,7 +581,33 @@ Text to edit:
 ${chunk}`
             }
           ],
-          temperature: 0.5
+          temperature: 0.3
+        });
+
+        const enhancedText = initialResponse.choices[0].message.content || chunk;
+
+        // Get the appropriate client based on user settings
+        const client = this.getOpenAIClient();
+        
+        // Use the rewrite_model for text rewriting
+        const model = this.userSettings.rewrite_model;
+        
+        console.log(`Using OpenAI with model: ${model} for text rewriting`);
+
+        const response = await client.chat.completions.create({
+          model: model,
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert copy editor tasked with re-writing the given text in Insomnia Stories unique voice and style.`
+            },
+            {
+              role: "user",
+              content: `${enhancedText}`
+            }
+          ],
+          temperature: 0.5,
+          frequency_penalty: 0.3
         });
 
         processedChunks.push(response.choices[0].message.content || chunk);
@@ -930,49 +954,50 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
       }
 
       const prompt = `
-## Writing Instructions
-- You are an expert fiction writer. Write a fully immersive first-person scene that strictly follows the scene beat, capturing every detail provided without adding anything extra.
-- Write only what the narrator directly experiences—what they see, hear, feel, and notice. If the narrator wouldn’t know something, do not include it.
-- The passage of time at the beginning of the scene beat must feel organic—connect it seamlessly to the previous scene’s ending.
+## WRITING INSTRUCTIONS
+- You are an expert fiction writer. Write a fully detailed scene that has as many details from the scene beat as possible.
+- YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
+- Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
 
-## Core Requirements
-- First-person perspective only—narration should feel personal, introspective, and natural.
-- Start with a strong connection to the last scene, making it feel like a continuous thought or moment rather than an abrupt shift.
-- Full, natural dialogue that reveals personality through subtle implication rather than direct exposition.
-- Dialogue must always be in its own paragraph, separate from narration.
-- Include everything from the scene beat—do not omit any details.
-- Avoid summarizing events—let them unfold naturally.
+# Core Requirements
+    - Write from first-person narrator perspective only
+    - Begin with a clear connection to the previous scene's ending
+    - Include full, natural dialogue
+    - Write the dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
+    - Write everything that the narrator sees, hears, and everything that happens in the scene.
+    - Write the entire scene and include everything in the scene beat given, do not leave anything out.
+    - Use the character's pronouns if you don't write the character's name. Avoid using they/them pronouns, use the character's pronouns instead.
+    
+    # Pacing and Suspense
+    - Maintain steady, escalating suspense
+    - Use strategic pauses and silence for impact
+    - Build tension in small, deliberate increments
+    - Balance action with reflection
 
-## Pacing & Suspense
-- Build gradual tension, letting the unease creep in through small, accumulating details rather than immediate shock.
-- Use silence, hesitations, and unfinished thoughts to create an undercurrent of unease.
-- Vary sentence structure to reflect pacing:
-  - Short, clipped sentences for tension and movement.
-  - Longer, introspective ones for reflection and realization.
-- Don’t explicitly state emotions—let them emerge from reactions, body language, and subtle cues.
-
-## Writing Style
-- Concise, immersive language—every word should pull the reader deeper into the character’s experience.
-- Organic integration of descriptions—blend sensory details into the flow rather than stopping to describe things.
-- Use natural breaks in action for introspection, allowing thoughts to flow in a way that feels true to the moment.
-- Maintain an undercurrent of uncertainty—things should feel just slightly off, even in normal moments.
-
-## Scene Structure
-- Tight, focused paragraphs—keep the momentum strong.
-- Break up dialogue with introspection and subtle observations—never let it feel like a script.
-- Let the narrator process events naturally—reaction time should match the pacing of the moment.
+    # Writing Style
+    - Use concise language
+    - Vary sentence length based on tension:
+        * Shorter sentences for action/tension
+        * Longer sentences for introspection
+    - Show emotions through implications rather than stating them
+    - Write dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
+    
+    # Scene Structure
+    - Write tight, focused paragraphs
+    - Break up dialogue with introspection and description
+    - Allow for natural processing of events
 
 ## SCENE CONTEXT AND CONTINUITY
-
-#Characters
+# Characters
 ${characters}
 
-Use the provided STORY CONTEXT to maintain consistency with previous scenes.
-
+# Use the provided STORY CONTEXT to remember details and events from the previous scenes in order to maintain consistency in the new scene you are writing.
 ## STORY CONTEXT
-<context> ${context} </context>
+<context>
+  ${context}
+</context>
 
-## Scene Beat to Write
+# Scene Beat to Write
 ${sceneBeat}
 `;
 
