@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { useStoryService } from "@/hooks/use-story-service";
 import { cn } from "@/lib/utils";
+import { v4 as uuidv4 } from "uuid";
 
 interface WritingAreaProps {
   chapter?: {
@@ -57,15 +58,30 @@ export function WritingArea({
   const [isRevising, setIsRevising] = useState(false);
   const [isGeneratingTransition, setIsGeneratingTransition] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
-  const [currentClientId, setCurrentClientId] = useState<string | null>(null);
+  const currentClientIdRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
   const storyService = useStoryService();
+  const [isTabVisible, setIsTabVisible] = useState(!document.hidden);
 
   // Add useEffect to update content when chapter changes
   useEffect(() => {
     setContent(chapter?.content || '');
   }, [chapter]);
+
+  // Add visibility change listener to ensure processing continues in background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(!document.hidden);
+    };
+
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Add cleanup function for cancellation
   const cleanup = () => {
@@ -73,7 +89,7 @@ export function WritingArea({
     setIsRevising(false);
     setIsGeneratingTransition(false);
     setIsRefining(false);
-    setCurrentClientId(null);
+    currentClientIdRef.current = null;
   };
 
   // Add cancel function
@@ -113,35 +129,96 @@ export function WritingArea({
       // Create a variable to accumulate content for saving
       let accumulatedContent = '';
       
-      // Use StoryService to generate the scene with streaming updates
-      await storyService.writeScene(
-        chapter.sceneBeat || '',
-        characters,
-        previousScenes,
-        (chunk) => {
-          // Update the UI with each chunk
-          accumulatedContent += chunk;
-          setContent(accumulatedContent);
-          // Save periodically (every ~500 characters)
-          if (accumulatedContent.length % 500 < 20) {
+      // Generate a unique client ID for this generation session
+      const clientId = uuidv4();
+      // Use ref instead of state to avoid async state update issues
+      currentClientIdRef.current = clientId;
+      
+      console.log('Starting scene generation with client ID:', clientId);
+      console.log('Current client ID ref value:', currentClientIdRef.current);
+      
+      // Show a toast to indicate generation has started
+      toast({
+        title: "Generating Scene",
+        description: "Starting scene generation. This may take a moment...",
+        duration: 5000,
+      });
+      
+      // Create a worker-like approach using a self-executing async function
+      // This will continue running even when the tab is not active
+      (async () => {
+        try {
+          // Only proceed if this is still the current generation session
+          console.log('Checking client ID match:', clientId, currentClientIdRef.current);
+          if (clientId !== currentClientIdRef.current) {
+            console.log('Client ID mismatch, aborting generation');
+            return;
+          }
+          
+          console.log('Calling storyService.writeScene...');
+          // Generate the scene
+          const generatedScene = await storyService.writeScene(
+            chapter.sceneBeat || '',
+            characters,
+            previousScenes,
+            (chunk) => {
+              // Only update if this is still the current generation session
+              if (clientId === currentClientIdRef.current) {
+                accumulatedContent += chunk;
+                setContent(prev => prev + chunk);
+              } else {
+                console.log('Client ID mismatch in chunk callback, ignoring chunk');
+              }
+            }
+          );
+          
+          console.log('Scene generation complete, length:', generatedScene?.length || 0);
+          console.log('Checking client ID match before finalizing:', clientId, currentClientIdRef.current);
+          
+          // Only finalize if this is still the current generation session
+          if (clientId === currentClientIdRef.current) {
+            console.log('Client ID still matches, finalizing...');
+            
+            // Save the final content - no need to stream it again since we've already
+            // been updating the content in real-time during generation
             onSave(accumulatedContent);
+            
+            // Only cleanup if this is still the current generation session
+            cleanup();
+            toast({
+              title: "Scene Generated",
+              description: "Your scene has been successfully generated.",
+              duration: 3000,
+            });
+          } else {
+            console.log('Client ID mismatch after generation, aborting finalization');
+          }
+        } catch (error: any) {
+          console.error("Error generating scene:", error);
+          if (clientId === currentClientIdRef.current) {
+            // Extract the error message
+            const errorMessage = error.message || "Failed to generate scene. Please try again.";
+            
+            toast({
+              title: "Error",
+              description: errorMessage,
+              variant: "destructive",
+              duration: 5000,
+            });
+            cleanup();
           }
         }
-      );
+      })();
       
-      // Final save to ensure everything is saved
-      onSave(accumulatedContent);
-      
-      // Clean up
-      cleanup();
     } catch (error: any) {
-      cleanup();
+      console.error("Error in handleGenerateScene:", error);
       toast({
-        title: "Error generating scene",
-        description: error.message,
+        title: "Error",
+        description: error.message || "Failed to generate scene. Please try again.",
         variant: "destructive",
         duration: 3000,
       });
+      cleanup();
     }
   };
 
@@ -180,47 +257,81 @@ export function WritingArea({
       // Store the original content to add the transition to
       const originalContent = content;
       
-      // Create a variable to accumulate the transition
-      let transitionText = '';
+      // Generate a unique client ID for this transition session
+      const clientId = uuidv4();
+      currentClientIdRef.current = clientId;
       
-      // Show a temporary placeholder for the transition being generated
-      setContent("Generating transition...\n\n" + originalContent);
-      
-      // Generate the transition with streaming updates
-      const transition = await storyService.generateTransition(
-        previousChapterContent,
-        originalContent,
-        chapter.sceneBeat || '',
-        (chunk) => {
-          // Update the transition text
-          transitionText += chunk;
+      // Create a worker-like approach using a self-executing async function
+      // This will continue running even when the tab is not active
+      (async () => {
+        try {
+          // Only proceed if this is still the current transition session
+          if (clientId !== currentClientIdRef.current) return;
           
-          // Update the content in real-time to show the transition being written
-          setContent(transitionText + "\n\n" + originalContent);
+          // Create a variable to accumulate the transition
+          let transitionText = '';
+          
+          // Show a temporary placeholder for the transition being generated
+          if (clientId === currentClientIdRef.current) {
+            setContent("Generating transition...\n\n" + originalContent);
+          }
+          
+          // Generate the transition with streaming updates
+          const transition = await storyService.generateTransition(
+            previousChapterContent,
+            originalContent,
+            chapter.sceneBeat || '',
+            (chunk) => {
+              // Only update if this is still the current transition session
+              if (clientId === currentClientIdRef.current) {
+                // Update the transition text
+                transitionText += chunk;
+                
+                // Update the content in real-time to show the transition being written
+                setContent(transitionText + "\n\n" + originalContent);
+              }
+            }
+          );
+          
+          // Only proceed if this is still the current transition session
+          if (clientId === currentClientIdRef.current) {
+            // Final update with the complete transition
+            const newContent = transition + '\n\n' + originalContent;
+            await streamOutput(newContent, clientId);
+            
+            // Clean up
+            cleanup();
+            
+            toast({
+              title: "Transition added",
+              description: "A smooth transition has been added to the beginning of your chapter.",
+              duration: 3000,
+            });
+          }
+        } catch (error) {
+          console.error("Error generating transition:", error);
+          if (clientId === currentClientIdRef.current) {
+            toast({
+              title: "Error",
+              description: "Failed to generate transition. Please try again.",
+              variant: "destructive",
+              duration: 3000,
+            });
+            setContent(originalContent); // Restore original content
+            cleanup();
+          }
         }
-      );
+      })();
       
-      // Final update with the complete transition
-      const newContent = transition + '\n\n' + originalContent;
-      setContent(newContent);
-      onSave(newContent);
-      
-      // Clean up
-      cleanup();
-      
-      toast({
-        title: "Transition added",
-        description: "A smooth transition has been added to the beginning of your chapter.",
-        duration: 3000,
-      });
     } catch (error: any) {
-      cleanup();
+      console.error("Error in handleGenerateTransition:", error);
       toast({
-        title: "Error generating transition",
-        description: error.message,
+        title: "Error",
+        description: "Failed to generate transition. Please try again.",
         variant: "destructive",
         duration: 3000,
       });
+      cleanup();
     }
   };
 
@@ -237,42 +348,68 @@ export function WritingArea({
       // Create a variable to accumulate content for saving
       let accumulatedContent = '';
       
-      // Use StoryService to revise the scene with streaming updates
-      await storyService.reviseScene(
-        originalContent,
-        feedback,
-        chapter.sceneBeat || '',
-        characters,
-        (chunk) => {
-          // Update the UI with each chunk
-          accumulatedContent += chunk;
-          setContent(accumulatedContent);
-          // Save periodically (every ~500 characters)
-          if (accumulatedContent.length % 500 < 20) {
-            onSave(accumulatedContent);
+      // Generate a unique client ID for this revision session
+      const clientId = uuidv4();
+      currentClientIdRef.current = clientId;
+      
+      // Create a worker-like approach using a self-executing async function
+      // This will continue running even when the tab is not active
+      (async () => {
+        try {
+          // Only proceed if this is still the current revision session
+          if (clientId !== currentClientIdRef.current) return;
+          
+          // Revise the scene
+          const revisedScene = await storyService.reviseScene(
+            originalContent,
+            feedback,
+            chapter.sceneBeat || '',
+            characters,
+            (chunk) => {
+              // Only update if this is still the current revision session
+              if (clientId === currentClientIdRef.current) {
+                accumulatedContent += chunk;
+                setContent(prev => prev + chunk);
+              }
+            }
+          );
+          
+          // Process the revised scene with the story model
+          if (clientId === currentClientIdRef.current) {
+            await streamOutput(revisedScene || accumulatedContent, clientId);
+            
+            // Notify parent about feedback
+            onFeedback(feedback);
+            
+            // Close dialog and clean up
+            setShowFeedback(false);
+            cleanup();
+          }
+        } catch (error) {
+          console.error("Error revising scene:", error);
+          if (clientId === currentClientIdRef.current) {
+            toast({
+              title: "Error",
+              description: "Failed to revise scene. Please try again.",
+              variant: "destructive",
+              duration: 3000,
+            });
+            setContent(originalContent); // Restore original content
+            setShowFeedback(false);
+            cleanup();
           }
         }
-      );
+      })();
       
-      // Final save to ensure everything is saved
-      onSave(accumulatedContent);
-      
-      // Notify parent about feedback
-      onFeedback(feedback);
-      
-      // Close dialog and clean up
-      setShowFeedback(false);
-      cleanup();
     } catch (error: any) {
-      // Restore original content if there's an error
-      setContent(content);
-      cleanup();
+      console.error("Error in handleFeedbackSubmit:", error);
       toast({
-        title: "Error revising scene",
-        description: error.message,
+        title: "Error",
+        description: "Failed to revise scene. Please try again.",
         variant: "destructive",
         duration: 3000,
       });
+      cleanup();
     }
   };
 
@@ -293,72 +430,94 @@ export function WritingArea({
         return;
       }
       
-      // Don't clear the content yet - keep the original text visible while processing
-      // We'll clear it just before streaming the final result
+      // Generate a unique client ID for this refinement session
+      const clientId = uuidv4();
+      currentClientIdRef.current = clientId;
       
-      // Split the content into narration and dialogue sections
-      const sections = splitIntoSections(savedContent);
-      
-      // Create variables to accumulate the refined content
-      let processedSections: string[] = [];
-      let buffer: string[] = [];
-      
-      // Show a toast to indicate processing has started
-      toast({
-        title: "Processing text",
-        description: "Refining your text with both models. This may take a moment...",
-        duration: 5000,
-      });
-      
-      // First, process all sections without updating the text area
-      for (let i = 0; i < sections.length; i++) {
-        const section = sections[i];
-        
-        // Process the section
-        let processedSection: string;
-        if (isDialogueSection(section)) {
-          // If it's a dialogue section, keep it as is
-          processedSection = section;
-        } else {
-          // For narration, process it with both models
-          processedSection = await processTwoPassNarration(section);
+      // Create a worker-like approach using a self-executing async function
+      // This will continue running even when the tab is not active
+      (async () => {
+        try {
+          // Only proceed if this is still the current refinement session
+          if (clientId !== currentClientIdRef.current) return;
+          
+          // Don't clear the content yet - keep the original text visible while processing
+          // We'll clear it just before streaming the final result
+          
+          // Split the content into narration and dialogue sections
+          const sections = splitIntoSections(savedContent);
+          
+          // Create variables to accumulate the refined content
+          let processedSections: string[] = [];
+          
+          // Show a toast to indicate processing has started
+          if (clientId === currentClientIdRef.current) {
+            toast({
+              title: "Processing text",
+              description: "Refining your text with both models. This may take a moment...",
+              duration: 5000,
+            });
+          }
+          
+          // First, process all sections without updating the text area
+          for (let i = 0; i < sections.length; i++) {
+            // Only proceed if this is still the current refinement session
+            if (clientId !== currentClientIdRef.current) return;
+            
+            const section = sections[i];
+            
+            // Process the section
+            let processedSection: string;
+            if (isDialogueSection(section)) {
+              // If it's a dialogue section, keep it as is
+              processedSection = section;
+            } else {
+              // For narration, process it with both models
+              processedSection = await processTwoPassNarration(section);
+            }
+            
+            // Add to processed sections
+            processedSections.push(processedSection);
+          }
+          
+          // Now that all processing is complete, clear the text area and stream the final result
+          // Only proceed if this is still the current refinement session
+          if (clientId === currentClientIdRef.current) {
+            // Clear the content before streaming
+            setContent('');
+            
+            // Stream the entire processed content
+            const finalContent = processedSections.join('');
+            await streamOutput(finalContent, clientId);
+            
+            // Clean up
+            cleanup();
+          }
+        } catch (error) {
+          console.error("Error refining text:", error);
+          if (clientId === currentClientIdRef.current) {
+            toast({
+              title: "Error",
+              description: "Failed to refine text. Please try again.",
+              variant: "destructive",
+              duration: 3000,
+            });
+            setContent(savedContent); // Restore original content
+            cleanup();
+          }
         }
-        
-        // Add to buffer and processed sections
-        buffer.push(processedSection);
-        processedSections.push(processedSection);
-      }
+      })();
       
-      // Now that all processing is complete, clear the text area and stream the final result
-      // Clear the content before streaming
-      setContent('');
-      
-      // Stream the entire processed content
-      const finalContent = processedSections.join('');
-      await streamOutput(finalContent);
-      
-      // Final save to ensure everything is saved
-      setContent(finalContent);
-      onSave(finalContent);
-      
-      // Clean up
-      cleanup();
-      
-      toast({
-        title: "Text refined",
-        description: "Your text has been refined with both models.",
-        duration: 3000,
-      });
     } catch (error: any) {
-      // Restore original content if there's an error
-      setContent(savedContent);
-      cleanup();
+      console.error("Error in handleRefineText:", error);
       toast({
-        title: "Error refining text",
-        description: error.message,
+        title: "Error",
+        description: "Failed to refine text. Please try again.",
         variant: "destructive",
         duration: 3000,
       });
+      setContent(savedContent); // Restore original content
+      cleanup();
     }
   };
   
@@ -487,7 +646,7 @@ ${chunk}
   };
 
   // Helper function to stream output at 10 words per second
-  const streamOutput = async (text: string): Promise<void> => {
+  const streamOutput = async (text: string, clientId?: string): Promise<void> => {
     return new Promise((resolve) => {
       // If there's no text to stream, resolve immediately
       if (!text) {
@@ -500,34 +659,72 @@ ${chunk}
       let displayedText = '';
       let wordIndex = 0;
       let nonSpaceWordCount = 0;
+      let lastTimestamp = performance.now();
       
-      // Stream at 10 words per second (100ms per word)
-      const interval = setInterval(() => {
-        if (wordIndex >= words.length) {
-          clearInterval(interval);
-          // Ensure the final text is exactly what was processed
-          setContent(text);
-          onSave(text);
+      // Use requestAnimationFrame with time-based updates instead of setInterval
+      // This approach is more reliable when the tab is inactive
+      const processWords = (timestamp: number) => {
+        // Check if this is still the current client ID (if provided)
+        if (clientId && clientId !== currentClientIdRef.current) {
+          console.log('Client ID mismatch in streamOutput, aborting');
           resolve();
           return;
         }
         
-        // Add the next word to the displayed text
-        const word = words[wordIndex];
-        displayedText += word;
-        setContent(displayedText);
+        // Calculate how many words to process based on elapsed time
+        const elapsed = timestamp - lastTimestamp;
+        const wordsToProcess = Math.floor(elapsed / 100); // 10 words per second = 100ms per word
         
-        // Only count non-space words for the 10 words per second rate
-        if (!/^\s+$/.test(word)) {
-          nonSpaceWordCount++;
-          // Save periodically (every 20 actual words)
-          if (nonSpaceWordCount % 20 === 0) {
-            onSave(displayedText);
+        if (wordsToProcess > 0) {
+          lastTimestamp = timestamp;
+          
+          // Process multiple words if needed to catch up
+          for (let i = 0; i < wordsToProcess && wordIndex < words.length; i++) {
+            // Add the next word to the displayed text
+            const word = words[wordIndex];
+            displayedText += word;
+            
+            // Only count non-space words for the 10 words per second rate
+            if (!/^\s+$/.test(word)) {
+              nonSpaceWordCount++;
+              // Save periodically (every 20 actual words)
+              if (nonSpaceWordCount % 20 === 0) {
+                onSave(displayedText);
+              }
+            }
+            
+            wordIndex++;
           }
+          
+          setContent(displayedText);
         }
         
-        wordIndex++;
-      }, 100); // 100ms = 10 words per second
+        // Continue processing or resolve if done
+        if (wordIndex < words.length) {
+          // Check again if this is still the current client ID
+          if (clientId && clientId !== currentClientIdRef.current) {
+            console.log('Client ID mismatch in streamOutput loop, aborting');
+            resolve();
+            return;
+          }
+          
+          // Use setTimeout with 0 delay as a fallback when tab is inactive
+          // This prevents the browser from throttling the animation
+          if (document.hidden) {
+            setTimeout(() => processWords(performance.now()), 0);
+          } else {
+            requestAnimationFrame(processWords);
+          }
+        } else {
+          // Ensure the final text is exactly what was processed
+          setContent(text);
+          onSave(text);
+          resolve();
+        }
+      };
+      
+      // Start the animation loop
+      requestAnimationFrame(processWords);
     });
   };
 

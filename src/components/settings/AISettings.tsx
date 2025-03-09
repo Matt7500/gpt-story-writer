@@ -11,6 +11,7 @@ import { userSettingsService } from "@/services/UserSettingsService";
 import { FontManagement } from "./FontManagement";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import type { UserSettings } from "@/types/settings";
 
 interface VoiceModel {
   model_id: string;
@@ -299,6 +300,28 @@ export function AISettings({
     }
   };
 
+  // Helper function to save specific settings
+  const saveSettings = async (settings: Partial<UserSettings>) => {
+    try {
+      console.log('Saving settings:', settings);
+      await userSettingsService.updateSettings(userId, settings);
+      
+      toast({
+        title: "Settings updated",
+        description: "Your AI settings have been updated.",
+        duration: 3000,
+      });
+    } catch (error: any) {
+      console.error("Error saving settings:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save settings",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
+
   const ValidationIcon = ({ isValid, message }: { isValid: boolean, message: string }) => {
     if (!message) return null;
     return isValid ? 
@@ -307,11 +330,45 @@ export function AISettings({
   };
 
   const handleProviderChange = (checked: boolean) => {
-    // Validate both story generation and reasoning models for the new provider
-    const currentStoryModel = storyGenerationModel;
-    const storyValidation = validateModel(currentStoryModel, checked);
+    // Set default models if the current ones are empty or invalid
+    let currentStoryModel = storyGenerationModel;
+    let currentReasoningModel = reasoningModel;
     
-    const currentReasoningModel = reasoningModel;
+    // Default models for each provider
+    const defaultOpenAIStoryModel = "gpt-4o";
+    const defaultOpenRouterStoryModel = "anthropic/claude-3.7-sonnet:beta";
+    const defaultOpenAIReasoningModel = "o3-mini";
+    const defaultOpenRouterReasoningModel = "anthropic/claude-3.7-sonnet:thinking";
+    
+    // If switching to OpenAI and the current model is empty or invalid for OpenAI
+    if (checked && (!currentStoryModel || !currentStoryModel.startsWith('gpt-'))) {
+      currentStoryModel = defaultOpenAIStoryModel;
+      onStoryGenerationModelChange(currentStoryModel);
+      console.log('Setting default OpenAI story model:', currentStoryModel);
+    }
+    
+    // If switching to OpenRouter and the current model is empty or doesn't have a provider prefix
+    if (!checked && (!currentStoryModel || !currentStoryModel.includes('/'))) {
+      currentStoryModel = defaultOpenRouterStoryModel;
+      onOpenAIModelChange(currentStoryModel);
+      console.log('Setting default OpenRouter story model:', currentStoryModel);
+    }
+    
+    // Same for reasoning model
+    if (checked && (!currentReasoningModel || (!currentReasoningModel.startsWith('o') && !currentReasoningModel.startsWith('llama')))) {
+      currentReasoningModel = defaultOpenAIReasoningModel;
+      onReasoningModelChange(currentReasoningModel);
+      console.log('Setting default OpenAI reasoning model:', currentReasoningModel);
+    }
+    
+    if (!checked && (!currentReasoningModel || !currentReasoningModel.includes('/'))) {
+      currentReasoningModel = defaultOpenRouterReasoningModel;
+      onReasoningModelChange(currentReasoningModel);
+      console.log('Setting default OpenRouter reasoning model:', currentReasoningModel);
+    }
+    
+    // Validate both story generation and reasoning models for the new provider
+    const storyValidation = validateModel(currentStoryModel, checked);
     const reasoningValidation = validateReasoningModel(currentReasoningModel, checked);
     
     let validationMessages = [];
@@ -331,6 +388,13 @@ export function AISettings({
         variant: "destructive",
       });
     }
+    
+    // Save both model values to ensure they're both in the database
+    saveSettings({
+      use_openai_for_story_gen: checked,
+      story_generation_model: currentStoryModel,
+      openrouter_model: !checked ? currentStoryModel : openAIModel, // Save the OpenRouter model
+    });
     
     setIsEditingStoryModel(true);
     setIsEditingReasoningModel(true);
@@ -383,6 +447,7 @@ export function AISettings({
                   onStoryGenerationModelChange(newValue);
                 } else {
                   onOpenAIModelChange(newValue);
+                  onStoryGenerationModelChange(newValue);
                 }
                 setIsEditingStoryModel(true);
                 setModelValidation(validateModel(newValue, useOpenAIForStoryGen));
@@ -395,7 +460,7 @@ export function AISettings({
                   setModelValidation({ isValid: true, message: "" });
                 }
               }}
-              placeholder={`Enter model name (e.g., ${useOpenAIForStoryGen ? "gpt-4" : "openai/gpt-4-turbo-preview"})`}
+              placeholder={`Enter model name (e.g., ${useOpenAIForStoryGen ? "gpt-4o" : "openai/gpt-4o-mini"})`}
               className={cn(
                 "pr-8",
                 isEditingStoryModel && modelValidation.message && (

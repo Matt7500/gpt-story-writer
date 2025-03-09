@@ -41,16 +41,45 @@ export default function Settings() {
     async function loadSettings() {
       try {
         const settings = await userSettingsService.getSettings(user.id);
+        console.log('Loaded settings:', settings);
         
-        setOpenAIModel(settings.openrouter_model || "gpt-4o-mini");
+        // Default models for each provider
+        const defaultOpenAIStoryModel = "gpt-4o";
+        const defaultOpenRouterStoryModel = "openai/gpt-4o-mini";
+        
+        // Set OpenRouter model (used when OpenAI is disabled)
+        setOpenAIModel(settings.openrouter_model || defaultOpenRouterStoryModel);
+        
         setOpenAIKey(settings.openrouter_key || "");
         setOpenaiKey(settings.openai_key || "");
-        setReasoningModel(settings.reasoning_model || "llama-3.1-sonar-small-128k-online");
-        setTitleFineTuneModel(settings.title_fine_tune_model || "gpt-4");
-        setRewritingModel(settings.rewriting_model || "gpt-4");
-        setRewriteModel(settings.rewrite_model || "gpt-4");
-        setStoryGenerationModel(settings.story_generation_model || "gpt-4");
-        setUseOpenAIForStoryGen(settings.use_openai_for_story_gen || false);
+        setReasoningModel(settings.reasoning_model || "anthropic/claude-3-haiku-20240307");
+        setTitleFineTuneModel(settings.title_fine_tune_model || "gpt-4o");
+        setRewritingModel(settings.rewriting_model || "gpt-4o");
+        setRewriteModel(settings.rewrite_model || "gpt-4o");
+        
+        // Set OpenAI story generation model (used when OpenAI is enabled)
+        // If it's missing or invalid for OpenAI, set a default
+        const useOpenAI = settings.use_openai_for_story_gen || false;
+        setUseOpenAIForStoryGen(useOpenAI);
+        
+        // Ensure we have a valid model for the current provider
+        let storyModel = settings.story_generation_model || "";
+        
+        if (useOpenAI) {
+          // If using OpenAI but the model doesn't start with gpt-, use default
+          if (!storyModel || !storyModel.startsWith('gpt-')) {
+            storyModel = defaultOpenAIStoryModel;
+          }
+        } else {
+          // If using OpenRouter but the model doesn't have a provider prefix, use default
+          if (!storyModel || !storyModel.includes('/')) {
+            storyModel = settings.openrouter_model || defaultOpenRouterStoryModel;
+          }
+        }
+        
+        setStoryGenerationModel(storyModel);
+        console.log('Set story generation model to:', storyModel);
+        
         setElevenLabsKey(settings.elevenlabs_key || "");
         setElevenLabsModel(settings.elevenlabs_model || "eleven_multilingual_v2");
         setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");

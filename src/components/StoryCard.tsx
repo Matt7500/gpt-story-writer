@@ -181,7 +181,7 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
       if (Array.isArray(chapters)) {
         chapters.forEach((chapter: any) => {
           if (chapter.content) {
-            content += `${chapter.content}\n\n\n`;
+            content += `${chapter.content}\n\n\n\n`;
           }
         });
       }

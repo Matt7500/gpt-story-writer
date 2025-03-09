@@ -9,13 +9,13 @@ interface CachedSettings {
 export class UserSettingsService {
   private static instance: UserSettingsService;
   private cache: Map<string, CachedSettings>;
-  private TTL = 1000 * 60 * 15; // 15 minutes
+  private TTL = 1000 * 60 * 5; // Reduced from 15 minutes to 5 minutes
   private defaultSettings: Partial<UserSettings> = {
-    openrouter_model: "gpt-4o-mini",
-    reasoning_model: "llama-3.1-sonar-small-128k-online",
+    openrouter_model: "openai/gpt-4o-mini",
+    reasoning_model: "anthropic/claude-3-haiku-20240307",
     elevenlabs_model: "eleven_multilingual_v2",
     rewrite_model: "gpt-4",
-    story_generation_model: "gpt-4",
+    story_generation_model: "openai/gpt-4o-mini",
     use_openai_for_story_gen: false,
     title_fine_tune_model: "gpt-4o",
     story_idea_model: "gpt-4o"
@@ -41,9 +41,11 @@ export class UserSettingsService {
   public async getSettings(userId: string): Promise<UserSettings> {
     // Check cache first
     if (this.isCacheValid(userId)) {
+      console.log('Using cached settings for user:', userId);
       return this.cache.get(userId)!.settings;
     }
 
+    console.log('Loading settings from database for user:', userId);
     try {
       // Load from database
       const { data: settingsData, error: settingsError } = await supabase
@@ -74,6 +76,7 @@ export class UserSettingsService {
           timestamp: Date.now()
         });
         
+        console.log('Settings loaded and cached for user:', userId);
         return completeSettings;
       }
 
@@ -116,6 +119,7 @@ export class UserSettingsService {
 
   public async updateSettings(userId: string, settings: Partial<UserSettings>): Promise<UserSettings> {
     try {
+      console.log('Updating settings for user:', userId, 'with:', settings);
       const { data: updatedSettings, error } = await supabase
         .from("user_settings")
         .update(settings)
@@ -138,6 +142,7 @@ export class UserSettingsService {
         timestamp: Date.now()
       });
 
+      console.log('Settings updated and cached for user:', userId);
       return completeSettings;
     } catch (error) {
       console.error("Error updating user settings:", error);
@@ -147,8 +152,10 @@ export class UserSettingsService {
 
   public clearCache(userId?: string) {
     if (userId) {
+      console.log('Clearing cache for user:', userId);
       this.cache.delete(userId);
     } else {
+      console.log('Clearing entire settings cache');
       this.cache.clear();
     }
   }

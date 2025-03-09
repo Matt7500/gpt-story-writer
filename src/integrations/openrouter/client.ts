@@ -7,13 +7,24 @@ export const isValidApiKey = (apiKey: string | null | undefined): boolean => {
 
 // Helper function to create a client with a specific API key
 export const createOpenRouterClient = (apiKey: string) => {
+  console.log('Creating OpenRouter client...');
+  
   if (!isValidApiKey(apiKey)) {
+    console.error('Invalid OpenRouter API key');
     throw new Error('Invalid OpenRouter API key');
   }
   
-  return new OpenAI({
-    apiKey: apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-    dangerouslyAllowBrowser: true // Required for browser usage
-  });
+  try {
+    console.log('OpenRouter API key is valid, creating client...');
+    const client = new OpenAI({
+      apiKey: apiKey,
+      baseURL: 'https://openrouter.ai/api/v1',
+      dangerouslyAllowBrowser: true // Required for browser usage
+    });
+    console.log('OpenRouter client created successfully');
+    return client;
+  } catch (error) {
+    console.error('Error creating OpenRouter client:', error);
+    throw error;
+  }
 }; 

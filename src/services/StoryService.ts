@@ -147,6 +147,7 @@ export class StoryService {
   private getOpenRouterClient() {
     if (!this.openrouterClient) {
       if (!this.userSettings || !this.userSettings.openrouter_key) {
+        console.error('OpenRouter API key not set in user settings');
         throw new Error('OpenRouter API key not set in user settings');
       }
       this.openrouterClient = createOpenRouterClient(this.userSettings.openrouter_key);
@@ -156,10 +157,58 @@ export class StoryService {
 
   // Get the appropriate client based on user settings
   private getClient() {
+    console.log('getClient called, use_openai_for_story_gen:', this.userSettings.use_openai_for_story_gen);
     if (this.userSettings.use_openai_for_story_gen) {
+      console.log('Using OpenAI client');
       return this.getOpenAIClient();
     } else {
+      console.log('Using OpenRouter client');
       return this.getOpenRouterClient();
+    }
+  }
+
+  // Validate model format based on provider
+  private validateModel(model: string, isOpenAI: boolean): boolean {
+    console.log(`Validating model: ${model} for ${isOpenAI ? 'OpenAI' : 'OpenRouter'}`);
+    
+    if (!model) {
+      console.error('Model name is empty');
+      return false;
+    }
+    
+    if (isOpenAI) {
+      // OpenAI models typically start with "gpt-"
+      const isValid = model.startsWith('gpt-');
+      console.log(`OpenAI model validation result: ${isValid}`);
+      return isValid;
+    } else {
+      // OpenRouter models should either include a provider prefix (contain '/') 
+      // or be a valid model ID
+      const isValid = model.includes('/') || model.length > 0;
+      console.log(`OpenRouter model validation result: ${isValid}`);
+      return isValid;
+    }
+  }
+
+  // Ensure the model has the correct format for the provider
+  private getFormattedModel(model: string, isOpenAI: boolean): string {
+    if (isOpenAI) {
+      // For OpenAI, just return the model as is
+      return model;
+    } else {
+      // For OpenRouter, ensure it has a provider prefix
+      if (model.includes('/')) {
+        // Already has a provider prefix
+        return model;
+      } else {
+        // Add a default provider prefix if none exists
+        // Common models like gpt-4o-mini might need a provider prefix
+        if (model.startsWith('gpt-')) {
+          return `openai/${model}`;
+        }
+        // For other models, just return as is
+        return model;
+      }
     }
   }
 
@@ -178,7 +227,7 @@ export class StoryService {
       // Otherwise, use Reddit as the source (default behavior)
       // Get top posts from r/nosleep
       console.log('Searching for top posts on r/nosleep...');
-      const topPosts = await getTopPosts('nosleep', 'all', 100);
+      const topPosts = await getTopPosts('nosleep', 'month', 100);
       
       // Filter posts: >20,000 characters, no "Series" flair
       const eligiblePosts = filterLongPosts(topPosts, 20000, 'Series');
@@ -200,15 +249,13 @@ export class StoryService {
       // Generate a detailed summary of the post
       const summaryPrompt = `
 I need a detailed summary of the following horror story from r/nosleep. 
-Create a comprehensive summary about the story with as much detail as possible.
+Create a comprehensive summary about the story with as much detail as possible, focus on the plot and events in the story with minimal dialogue.
 The summary should be completely new and different from the given story to avoid copyright issues.
 You must change the characters, locations, and events to create a new story that is based on the original story but is not a direct copy.
 Focus on the core narrative, key events, and the horror elements that make this story effective when writing the new story summary.
 
-Story Title: ${randomPost.title}
-
 Story Content:
-${randomPost.selftext.substring(0, 15000)} // Limit to 15000 chars in case the story is very long
+${randomPost.selftext}
 
 Please provide a detailed summary in 400-600 words.
 `;
@@ -218,8 +265,8 @@ Please provide a detailed summary in 400-600 words.
       
       // Use the appropriate model for Reddit post summarization
       const model = this.userSettings.use_openai_for_story_gen
-        ? this.userSettings.story_generation_model || 'gpt-4o'
-        : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
+        ? this.userSettings.reasoning_model || 'gpt-4o'
+        : this.userSettings.reasoning_model || 'anthropic/claude-3.7-sonnet:thinking';
       
       console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for Reddit post summarization`);
       
@@ -227,16 +274,11 @@ Please provide a detailed summary in 400-600 words.
         model: model,
         messages: [
           { 
-            role: "system", 
-            content: "You are an expert at analyzing and summarizing horror stories. Your summaries capture the essence of the original while highlighting the most impactful elements." 
-          },
-          { 
             role: "user", 
             content: summaryPrompt 
           }
         ],
-        temperature: 0.7,
-        max_tokens: 1000
+        temperature: 0.7
       });
 
       const summary = summaryResponse.choices[0].message.content || '';
@@ -407,22 +449,22 @@ Please provide a detailed summary in 400-600 words.
         try {
           const userMessage = `## Instructions
 Write a full plot outline for the given story idea.
-Write the plot outline as a list of all the scenes in the story. Each scene must be a highly detailed paragraph on what happens in that scene.
-Each scene beat must include as much detail as you can about the events that happen in the scene.
-Explicitly state the change of time between scenes if necessary.
+Write the plot outline as a list of all the chapters in the story. Each chapter must be a highly detailed 400 word summary of the events in that chapter.
+Each chapter must include as much detail as you can about the events that happen in the chapter.
+Explicitly state the change of time between chapters if necessary.
 Mention any locations by name.
 Create a slow build up of tension and suspense throughout the story.
-A scene in the story is defined as when there is a change in the setting in the story.
-The plot outline must contain ${numScenes} scenes.
+A chapter in the story is defined as when there is a change in the setting in the story.
+The plot outline must contain ${numScenes} chapters.
 The plot outline must follow and word things in a way that are from the protagonist's perspective, do not write anything from an outside character's perspective that the protagonist wouldn't know.
 Only refer to the protagonist in the story as "The Protagonist" in the plot outline.
-Each scene must smoothly transition from the previous scene and to the next scene without unexplained time and setting jumps.
+Each chapter must smoothly transition from the previous chapter and to the next chapter without unexplained time and setting jumps.
 Ensure key story elements (e.g., character motivations, mysteries, and plot developments) are resolved by the end.
 Explicitly address and resolve the purpose and origin of central objects or plot devices (e.g., mysterious items, symbols, or events).
 If other characters have significant knowledge of the mystery or key events, show how and when they gained this knowledge to maintain logical consistency.
 Explore and resolve character dynamics, especially those affecting key relationships.
 Provide clarity on thematic or mysterious elements that connect scenes, ensuring the stakes are clearly defined and resolved.
-The final scene beat must state it's the final scene beat of the story and how to end the story.
+The final chapter must state it's the final chapter of the story and how to end the story.
 
 ## You must use following json format for the plot outline exactly without deviation:
 ${generateSceneTemplate(numScenes)}
@@ -435,14 +477,13 @@ ${idea}`;
           
           // Use the story_generation_model for outline creation
           const model = this.userSettings.use_openai_for_story_gen 
-            ? this.userSettings.story_generation_model || 'gpt-4o'
-            : this.userSettings.story_generation_model || 'openai/gpt-4o';
+            ? this.userSettings.reasoning_model || 'gpt-4o'
+            : this.userSettings.reasoning_model || 'anthropic/claude-3.7-sonnet:thinking';
           
           console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for outline creation`);
           
           const response = await client.chat.completions.create({
             model: model,
-            temperature: 0.7,
             messages: [{ role: "user", content: userMessage }],
           }, {
             signal: signal
@@ -859,8 +900,8 @@ ${chunk}`
       
       // Use the story generation model for sequel ideas
       const model = this.userSettings.use_openai_for_story_gen 
-        ? this.userSettings.story_generation_model || 'gpt-4o'
-        : this.userSettings.openrouter_model || 'openai/gpt-4o-mini';
+        ? this.userSettings.reasoning_model || 'gpt-4o'
+        : this.userSettings.reasoning_model || 'openai/gpt-4o-mini';
       
       console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for sequel generation`);
 
@@ -927,6 +968,14 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     onProgress?: (chunk: string) => void,
     signal?: AbortSignal
   ): Promise<string> {
+    console.log('writeScene called with sceneBeat:', sceneBeat ? sceneBeat.substring(0, 50) + '...' : 'undefined or empty');
+    console.log('Characters provided:', characters ? 'Yes (length: ' + characters.length + ')' : 'No');
+    console.log('Previous scenes count:', previousScenes.length);
+    
+    if (!sceneBeat || sceneBeat.trim() === '') {
+      console.error('Scene beat is empty or undefined');
+      throw new Error('Scene beat is required to generate a scene. Please provide a scene beat.');
+    }
     
     const recentContext = previousScenes && previousScenes.length
       ? previousScenes.slice(-4)
@@ -934,11 +983,41 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     const context = recentContext.join('\n\n');
 
     try {
-      if (!this.userSettings) {
+      // Force reload user settings to ensure we have the latest
+      console.log('Force reloading user settings...');
+      if (this.userId) {
+        // Clear the cache for this user to force a fresh load
+        await userSettingsService.clearCache(this.userId);
+        this.userSettings = await userSettingsService.getSettings(this.userId);
+        console.log('User settings reloaded:', !!this.userSettings);
+      } else if (!this.userSettings) {
+        console.log('Loading user settings for the first time...');
         await this.loadUserSettings();
+        console.log('User settings loaded:', !!this.userSettings);
       }
 
+      console.log('Getting client...');
       const client = this.getClient();
+      console.log('Client obtained:', !!client);
+      
+      // Validate the model
+      const isUsingOpenAI = this.userSettings.use_openai_for_story_gen;
+      let modelToUse = this.userSettings.story_generation_model;
+      
+      console.log('Original model:', modelToUse);
+      console.log('Using OpenAI:', isUsingOpenAI);
+      
+      // Format the model correctly for the provider
+      modelToUse = this.getFormattedModel(modelToUse, isUsingOpenAI);
+      console.log('Formatted model to use:', modelToUse);
+      
+      const isModelValid = this.validateModel(modelToUse, isUsingOpenAI);
+      console.log('Model validation result:', isModelValid);
+      
+      if (!isModelValid) {
+        console.error(`Invalid model format for ${isUsingOpenAI ? 'OpenAI' : 'OpenRouter'}: ${modelToUse}`);
+        throw new Error(`Invalid model format: ${modelToUse}. Please check your settings.`);
+      }
       
       // Prepare context from previous scenes
       let previousScenesContext = "";
@@ -955,8 +1034,9 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 
       const prompt = `
 ## WRITING INSTRUCTIONS
-- You are an expert fiction writer. Write a fully detailed scene that has as many details from the scene beat as possible.
+- You are an expert fiction writer. Write a fully detailed scene that is based on the scene beat EXACTLY.
 - YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
+- The scene you write must be a MAXIMUM of 1,300 words.
 - Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
 
 # Core Requirements
@@ -1001,39 +1081,100 @@ ${characters}
 ${sceneBeat}
 `;
 
-      const stream = await client.chat.completions.create({
-        model: this.userSettings.story_generation_model,
-        messages: [
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.5,
-        max_tokens: 8000,
-        stream: true,
-        signal
-      });
+      console.log('Prompt prepared, length:', prompt.length);
+      console.log('Using model:', modelToUse);
+      console.log('Creating chat completion...');
 
-      let fullContent = '';
-      
-      // Process the stream
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        if (content) {
-          fullContent += content;
-          // Call the progress callback if provided
-          if (onProgress) {
-            onProgress(content);
+      try {
+        // Prepare the request parameters
+        const requestParams = {
+          model: modelToUse,
+          messages: [
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 8000,
+          stream: true
+        };
+        
+        if (signal) {
+          Object.assign(requestParams, { signal });
+        }
+        
+        console.log('Request parameters:', JSON.stringify({
+          model: requestParams.model,
+          temperature: requestParams.temperature,
+          max_tokens: requestParams.max_tokens,
+          stream: requestParams.stream
+        }, null, 2));
+        
+        // Create the stream
+        console.log('Calling client.chat.completions.create...');
+        const stream = await client.chat.completions.create(requestParams);
+        
+        console.log('Stream created successfully');
+
+        let fullContent = '';
+        let chunkCount = 0;
+        
+        // Process the stream
+        console.log('Processing stream...');
+        for await (const chunk of stream) {
+          chunkCount++;
+          const content = chunk.choices[0]?.delta?.content || '';
+          if (content) {
+            fullContent += content;
+            // Call the progress callback if provided
+            if (onProgress) {
+              onProgress(content);
+            }
+          }
+          
+          // Log progress periodically
+          if (chunkCount % 50 === 0) {
+            console.log(`Processed ${chunkCount} chunks, current content length: ${fullContent.length}`);
           }
         }
+        
+        console.log('Stream processing complete, content length:', fullContent.length, 'chunks:', chunkCount);
+        return fullContent || 'Failed to generate scene content';
+      } catch (streamError: any) {
+        console.error('Error creating or processing stream:', streamError);
+        
+        // Provide more detailed error information
+        let errorMessage = 'Failed to generate scene. ';
+        
+        if (streamError.status) {
+          errorMessage += `Status: ${streamError.status}. `;
+        }
+        
+        if (streamError.message) {
+          errorMessage += `Message: ${streamError.message}. `;
+        }
+        
+        if (streamError.response) {
+          try {
+            const responseData = streamError.response.data || {};
+            console.error('API response data:', responseData);
+            
+            if (responseData.error) {
+              errorMessage += `API Error: ${responseData.error.message || JSON.stringify(responseData.error)}. `;
+            }
+          } catch (parseError) {
+            console.error('Error parsing API response:', parseError);
+          }
+        }
+        
+        errorMessage += 'Please check your API key and model settings.';
+        throw new Error(errorMessage);
       }
-      
-      return fullContent || 'Failed to generate scene content';
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.log('Scene generation aborted');
         throw err;
       }
       console.error('Error generating scene:', err);
-      throw new Error('Failed to generate scene. Please try again.');
+      throw new Error(err.message || 'Failed to generate scene. Please try again.');
     }
   }
 
