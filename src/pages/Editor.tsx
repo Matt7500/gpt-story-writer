@@ -266,13 +266,15 @@ export default function Editor() {
       return;
     }
 
-    const loadStory = async () => {
+    const loadStory = async (retryCount = 0, maxRetries = 3) => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           navigate('/auth');
           return;
         }
+
+        console.log(`Attempting to load story (attempt ${retryCount + 1}/${maxRetries + 1}): ${id}`);
 
         // Check for local storage data first
         const localChapters = localStorage.getItem(`story_${id}_chapters`);
@@ -282,8 +284,28 @@ export default function Editor() {
         const storyData = await storyService.getStory(id);
 
         if (!storyData) {
-          throw new Error('Story not found');
+          // If we haven't exceeded max retries, try again after a delay
+          if (retryCount < maxRetries) {
+            console.log(`Story not found, retrying in ${(retryCount + 1) * 1000}ms...`);
+            
+            // Show a toast to inform the user we're retrying
+            if (retryCount === 0) {
+              toast({
+                title: "Loading story...",
+                description: "Please wait while we retrieve your story.",
+                duration: 5000,
+              });
+            }
+            
+            // Wait longer with each retry
+            setTimeout(() => loadStory(retryCount + 1, maxRetries), (retryCount + 1) * 1000);
+            return;
+          }
+          
+          throw new Error('Story not found after multiple attempts');
         }
+
+        console.log(`Successfully loaded story: ${storyData.title}`);
 
         // Cast the story data to include chapters
         const storyWithChapters: Story = {

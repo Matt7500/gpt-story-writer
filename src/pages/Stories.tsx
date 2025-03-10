@@ -195,13 +195,36 @@ export default function Stories() {
   };
 
   const handleStoryGenerated = (storyId: string) => {
+    console.log('Story generated successfully with ID:', storyId);
+    
+    // Only proceed if we have a valid ID
+    if (!storyId) {
+      console.error('Invalid story ID received');
+      toast({
+        title: "Error",
+        description: "Invalid story ID received. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+    
+    // Reset states
     setIsGenerating(false);
     setSelectedSource(null);
     
-    // Use setTimeout to ensure state updates complete before navigation
+    // Use setTimeout with a slightly longer delay to ensure all state updates complete
     setTimeout(() => {
-      navigate(`/editor/${storyId}`);
-    }, 10);
+      // Validate the editor route exists and has a valid ID before navigating
+      if (storyId) {
+        console.log('Navigating to editor with story ID:', storyId);
+        navigate(`/editor/${storyId}`);
+      } else {
+        // Fallback to home if something went wrong
+        console.error('Navigation failed, falling back to home');
+        navigate('/');
+      }
+    }, 100); // Slightly longer delay to ensure all state is settled
   };
 
   const handleCreateSequel = (story: Story) => {
@@ -226,13 +249,54 @@ export default function Stories() {
   };
   
   const handleSequelGenerated = (sequelId: string) => {
+    console.log('Sequel generated successfully with ID:', sequelId);
+    
+    // Only proceed if we have a valid ID
+    if (!sequelId) {
+      console.error('Invalid sequel ID received');
+      toast({
+        title: "Error",
+        description: "Invalid sequel ID received. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+    
+    // Reset states
     setIsSequelGenerating(false);
     setOriginalStoryForSequel(null);
     
-    // Use setTimeout to ensure state updates complete before navigation
-    setTimeout(() => {
-      navigate(`/editor/${sequelId}`);
-    }, 10);
+    // Verify the sequel exists in the database before navigating
+    const verifyAndNavigate = async () => {
+      try {
+        // First, show feedback to the user
+        toast({
+          title: "Preparing editor",
+          description: "Setting up your new sequel...",
+          duration: 3000,
+        });
+        
+        // Try to fetch the story from the database to verify it exists
+        const story = await storyService.getStory(sequelId);
+        
+        if (story) {
+          console.log('Sequel exists in database, navigating to editor');
+          navigate(`/editor/${sequelId}`);
+        } else {
+          console.error('Sequel not found in database yet, using direct navigation');
+          // If we can't verify it exists yet, still try to navigate
+          navigate(`/editor/${sequelId}`);
+        }
+      } catch (error) {
+        console.error('Error verifying sequel:', error);
+        // Even if verification fails, still try to navigate to the editor
+        navigate(`/editor/${sequelId}`);
+      }
+    };
+    
+    // Start the verification process after a delay to ensure database consistency
+    setTimeout(verifyAndNavigate, 500);
   };
 
   const handleDeleteStory = async () => {

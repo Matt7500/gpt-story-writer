@@ -305,7 +305,7 @@ export function SequelGenerationModal({
         if (isCancelling || !abortControllerRef.current) return;
 
         // Complete the process
-        onComplete(sequelId);
+        safelyCompleteProcess(sequelId);
       } catch (error: any) {
         // Only set error if we're not cancelling
         if (error.name === 'AbortError' || isCancelling || !abortControllerRef.current) {
@@ -378,6 +378,45 @@ export function SequelGenerationModal({
       description: "The sequel generation process has been cancelled.",
       duration: 3000,
     });
+  };
+
+  // Safe wrapper around onComplete to prevent race conditions
+  const safelyCompleteProcess = (sequelId: string) => {
+    // Cleanup first to prevent any pending operations
+    if (abortControllerRef.current) {
+      abortControllerRef.current = null;
+    }
+    
+    // Make sure we're not in a cancelling state
+    if (!isCancelling) {
+      console.log('Safely completing process with sequelId:', sequelId);
+      
+      // Reset all state before calling onComplete
+      setCurrentStep(0);
+      setError(null);
+      setProposedTitle(null);
+      setIsEditingTitle(false);
+      setCustomTitle("");
+      setSequelIdea(null);
+      setStoryData(null);
+      setIsSequelIdeaOpen(false);
+      
+      // Show a success message
+      toast({
+        title: "Sequel Created",
+        description: "Your sequel has been created successfully. Loading editor...",
+        duration: 5000,
+      });
+      
+      // Call onComplete after a longer delay to ensure the sequel is fully saved
+      // and available in the database before the Editor component tries to load it
+      setTimeout(() => {
+        console.log('Delay complete, now calling onComplete with sequelId:', sequelId);
+        onComplete(sequelId);
+      }, 1500); // Longer 1.5 second delay to ensure database consistency
+    } else {
+      console.log('Not completing process because cancellation is in progress');
+    }
   };
 
   // Calculate progress percentage
