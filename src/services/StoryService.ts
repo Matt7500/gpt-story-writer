@@ -449,16 +449,19 @@ Please provide a detailed summary in 400-600 words.
         try {
           const userMessage = `## Instructions
 - Write a full plot outline for the given story idea.
-- Write the plot outline as a list of all the chapters in the story. Each chapter must be a detailed summary of the events in that chapter.
+- Write the plot outline as a list of all the chapters in the story. Each chapter must be a detailed summary of the events in that chapter that is no more than 250 words.
+- DO NOT use flowery language, use concise language.
 - Only write the crucial events in the chapter without ANY filler sentences or details.
 - Use casual language and tone in the plot outline.
+- ONLY write the plot outline in the past tense from the narrator's perspective in third person.
 - Explicitly state the change of time and/or setting between chapters.
 - Mention any locations by name.
 - Only refer to the narrator in the story as their name with (The Narrator) next to it in the plot outline.
 - Create a slow build up of tension and suspense throughout the story.
 - A chapter in the story is defined as when there is a change in the setting in the story.
 - The plot outline must contain ${numScenes} chapters.
-- The plot outline must follow and word things in a way that are from the narrator's perspective, do not write anything from an outside character's perspective that the narrator wouldn't know.
+
+# Plot Outline Rules:
 - Each chapter must smoothly transition from the previous chapter and to the next chapter without unexplained time and setting jumps.
 - Ensure key story elements (e.g., character motivations, mysteries, and plot developments) are resolved by the end.
 - Explicitly address and resolve the purpose and origin of central objects or plot devices (e.g., mysterious items, symbols, or events).
@@ -526,15 +529,15 @@ ${idea}`;
 
         const prompt = `
 ## Instructions
-
 Using the given story outline, write short character descriptions for all the characters in the story in the following format:
 <character name='(Character Name)' aliases='(Character Alias)', pronouns='(Character Pronouns)'>Personality, appearance, and other details</character>
 
-The character alias is what the other characters in the story will call that character in the story such as their first name.
-For The Narrator's alias you must create a name that other characters will call them in the story.
-The pronouns are what you will use to refer to the character as in the story when not writing their name.
-The character description must only describe their appearance and personality DO NOT write what happens to them in the story.
-Only return the character descriptions without any comments.
+## Character Description rules: 
+- The character alias is what the other characters in the story will call that character in the story such as their first name.
+- For The Narrator's alias you must create a name that other characters will call them in the story.
+- The pronouns are what you will use to refer to the character as in the story when not writing their name.
+- The character description must only describe their appearance and personality DO NOT write what happens to them in the story.
+- Only return the character descriptions without any comments.
 
 ## Outline:
 ${outline.join('\n')}
@@ -598,36 +601,36 @@ ${outline.join('\n')}
       try {
 
         // Get the appropriate client based on user settings
-        const client1 = this.getClient();
+//         const client1 = this.getClient();
         
-        // First pass - use story generation model to analyze and enhance the text
-        const storyModel = this.userSettings.story_generation_model || 'gpt-4o';
+//         // First pass - use story generation model to analyze and enhance the text
+//         const storyModel = this.userSettings.story_generation_model || 'gpt-4o';
         
-        console.log(`Using model: ${storyModel} for initial text analysis`);
+//         console.log(`Using model: ${storyModel} for initial text analysis`);
 
-        const initialResponse = await client1.chat.completions.create({
-          model: storyModel,
-          messages: [
-            {
-              role: "user", 
-              content: `Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
-Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
-Eliminate all metaphors in the text.
-Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the scene.
-Eliminate all sentences that hinder the pacing of the scene by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
-Eliminate all phrases that mention the character's heart pounding or heart in their throat.
-If a paragraph doesn't need to be changed, leave it as is in the returned text.
+//         const initialResponse = await client1.chat.completions.create({
+//           model: storyModel,
+//           messages: [
+//             {
+//               role: "user", 
+//               content: `Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
+// Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
+// Eliminate all metaphors in the text.
+// Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the scene.
+// Eliminate all sentences that hinder the pacing of the scene by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
+// Eliminate all phrases that mention the character's heart pounding or heart in their throat.
+// If a paragraph doesn't need to be changed, leave it as is in the returned text.
 
-Only respond with the modified text and nothing else.
+// Only respond with the modified text and nothing else.
 
-Text to edit:
-${chunk}`
-            }
-          ],
-          temperature: 0.5
-        });
+// Text to edit:
+// ${chunk}`
+//             }
+//           ],
+//           temperature: 0.5
+//         });
 
-        const enhancedText = initialResponse.choices[0].message.content || chunk;
+        // const enhancedText = initialResponse.choices[0].message.content || chunk;
 
         // Get the appropriate client based on user settings
         const client = this.getOpenAIClient();
@@ -637,23 +640,23 @@ ${chunk}`
         
         console.log(`Using OpenAI with model: ${model} for text rewriting`);
 
-        // const response = await client.chat.completions.create({
-        //   model: model,
-        //   messages: [
-        //     {
-        //       role: "system",
-        //       content: `You are an expert copy editor tasked with re-writing the given text in Insomnia Stories unique voice and style.`
-        //     },
-        //     {
-        //       role: "user",
-        //       content: `${enhancedText}`
-        //     }
-        //   ],
-        //   temperature: 0.5,
-        //   frequency_penalty: 0.3
-        // });
+        const response = await client.chat.completions.create({
+          model: model,
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert copy editor tasked with re-writing the given text in Insomnia Stories unique voice and style.`
+            },
+            {
+              role: "user",
+              content: `${chunk}`
+            }
+          ],
+          temperature: 0.5,
+          frequency_penalty: 0.3
+        });
 
-        processedChunks.push(enhancedText || chunk);
+        processedChunks.push( response.choices[0].message.content || chunk);
       } catch (err) {
         console.error('Error processing chunk:', err);
         // On error, keep original chunk to maintain story continuity
@@ -1075,6 +1078,7 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 - YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
 - The scene you write must be a MAXIMUM of 1,300 words.
 - Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
+- Write in past tense.
 
 # Core Requirements
     - Write from first-person narrator perspective only
