@@ -282,10 +282,37 @@ export function SequelGenerationModal({
 
         // Step 6: Save the sequel
         setCurrentStep(5);
+        
+        // Ensure plotOutline is properly formatted for storage
+        let formattedPlotOutline = '';
+        if (plotOutline) {
+          // If it's an array, stringify it properly
+          if (Array.isArray(plotOutline)) {
+            console.log('Plot outline is array with length:', plotOutline.length);
+            formattedPlotOutline = JSON.stringify(plotOutline);
+          } else {
+            // If it's already a string, make sure it's properly formatted JSON
+            try {
+              // Try parsing it to validate it's proper JSON
+              const parsed = JSON.parse(plotOutline);
+              formattedPlotOutline = JSON.stringify(parsed);
+            } catch (error) {
+              // If it's not valid JSON, treat it as a string and create a single-item array
+              console.error('Plot outline is not valid JSON, creating default format');
+              formattedPlotOutline = JSON.stringify([plotOutline || "Chapter 1: Begin your sequel here..."]);
+            }
+          }
+        } else {
+          // Default empty outline
+          formattedPlotOutline = JSON.stringify(["Chapter 1: Begin your sequel here..."]);
+        }
+        
+        console.log('Formatted plot outline:', formattedPlotOutline);
+        
         const sequelData = {
           title: finalTitle,
           story_idea: sequelIdea,
-          plot_outline: plotOutline ? JSON.stringify(plotOutline) : '',
+          plot_outline: formattedPlotOutline,
           characters: characters || '',
           is_sequel: true,
           parent_story_id: originalStory.id

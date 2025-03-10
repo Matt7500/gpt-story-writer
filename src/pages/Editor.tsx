@@ -315,8 +315,36 @@ export default function Editor() {
 
         setStory(storyWithChapters);
 
-        // Parse the plot outline into chapters
-        const outline = JSON.parse(storyData.plot_outline);
+        // Parse the plot outline into chapters with error handling
+        let outline = [];
+        try {
+          // Ensure plot_outline is not empty or null before parsing
+          if (storyData.plot_outline && storyData.plot_outline.trim()) {
+            console.log('Parsing plot outline:', storyData.plot_outline.substring(0, 100) + '...');
+            outline = JSON.parse(storyData.plot_outline);
+          } else {
+            console.warn('Plot outline is empty or null, using empty array');
+          }
+        } catch (parseError) {
+          console.error('Error parsing plot outline:', parseError);
+          console.error('Raw plot outline:', storyData.plot_outline);
+          
+          // Show error to user
+          toast({
+            title: "Warning",
+            description: "There was an issue with the story format. Creating default chapters.",
+            duration: 5000,
+          });
+          
+          // Use an empty array as fallback
+          outline = [];
+        }
+        
+        // If outline is empty, create a default chapter
+        if (!outline || !Array.isArray(outline) || outline.length === 0) {
+          console.log('Creating default outline for story');
+          outline = ["Chapter 1: Begin your story here..."];
+        }
         
         // Create base chapters from the outline
         const baseChapters = outline.map((sceneBeat: string, index: number) => ({

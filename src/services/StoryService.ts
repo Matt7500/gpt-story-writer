@@ -448,23 +448,24 @@ Please provide a detailed summary in 400-600 words.
       while (retries < 5) {
         try {
           const userMessage = `## Instructions
-Write a full plot outline for the given story idea.
-Write the plot outline as a list of all the chapters in the story. Each chapter must be a highly detailed 400 word summary of the events in that chapter.
-Each chapter must include as much detail as you can about the events that happen in the chapter.
-Explicitly state the change of time between chapters if necessary.
-Mention any locations by name.
-Only refer to the narrator in the story as their name with (The Narrator) next to it in the plot outline.
-Create a slow build up of tension and suspense throughout the story.
-A chapter in the story is defined as when there is a change in the setting in the story.
-The plot outline must contain ${numScenes} chapters.
-The plot outline must follow and word things in a way that are from the narrator's perspective, do not write anything from an outside character's perspective that the narrator wouldn't know.
-Each chapter must smoothly transition from the previous chapter and to the next chapter without unexplained time and setting jumps.
-Ensure key story elements (e.g., character motivations, mysteries, and plot developments) are resolved by the end.
-Explicitly address and resolve the purpose and origin of central objects or plot devices (e.g., mysterious items, symbols, or events).
-If other characters have significant knowledge of the mystery or key events, show how and when they gained this knowledge to maintain logical consistency.
-Explore and resolve character dynamics, especially those affecting key relationships.
-Provide clarity on thematic or mysterious elements that connect scenes, ensuring the stakes are clearly defined and resolved.
-The final chapter must state it's the final chapter of the story and how to end the story.
+- Write a full plot outline for the given story idea.
+- Write the plot outline as a list of all the chapters in the story. Each chapter must be a detailed summary of the events in that chapter.
+- Only write the crucial events in the chapter without ANY filler sentences or details.
+- Use casual language and tone in the plot outline.
+- Explicitly state the change of time and/or setting between chapters.
+- Mention any locations by name.
+- Only refer to the narrator in the story as their name with (The Narrator) next to it in the plot outline.
+- Create a slow build up of tension and suspense throughout the story.
+- A chapter in the story is defined as when there is a change in the setting in the story.
+- The plot outline must contain ${numScenes} chapters.
+- The plot outline must follow and word things in a way that are from the narrator's perspective, do not write anything from an outside character's perspective that the narrator wouldn't know.
+- Each chapter must smoothly transition from the previous chapter and to the next chapter without unexplained time and setting jumps.
+- Ensure key story elements (e.g., character motivations, mysteries, and plot developments) are resolved by the end.
+- Explicitly address and resolve the purpose and origin of central objects or plot devices (e.g., mysterious items, symbols, or events).
+- If other characters have significant knowledge of the mystery or key events, show how and when they gained this knowledge to maintain logical consistency.
+- Explore and resolve character dynamics, especially those affecting key relationships.
+- Provide clarity on thematic or mysterious elements that connect scenes, ensuring the stakes are clearly defined and resolved.
+- The final chapter must state it's the final chapter of the story and how to end the story.
 
 ## You must use following json format for the plot outline exactly without deviation:
 ${generateSceneTemplate(numScenes)}
@@ -484,6 +485,7 @@ ${idea}`;
           
           const response = await client.chat.completions.create({
             model: model,
+            temperature: 0.5,
             messages: [{ role: "user", content: userMessage }],
           }, {
             signal: signal
@@ -793,6 +795,41 @@ ${chunk}`
         .single();
 
       if (error) throw error;
+      
+      if (data) {
+        // Ensure plot_outline is properly formatted JSON
+        if (data.plot_outline) {
+          try {
+            // Try parsing it to validate
+            JSON.parse(data.plot_outline);
+          } catch (parseError) {
+            console.error('Invalid plot_outline JSON detected, repairing story:', storyId);
+            
+            // Create a default plot outline
+            const defaultOutline = JSON.stringify(["Chapter 1: Begin your story here..."]);
+            
+            // Update the story in the database with the fixed plot_outline
+            await this.updateStory(storyId, { 
+              plot_outline: defaultOutline 
+            });
+            
+            // Update the local data object too
+            data.plot_outline = defaultOutline;
+          }
+        } else if (!data.plot_outline || data.plot_outline === '') {
+          // If plot_outline is empty, set a default
+          console.log('Empty plot_outline detected, adding default outline');
+          const defaultOutline = JSON.stringify(["Chapter 1: Begin your story here..."]);
+          
+          // Update the story with the default outline
+          await this.updateStory(storyId, { 
+            plot_outline: defaultOutline 
+          });
+          
+          // Update the local data object
+          data.plot_outline = defaultOutline;
+        }
+      }
       
       // Cache the results
       browserCache.set(cacheKey, data);
