@@ -529,7 +529,7 @@ Using the given story outline, write short character descriptions for all the ch
 <character name='(Character Name)' aliases='(Character Alias)', pronouns='(Character Pronouns)'>Personality, appearance, and other details</character>
 
 The character alias is what the other characters in the story will call that character in the story such as their first name.
-For the Protagonist's alias you must create a name that other characters will call them in the story.
+For The Narrator's alias you must create a name that other characters will call them in the story.
 The pronouns are what you will use to refer to the character as in the story when not writing their name.
 The character description must only describe their appearance and personality DO NOT write what happens to them in the story.
 Only return the character descriptions without any comments.
