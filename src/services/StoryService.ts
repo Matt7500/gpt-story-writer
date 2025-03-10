@@ -456,8 +456,8 @@ Mention any locations by name.
 Create a slow build up of tension and suspense throughout the story.
 A chapter in the story is defined as when there is a change in the setting in the story.
 The plot outline must contain ${numScenes} chapters.
-The plot outline must follow and word things in a way that are from the protagonist's perspective, do not write anything from an outside character's perspective that the protagonist wouldn't know.
-Only refer to the protagonist in the story as "The Protagonist" in the plot outline.
+The plot outline must follow and word things in a way that are from the narrator's perspective, do not write anything from an outside character's perspective that the narrator wouldn't know.
+Only refer to the narrator in the story as their name with (The Narrator) next to it in the plot outline.
 Each chapter must smoothly transition from the previous chapter and to the next chapter without unexplained time and setting jumps.
 Ensure key story elements (e.g., character motivations, mysteries, and plot developments) are resolved by the end.
 Explicitly address and resolve the purpose and origin of central objects or plot devices (e.g., mysterious items, symbols, or events).
