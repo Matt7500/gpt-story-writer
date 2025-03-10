@@ -197,8 +197,11 @@ export default function Stories() {
   const handleStoryGenerated = (storyId: string) => {
     setIsGenerating(false);
     setSelectedSource(null);
-    fetchData(true);
-    navigate(`/editor/${storyId}`);
+    
+    // Use setTimeout to ensure state updates complete before navigation
+    setTimeout(() => {
+      navigate(`/editor/${storyId}`);
+    }, 10);
   };
 
   const handleCreateSequel = (story: Story) => {
@@ -225,8 +228,11 @@ export default function Stories() {
   const handleSequelGenerated = (sequelId: string) => {
     setIsSequelGenerating(false);
     setOriginalStoryForSequel(null);
-    fetchData(true);
-    navigate(`/editor/${sequelId}`);
+    
+    // Use setTimeout to ensure state updates complete before navigation
+    setTimeout(() => {
+      navigate(`/editor/${sequelId}`);
+    }, 10);
   };
 
   const handleDeleteStory = async () => {

@@ -262,7 +262,7 @@ export default function Editor() {
   // Load story and handle recovery
   useEffect(() => {
     if (!id) {
-      navigate('/stories');
+      navigate('/');
       return;
     }
 
@@ -357,7 +357,7 @@ export default function Editor() {
           description: error.message,
           variant: "destructive",
         });
-        navigate('/stories');
+        navigate('/');
       }
     };
 
