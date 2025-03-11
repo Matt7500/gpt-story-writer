@@ -1466,14 +1466,14 @@ ${currentParagraphs.join('\n\n')}
 ${sceneBeat}
 
 ## Instructions:
-1. Write at least 2 paragraphs that bridge the gap between these chapters
-2. Maintain the same narrative voice and perspective
-3. Address any time or location changes explicitly
-4. Create a logical flow from the previous chapter's events to the current chapter's setting
-5. Incorporate elements from the scene beat to foreshadow what's coming
-6. The transition should feel natural and seamless, not forced
-7. Write in the same style as the existing content
-8. Write using concise words and casual language
+- Write at least 2 paragraphs that bridge the gap between these chapters.
+- Maintain the same narrative voice and perspective.
+- Address any time or location changes explicitly.
+- Create a logical flow from the previous chapter's events to the current chapter's setting.
+- The transition should feel natural and seamless, not forced.
+- Write in the same style as the existing content.
+- Write using concise words and casual language, DO NOT write in flowery language.
+- Write short sentences and paragraphs to keep it concise.
 
 ## Output:
 Write only the transition paragraph(s). Do not include any meta-commentary, explanations, or notes.
@@ -1505,6 +1505,8 @@ Write only the transition paragraph(s). Do not include any meta-commentary, expl
         }
       }
       
+      // Return just the transition text - it will be added to the beginning of the current chapter
+      // by the calling component
       return fullContent.trim();
     } catch (err: any) {
       if (err.name === 'AbortError') {

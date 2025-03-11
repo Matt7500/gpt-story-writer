@@ -295,9 +295,9 @@ export function WritingArea({
           
           // Only proceed if this is still the current transition session
           if (clientId === currentClientIdRef.current) {
-            // Final update with the complete transition
+            // Set the final content directly without streaming it again
             const newContent = transition + '\n\n' + originalContent;
-            await streamOutput(newContent, clientId);
+            setContent(newContent);
             
             // Clean up
             cleanup();
