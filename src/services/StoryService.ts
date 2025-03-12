@@ -1074,7 +1074,7 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 
       const prompt = `
 ## WRITING INSTRUCTIONS
-- You are an expert fiction writer. Write a fully detailed scene that is based on the scene beat EXACTLY.
+- You are an expert fiction writer. Write a fully detailed scene WITHOUT overwriting, that is based on the scene beat EXACTLY.
 - YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
 - The scene you write must be a MAXIMUM of 1,300 words.
 - Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
@@ -1134,7 +1134,7 @@ ${sceneBeat}
             { role: "user", content: prompt }
           ],
           temperature: 0.7,
-          max_tokens: 8000,
+          max_tokens: 1000,
           stream: true
         };
         
@@ -1482,11 +1482,10 @@ Write only the transition paragraph(s). Do not include any meta-commentary, expl
       const stream = await client.chat.completions.create({
         model: this.userSettings?.model || 'gpt-4o',
         messages: [
-          { role: "system", content: "You are a skilled fiction writer who creates seamless transitions between scenes." },
           { role: "user", content: prompt }
         ],
-        temperature: 0.7,
-        max_tokens: 1000,
+        temperature: 0.5,
+        max_tokens: 500,
         stream: true,
         signal
       });
