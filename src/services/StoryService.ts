@@ -1134,7 +1134,7 @@ ${sceneBeat}
             { role: "user", content: prompt }
           ],
           temperature: 0.7,
-          max_tokens: 1000,
+          max_tokens: 1500,
           stream: true
         };
         
