@@ -447,7 +447,12 @@ Please provide a detailed summary in 400-600 words.
       
       while (retries < 5) {
         try {
-          const userMessage = `## Instructions
+          const userMessage = `## OUTLINE REQUIREMENTS
+- The plot outline must contain between 4 and 6 chapters, these are STRICT requirements.
+- DO NOT create more than 6 chapters under any circumstances.
+- DO NOT create 8 chapters - this is explicitly prohibited.
+
+## Instructions
 - Write a full plot outline for the given story idea.
 - Write the plot outline as a list of all the chapters in the story.
 - Each chapter must be a detailed summary of the events in that chapter that is 250 words in length.
@@ -460,7 +465,6 @@ Please provide a detailed summary in 400-600 words.
 - Only refer to the narrator in the story as their name with (The Narrator) next to it in the plot outline.
 - Create a slow build up of tension and suspense throughout the story.
 - A chapter in the story is defined as when there is a change in the setting in the story.
-- The plot outline must contain between 4 and 6 chapters, DO NOT deviate from this.
 
 # Plot Outline Rules:
 - Each chapter must smoothly transition from the previous chapter and to the next chapter without unexplained time and setting jumps.

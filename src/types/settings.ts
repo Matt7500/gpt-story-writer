@@ -13,5 +13,9 @@ export interface UserSettings {
   elevenlabs_key?: string;
   elevenlabs_model: string;
   elevenlabs_voice_id?: string;
+  voice_stability?: number;
+  voice_similarity_boost?: number;
+  voice_style?: number;
+  voice_speaker_boost?: boolean;
   replicate_key?: string;
 }

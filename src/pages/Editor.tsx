@@ -388,13 +388,23 @@ export default function Editor() {
 
         // Parse the characters
         const parsedCharacters = storyData.characters
-          .match(/<character[^>]*>(.*?)<\/character>/g)
+          .match(/<character[^>]*>(.*?)<\/character>/gs)
           ?.map(char => {
             const nameMatch = char.match(/name='([^']*)'/) || [];
-            const descMatch = char.match(/>(.*?)<\/character>/) || [];
+            const aliasesMatch = char.match(/aliases='([^']*)'/) || [];
+            const pronounsMatch = char.match(/pronouns='([^']*)'/) || [];
+            const ageMatch = char.match(/age='([^']*)'/) || [];
+            
+            // Extract the full content between tags
+            const contentMatch = char.match(/<character[^>]*>([\s\S]*?)<\/character>/) || [];
+            const fullContent = contentMatch[1] || '';
+            
+            // Format the description to include all the character details
+            const description = `${aliasesMatch[1] ? `Aliases: ${aliasesMatch[1]}\n` : ''}${pronounsMatch[1] ? `Pronouns: ${pronounsMatch[1]}\n` : ''}${ageMatch[1] ? `Age: ${ageMatch[1]}\n\n` : '\n'}${fullContent.trim()}`;
+            
             return {
               name: nameMatch[1] || 'Unknown',
-              description: descMatch[1] || ''
+              description: description
             };
           }) || [];
 

@@ -11,12 +11,19 @@ import { userSettingsService } from "@/services/UserSettingsService";
 import { FontManagement } from "./FontManagement";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import type { UserSettings } from "@/types/settings";
 
 interface VoiceModel {
   model_id: string;
   display_name: string;
   description?: string;
+}
+
+interface Voice {
+  voice_id: string;
+  name: string;
+  preview_url?: string;
 }
 
 interface APIKeyValidation {
@@ -100,8 +107,15 @@ export function AISettings({
   onReplicateKeyChange,
 }: AISettingsProps) {
   const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
   const [voiceModels, setVoiceModels] = useState<VoiceModel[]>([]);
+  const [voices, setVoices] = useState<Voice[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [loadingVoices, setLoadingVoices] = useState(false);
+  const [stability, setStability] = useState(0.75);
+  const [similarityBoost, setSimilarityBoost] = useState(0.75);
+  const [voiceStyle, setVoiceStyle] = useState(0.5);
+  const [speakerBoost, setSpeakerBoost] = useState(false);
   const [editingKeys, setEditingKeys] = useState<Record<string, boolean>>({
     openai: false,
     openrouter: false,
@@ -236,11 +250,11 @@ export function AISettings({
             'xi-api-key': elevenLabsKey
           }
         });
-
+        
         if (!response.ok) {
           throw new Error('Failed to fetch voice models');
         }
-
+        
         const data = await response.json();
         setVoiceModels(data.map((model: any) => ({
           model_id: model.model_id,
@@ -258,15 +272,57 @@ export function AISettings({
         setLoadingModels(false);
       }
     }
-
+    
+    // Fetch voices from ElevenLabs
+    async function fetchVoices() {
+      if (!elevenLabsKey || !keyValidation.elevenlabs.isValid) return;
+      
+      setLoadingVoices(true);
+      try {
+        const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+          headers: {
+            'Accept': 'application/json',
+            'xi-api-key': elevenLabsKey
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch voices');
+        }
+        
+        const data = await response.json();
+        // Sort voices alphabetically by name
+        const sortedVoices = data.voices
+          .map((voice: any) => ({
+            voice_id: voice.voice_id,
+            name: voice.name,
+            preview_url: voice.preview_url
+          }))
+          .sort((a: Voice, b: Voice) => a.name.localeCompare(b.name));
+          
+        setVoices(sortedVoices);
+      } catch (error) {
+        console.error('Error fetching voices:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch voices. Please check your API key.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingVoices(false);
+      }
+    }
+    
     if (elevenLabsKey) {
       fetchVoiceModels();
+      fetchVoices();
     }
   }, [elevenLabsKey, keyValidation.elevenlabs.isValid, toast]);
 
   const handleSaveAISettings = async () => {
+    setIsSaving(true);
     try {
-      const updatedSettings = {
+      const settings: Partial<UserSettings> = {
         openrouter_key: openAIKey,
         openai_key: openai_key,
         openrouter_model: openAIModel,
@@ -279,24 +335,28 @@ export function AISettings({
         elevenlabs_key: elevenLabsKey,
         elevenlabs_model: elevenLabsModel,
         elevenlabs_voice_id: elevenLabsVoiceId,
-        replicate_key: replicateKey
+        replicate_key: replicateKey,
+        voice_stability: stability,
+        voice_similarity_boost: similarityBoost,
+        voice_style: voiceStyle,
+        voice_speaker_boost: speakerBoost
       };
-
-      await userSettingsService.updateSettings(userId, updatedSettings);
-
+      
+      await saveSettings(settings);
+      
       toast({
-        title: "Settings saved",
-        description: "Your AI settings have been updated.",
-        duration: 3000,
+        title: "Settings Saved",
+        description: "Your AI settings have been updated successfully.",
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error saving settings:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save settings",
+        description: "Failed to save settings",
         variant: "destructive",
-        duration: 3000,
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -402,6 +462,9 @@ export function AISettings({
     setReasoningModelValidation(reasoningValidation);
     onUseOpenAIForStoryGenChange(checked);
   };
+
+  // Check if the selected model is multilingual_v2
+  const isMultilingualV2 = elevenLabsModel === "eleven_multilingual_v2";
 
   return (
     <div className="space-y-4">
@@ -669,45 +732,131 @@ export function AISettings({
         <div className="space-y-2">
           <label className="text-sm font-medium">Voice Model</label>
           <Select 
-            value={elevenLabsModel} 
-            onValueChange={onElevenLabsModelChange}
+            value={elevenLabsModel}
+            onValueChange={(value) => {
+              onElevenLabsModelChange(value);
+              // Reset style when changing models
+              if (value !== "eleven_multilingual_v2") {
+                setVoiceStyle(0.5);
+                setSpeakerBoost(false);
+              }
+            }}
             disabled={loadingModels || !elevenLabsKey || !keyValidation.elevenlabs.isValid}
           >
-            <SelectTrigger>
-              <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Select a voice model" />
             </SelectTrigger>
             <SelectContent>
               {voiceModels.map((model) => (
-                <SelectItem 
-                  key={model.model_id} 
-                  value={model.model_id}
-                >
+                <SelectItem key={model.model_id} value={model.model_id}>
                   {model.display_name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {!elevenLabsKey && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-1">
               Enter your API key to see available models
             </p>
           )}
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Voice ID</label>
-          <Input
+          <label className="text-sm font-medium">Voice</label>
+          <Select 
             value={elevenLabsVoiceId}
-            onChange={(e) => onElevenLabsVoiceIdChange(e.target.value)}
-            placeholder="Enter voice ID"
-            disabled={!keyValidation.elevenlabs.isValid}
-          />
+            onValueChange={onElevenLabsVoiceIdChange}
+            disabled={loadingVoices || !elevenLabsKey || !keyValidation.elevenlabs.isValid}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Select a voice" />
+            </SelectTrigger>
+            <SelectContent>
+              {voices.map((voice) => (
+                <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                  {voice.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {!elevenLabsKey && (
-            <p className="text-sm text-muted-foreground">
-              Enter your API key to use voice ID
+            <p className="text-xs text-muted-foreground mt-1">
+              Enter your API key to see available voices
+            </p>
+          )}
+          {voices.length === 0 && elevenLabsKey && keyValidation.elevenlabs.isValid && !loadingVoices && (
+            <p className="text-xs text-muted-foreground mt-1">
+              No voices found in your account
             </p>
           )}
         </div>
+
+        <div>
+          <label className="text-sm font-medium">Voice Stability: {stability.toFixed(2)}</label>
+          <Slider
+            className="mt-2"
+            min={0}
+            max={1}
+            step={0.01}
+            value={[stability]}
+            onValueChange={(values) => setStability(values[0])}
+            disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Higher values make the voice more consistent but may sound less natural
+          </p>
+        </div>
+        
+        <div>
+          <label className="text-sm font-medium">Similarity Boost: {similarityBoost.toFixed(2)}</label>
+          <Slider
+            className="mt-2"
+            min={0}
+            max={1}
+            step={0.01}
+            value={[similarityBoost]}
+            onValueChange={(values) => setSimilarityBoost(values[0])}
+            disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Higher values make the voice more similar to the original but may reduce quality
+          </p>
+        </div>
+
+        {/* Voice Style - only for multilingual_v2 model */}
+        {isMultilingualV2 && (
+          <div>
+            <label className="text-sm font-medium">Voice Style: {voiceStyle.toFixed(2)}</label>
+            <Slider
+              className="mt-2"
+              min={0}
+              max={1}
+              step={0.01}
+              value={[voiceStyle]}
+              onValueChange={(values) => setVoiceStyle(values[0])}
+              disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Controls the style of the voice. Higher values make the voice more expressive
+            </p>
+          </div>
+        )}
+
+        {/* Speaker Boost Toggle - only for multilingual_v2 model */}
+        {isMultilingualV2 && (
+          <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="speaker-boost"
+              checked={speakerBoost}
+              onCheckedChange={setSpeakerBoost}
+              disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+            />
+            <Label htmlFor="speaker-boost">Enable Speaker Boost</Label>
+            <p className="text-xs text-muted-foreground ml-2">
+              Enhances the clarity and presence of the voice
+            </p>
+          </div>
+        )}
       </div>
 
       <Separator />
@@ -753,12 +902,15 @@ export function AISettings({
         <FontManagement userId={userId} />
       </div>
 
-      <Button 
-        onClick={handleSaveAISettings}
-        disabled={!keyValidation.openai.isValid && !keyValidation.openrouter.isValid && !keyValidation.elevenlabs.isValid && !keyValidation.replicate.isValid}
-      >
-        Save AI Settings
-      </Button>
+      <div className="mt-8">
+        <Button 
+          onClick={handleSaveAISettings} 
+          disabled={isSaving || (!keyValidation.openai.isValid && !keyValidation.openrouter.isValid && !keyValidation.elevenlabs.isValid && !keyValidation.replicate.isValid)}
+          className="w-full"
+        >
+          {isSaving ? "Saving..." : "Save Settings"}
+        </Button>
+      </div>
     </div>
   );
 }
