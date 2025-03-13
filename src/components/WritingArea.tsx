@@ -441,23 +441,29 @@ export function WritingArea({
           // Only proceed if this is still the current refinement session
           if (clientId !== currentClientIdRef.current) return;
           
-          // Don't clear the content yet - keep the original text visible while processing
-          // We'll clear it just before streaming the final result
+          // Show a toast to indicate processing has started
+          toast({
+            title: "Processing text",
+            description: "Refining your text. This may take a moment...",
+            duration: 5000,
+          });
+          
+          // Set a temporary message to show processing is happening
+          setContent("Refining your text... Please wait...\n\n" + savedContent);
           
           // Split the content into narration and dialogue sections
           const sections = splitIntoSections(savedContent);
           
+          // Count how many narrative sections we need to process
+          const narrativeSections = sections.filter(section => 
+            section.trim() && !isDialogueSection(section) && !/^\s+$/.test(section)
+          );
+          
+          console.log(`Total sections: ${sections.length}, Narrative sections to process: ${narrativeSections.length}`);
+          
           // Create variables to accumulate the refined content
           let processedSections: string[] = [];
-          
-          // Show a toast to indicate processing has started
-          if (clientId === currentClientIdRef.current) {
-            toast({
-              title: "Processing text",
-              description: "Refining your text with both models. This may take a moment...",
-              duration: 5000,
-            });
-          }
+          let processedNarrativeCount = 0;
           
           // First, process all sections without updating the text area
           for (let i = 0; i < sections.length; i++) {
@@ -468,27 +474,43 @@ export function WritingArea({
             
             // Process the section
             let processedSection: string;
-            if (isDialogueSection(section)) {
-              // If it's a dialogue section, keep it as is
-              processedSection = section;
-            } else {
-              // For narration, process it with both models
+            
+            // Only process non-empty, non-dialogue sections
+            if (section.trim() && !isDialogueSection(section) && !/^\s+$/.test(section)) {
+              // Update the status message to show progress
+              processedNarrativeCount++;
+              const progressPercent = Math.round((processedNarrativeCount / narrativeSections.length) * 100);
+              setContent(`Refining your text... ${progressPercent}% complete\n\n` + savedContent);
+              
+              // Process narrative section
               processedSection = await processTwoPassNarration(section);
+            } else {
+              // Keep dialogue, whitespace, and empty sections as is
+              processedSection = section;
             }
             
             // Add to processed sections
             processedSections.push(processedSection);
           }
           
-          // Now that all processing is complete, clear the text area and stream the final result
+          // Now that all processing is complete, update the content immediately
           // Only proceed if this is still the current refinement session
           if (clientId === currentClientIdRef.current) {
-            // Clear the content before streaming
-            setContent('');
-            
-            // Stream the entire processed content
+            // Combine all processed sections exactly as they were
             const finalContent = processedSections.join('');
-            await streamOutput(finalContent, clientId);
+            
+            // Set the content directly without streaming
+            setContent(finalContent);
+            
+            // Save the content
+            onSave(finalContent);
+            
+            // Show success toast
+            toast({
+              title: "Text refined",
+              description: "Your text has been successfully refined.",
+              duration: 3000,
+            });
             
             // Clean up
             cleanup();
@@ -523,27 +545,61 @@ export function WritingArea({
   
   // Helper function to split content into narration and dialogue sections
   const splitIntoSections = (text: string): string[] => {
-    const lines = text.split('\n');
+    // Preserve exact formatting by splitting on paragraph boundaries
+    // This regex captures paragraph breaks with their exact formatting
+    const paragraphRegex = /(\n\n+|\n+)/;
+    const parts = text.split(paragraphRegex);
+    
+    // Process parts: text, separator, text, separator, etc.
     const sections: string[] = [];
     let currentSection = '';
-    let isCurrentDialogue = false;
+    let currentType = '';
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const isLineDialogue = line.trim().startsWith('"');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
       
-      // If we're switching between dialogue and narration, start a new section
-      if (i > 0 && isLineDialogue !== isCurrentDialogue) {
-        sections.push(currentSection);
-        currentSection = '';
+      // If this is a separator (newlines), add it to the current section
+      if (paragraphRegex.test(part)) {
+        if (currentSection) {
+          currentSection += part;
+        } else {
+          // If we don't have a current section, this is a leading separator
+          sections.push(part);
+        }
+        continue;
       }
       
-      currentSection += line + '\n';
-      isCurrentDialogue = isLineDialogue;
+      // Skip empty parts but preserve them
+      if (!part.trim()) {
+        if (currentSection) {
+          // Add the current section to the list
+          sections.push(currentSection);
+          currentSection = '';
+        }
+        // Add the empty part as its own section
+        sections.push(part);
+        continue;
+      }
+      
+      // Determine the type of this part
+      const isDialoguePart = part.trim().startsWith('"');
+      const partType = isDialoguePart ? 'dialogue' : 'narrative';
+      
+      // If we're switching types or don't have a current section, start a new one
+      if (!currentSection || currentType !== partType) {
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+        currentSection = part;
+        currentType = partType;
+      } else {
+        // Same type, add to current section
+        currentSection += part;
+      }
     }
     
     // Add the last section if it's not empty
-    if (currentSection.trim()) {
+    if (currentSection) {
       sections.push(currentSection);
     }
     
@@ -552,17 +608,48 @@ export function WritingArea({
   
   // Helper function to check if a section is dialogue
   const isDialogueSection = (section: string): boolean => {
-    return section.trim().startsWith('"');
+    // Check if the first non-whitespace character is a quote
+    const trimmed = section.trim();
+    return trimmed.length > 0 && trimmed[0] === '"';
   };
   
-  // Helper function to process narration with the story generation model first, then the fine-tune model
+  // Helper function to process narration with the fine-tune model
   const processTwoPassNarration = async (section: string): Promise<string> => {
     try {
+      // Skip processing for empty or whitespace-only sections
+      if (!section.trim()) {
+        console.log('Skipping empty section');
+        return section;
+      }
       
-      // Second pass: Process with fine-tune model
-      const secondPassResult = await storyService.rewriteInChunks(section);
+      // Skip processing for dialogue sections
+      if (isDialogueSection(section)) {
+        console.log('Skipping dialogue section');
+        return section;
+      }
       
-      return secondPassResult;
+      console.log('Processing narrative section:');
+      console.log('Original section (first 100 chars):', section.substring(0, 100) + '...');
+      
+      // Process with fine-tune model
+      const rewrittenText = await storyService.rewriteInChunks(section);
+      
+      // Ensure we're returning something with the same basic structure
+      if (!rewrittenText || rewrittenText.trim().length === 0) {
+        console.warn('Rewrite returned empty text, using original section');
+        return section;
+      }
+      
+      // Log the changes
+      console.log('Rewritten section (first 100 chars):', rewrittenText.substring(0, 100) + '...');
+      console.log('Section changed:', rewrittenText !== section);
+      
+      // If the text didn't change at all, that's suspicious
+      if (rewrittenText === section) {
+        console.warn('Warning: Section was not modified by the model at all');
+      }
+      
+      return rewrittenText;
     } catch (err) {
       console.error('Error in two-pass processing:', err);
       // On error, return the original section

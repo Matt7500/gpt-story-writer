@@ -449,7 +449,8 @@ Please provide a detailed summary in 400-600 words.
         try {
           const userMessage = `## Instructions
 - Write a full plot outline for the given story idea.
-- Write the plot outline as a list of all the chapters in the story. Each chapter must be a detailed summary of the events in that chapter that is no more than 250 words.
+- Write the plot outline as a list of all the chapters in the story.
+- Each chapter must be a detailed summary of the events in that chapter that is 250 words in length.
 - DO NOT use flowery language, use concise language.
 - Only write the crucial events in the chapter without ANY filler sentences or details.
 - Use casual language and tone in the plot outline.
@@ -459,7 +460,7 @@ Please provide a detailed summary in 400-600 words.
 - Only refer to the narrator in the story as their name with (The Narrator) next to it in the plot outline.
 - Create a slow build up of tension and suspense throughout the story.
 - A chapter in the story is defined as when there is a change in the setting in the story.
-- The plot outline must contain ${numScenes} chapters.
+- The plot outline must contain between 4 and 6 chapters, DO NOT deviate from this.
 
 # Plot Outline Rules:
 - Each chapter must smoothly transition from the previous chapter and to the next chapter without unexplained time and setting jumps.
@@ -530,7 +531,7 @@ ${idea}`;
         const prompt = `
 ## Instructions
 Using the given story outline, write short character descriptions for all the characters in the story in the following format:
-<character name='(Character Name)' aliases='(Character Alias)', pronouns='(Character Pronouns)'>Personality, appearance, and other details</character>
+<character name='(Character Name)' aliases='(Character Alias)', pronouns='(Character Pronouns)', age='(Character Age)'>Personality:\n(Personality)\n\nAppearance:\n(Appearance)\n\nRelationships to other characters:\n(Relationships)</character>
 
 ## Character Description rules: 
 - The character alias is what the other characters in the story will call that character in the story such as their first name.
@@ -576,96 +577,164 @@ ${outline.join('\n')}
       await this.loadUserSettings();
     }
 
-    // Split text into paragraphs
-    const paragraphs = text.split('\n\n').filter(p => p.trim());
+    // Create a simple cache key based on text content
+    const cacheKey = `rewrite_${text.substring(0, 100).replace(/\s+/g, '_')}`;
+    const cachedResult = browserCache.get<string>(cacheKey);
+    
+    // Return cached result if available
+    if (cachedResult) {
+      console.log('Using cached rewrite result');
+      return cachedResult;
+    }
+
+    console.log('Starting parallel text rewriting process');
+    const startTime = performance.now();
+
+    // Verify the rewrite model is set
+    const model = this.userSettings.rewrite_model;
+    if (!model) {
+      console.error('No rewrite_model specified in user settings, using original text');
+      return text;
+    }
+    console.log(`Using rewrite model: ${model}`);
+    
+    // Check if this looks like a fine-tuned model
+    const isFineTunedModel = model.includes(':ft-') || model.includes('ft:');
+    if (!isFineTunedModel) {
+      console.warn(`Warning: The rewrite_model "${model}" does not appear to be a fine-tuned model. ` +
+                  `Fine-tuned models typically include ":ft-" or "ft:" in their ID. ` +
+                  `If this is a fine-tuned model, you can ignore this warning.`);
+    }
+
+    // Preserve exact formatting by splitting on paragraph boundaries
+    // This regex captures paragraph breaks with their exact formatting
+    const paragraphRegex = /(\n\n+|\n+)/;
+    const parts = text.split(paragraphRegex);
+    
+    // Process parts in groups of 3: text, separator, text, separator, etc.
     const chunks = [];
-    let currentChunk = [];
-    const processedChunks = [];
-
-    // Group paragraphs into chunks of 3 or less
-    for (const paragraph of paragraphs) {
-      currentChunk.push(paragraph);
-      if (currentChunk.length === 3) {
-        chunks.push(currentChunk.join('\n\n'));
-        currentChunk = [];
-      }
-    }
-
-    // Add any remaining paragraphs
-    if (currentChunk.length > 0) {
-      chunks.push(currentChunk.join('\n\n'));
-    }
-
-    // Process each chunk
-    for (const chunk of chunks) {
-      try {
-
-        // Get the appropriate client based on user settings
-//         const client1 = this.getClient();
-        
-//         // First pass - use story generation model to analyze and enhance the text
-//         const storyModel = this.userSettings.story_generation_model || 'gpt-4o';
-        
-//         console.log(`Using model: ${storyModel} for initial text analysis`);
-
-//         const initialResponse = await client1.chat.completions.create({
-//           model: storyModel,
-//           messages: [
-//             {
-//               role: "user", 
-//               content: `Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
-// Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
-// Eliminate all metaphors in the text.
-// Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the scene.
-// Eliminate all sentences that hinder the pacing of the scene by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
-// Eliminate all phrases that mention the character's heart pounding or heart in their throat.
-// If a paragraph doesn't need to be changed, leave it as is in the returned text.
-
-// Only respond with the modified text and nothing else.
-
-// Text to edit:
-// ${chunk}`
-//             }
-//           ],
-//           temperature: 0.5
-//         });
-
-        // const enhancedText = initialResponse.choices[0].message.content || chunk;
-
-        // Get the appropriate client based on user settings
-        const client = this.getOpenAIClient();
-        
-        // Use the rewrite_model for text rewriting
-        const model = this.userSettings.rewrite_model;
-        
-        console.log(`Using OpenAI with model: ${model} for text rewriting`);
-
-        const response = await client.chat.completions.create({
-          model: model,
-          messages: [
-            {
-              role: "system",
-              content: `You are an expert copy editor tasked with re-writing the given text in Insomnia Stories unique voice and style.`
-            },
-            {
-              role: "user",
-              content: `${chunk}`
-            }
-          ],
-          temperature: 0.5,
-          frequency_penalty: 0.3
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      
+      // If this is a separator (newlines), preserve it exactly
+      if (paragraphRegex.test(part)) {
+        chunks.push({
+          text: part,
+          type: 'separator'
         });
-
-        processedChunks.push( response.choices[0].message.content || chunk);
-      } catch (err) {
-        console.error('Error processing chunk:', err);
-        // On error, keep original chunk to maintain story continuity
-        processedChunks.push(chunk);
+        continue;
       }
+      
+      // Skip empty parts
+      if (!part.trim()) {
+        chunks.push({
+          text: part,
+          type: 'empty'
+        });
+        continue;
+      }
+      
+      // Check if this is dialogue (starts with a quote)
+      if (part.trim().startsWith('"')) {
+        chunks.push({
+          text: part,
+          type: 'dialogue'
+        });
+        continue;
+      }
+      
+      // This is a narrative paragraph, process it
+      chunks.push({
+        text: part,
+        type: 'narrative'
+      });
     }
 
-    // Combine all processed chunks with double newlines
-    return processedChunks.join('\n\n');
+    // Get the appropriate client based on user settings
+    const client = this.getOpenAIClient();
+    
+    console.log(`Using OpenAI with model: ${model} for text rewriting`);
+    console.log(`Processing ${chunks.filter(c => c.type === 'narrative').length} narrative chunks in parallel`);
+
+    try {
+      // Process all narrative chunks in parallel
+      const processChunk = async (chunk: { text: string, type: string }, index: number): Promise<string> => {
+        // If it's not a narrative chunk, return it unchanged
+        if (chunk.type !== 'narrative') {
+          return chunk.text;
+        }
+        
+        try {
+          console.log(`Processing narrative chunk ${index} (${chunk.text.length} chars):`);
+          console.log(`Original text (first 100 chars): ${chunk.text.substring(0, 100)}...`);
+          
+          // Add a system message to ensure the model knows what to do
+          const response = await client.chat.completions.create({
+            model: model,
+            messages: [
+              {
+                role: "system",
+                content: "You are an expert copy editor. Rewrite the given text to improve its quality, clarity, and flow while maintaining the same meaning and tone. Focus on making the text more engaging and readable."
+              },
+              {
+                role: "user",
+                content: chunk.text
+              }
+            ],
+            temperature: 0.5,
+            frequency_penalty: 0.3
+          });
+          
+          const result = response.choices[0].message.content || chunk.text;
+          
+          // Log the before and after to verify changes
+          console.log(`Rewritten text (first 100 chars): ${result.substring(0, 100)}...`);
+          console.log(`Chunk ${index} changed: ${result !== chunk.text}`);
+          
+          // If the text didn't change at all, that's suspicious
+          if (result === chunk.text) {
+            console.warn(`Warning: Chunk ${index} was not modified by the model at all`);
+          }
+          
+          return result;
+        } catch (err) {
+          console.error(`Error processing chunk ${index}:`, err);
+          // On error, return the original chunk to maintain story continuity
+          return chunk.text;
+        }
+      };
+
+      // Process all chunks in parallel with Promise.all
+      const processedChunks = await Promise.all(
+        chunks.map((chunk, index) => processChunk(chunk, index))
+      );
+      
+      // Combine all processed chunks exactly as they were
+      const result = processedChunks.join('');
+      
+      // Log a summary of changes
+      const originalLength = text.length;
+      const newLength = result.length;
+      const percentChange = ((newLength - originalLength) / originalLength * 100).toFixed(2);
+      console.log(`Text rewriting summary:`);
+      console.log(`- Original length: ${originalLength} chars`);
+      console.log(`- New length: ${newLength} chars`);
+      console.log(`- Change: ${percentChange}% (${newLength - originalLength} chars)`);
+      console.log(`- Text changed: ${result !== text}`);
+      
+      // Cache the result for future use
+      browserCache.set(cacheKey, result, 60 * 60 * 1000); // Cache for 1 hour
+      
+      const endTime = performance.now();
+      console.log(`Rewriting completed in ${((endTime - startTime) / 1000).toFixed(2)} seconds`);
+      
+      return result;
+    } catch (err) {
+      console.error('Error in parallel processing:', err);
+      // In case of a catastrophic error, return the original text
+      return text;
+    }
   }
 
   // Create a title for the story
@@ -1074,16 +1143,17 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 
       const prompt = `
 ## WRITING INSTRUCTIONS
-- You are an expert fiction writer. Write a fully detailed scene WITHOUT overwriting, that is based on the scene beat EXACTLY.
-- YOU MUST ONLY WRITE WHAT IS DIRECTLY IN THE SCENE BEAT. DO NOT WRITE ANYTHING ELSE.
-- The scene you write must be a MAXIMUM of 1,300 words.
+- You are an expert fiction writer. Write a full scene WITHOUT overwriting, that is based on the scene beat EXACTLY.
 - Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
 - Write in past tense.
+- Most of what you write should be narration, not dialogue.
+- When there is no context, start the scene with exposition to give the reader a better understanding of the plot and characters.
+- Do NOT write any appositive phrases.
+- Do NOT write any redundant descriptive phrases that are not necessary to the scene.
 
 # Core Requirements
     - Write from first-person narrator perspective only
     - Begin with a clear connection to the previous scene's ending
-    - Include full, natural dialogue
     - Write the dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
     - Write everything that the narrator sees, hears, and everything that happens in the scene.
     - Write the entire scene and include everything in the scene beat given, do not leave anything out.
@@ -1101,7 +1171,6 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
         * Shorter sentences for action/tension
         * Longer sentences for introspection
     - Show emotions through implications rather than stating them
-    - Write dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
     
     # Scene Structure
     - Write tight, focused paragraphs
@@ -1134,7 +1203,6 @@ ${sceneBeat}
             { role: "user", content: prompt }
           ],
           temperature: 0.7,
-          max_tokens: 1500,
           stream: true
         };
         
@@ -1145,7 +1213,6 @@ ${sceneBeat}
         console.log('Request parameters:', JSON.stringify({
           model: requestParams.model,
           temperature: requestParams.temperature,
-          max_tokens: requestParams.max_tokens,
           stream: requestParams.stream
         }, null, 2));
         
