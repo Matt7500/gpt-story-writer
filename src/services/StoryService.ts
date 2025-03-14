@@ -397,6 +397,8 @@ Please provide a detailed summary in 400-600 words.
   // Format scenes from JSON string
   public formatScenes(inputString: string): string[] | null {
     try {
+      console.log("Raw input to formatScenes:", inputString.substring(0, 100) + "...");
+      
       // Clean code blocks
       inputString = inputString.replace(/```json\s*|\s*```/g, '').trim();
       
@@ -407,7 +409,30 @@ Please provide a detailed summary in 400-600 words.
         inputString = inputString.substring(jsonStartIndex);
       }
 
-      const scenesArr = JSON.parse(inputString);
+      // Find the last occurrence of ']' to get the end of the JSON array
+      const jsonEndIndex = inputString.lastIndexOf(']');
+      if (jsonEndIndex !== -1 && jsonEndIndex < inputString.length - 1) {
+        // Remove any text after the JSON array
+        inputString = inputString.substring(0, jsonEndIndex + 1);
+      }
+      
+      // Additional sanitization to fix common JSON issues
+      // Replace any unescaped quotes within string values
+      inputString = this.sanitizeJsonString(inputString);
+      
+      console.log("Sanitized JSON:", inputString.substring(0, 100) + "...");
+      
+      let scenesArr;
+      try {
+        // Try to parse the JSON
+        scenesArr = JSON.parse(inputString);
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        
+        // If parsing fails, try a more aggressive approach to extract scene data
+        console.log("Attempting to extract scene data manually...");
+        return this.extractScenesManually(inputString);
+      }
 
       const formattedScenes: string[] = [];
       for (const scene of scenesArr) {
@@ -417,13 +442,110 @@ Please provide a detailed summary in 400-600 words.
           formattedScenes.push(sceneBeat.trim());
         }
       }
+      
       if (!formattedScenes.length) {
         console.log("Warning: No scenes were parsed from JSON");
         return null;
       }
+      
+      console.log(`Successfully parsed ${formattedScenes.length} scenes`);
       return formattedScenes;
     } catch (err) {
       console.log("Warning: Failed to parse JSON in formatScenes:", err);
+      return null;
+    }
+  }
+  
+  // Helper method to sanitize JSON string
+  private sanitizeJsonString(jsonString: string): string {
+    // This is a simplified sanitizer that handles common JSON formatting issues
+    
+    // Replace unescaped quotes within string values
+    // This regex looks for quotes between quotes that aren't escaped
+    let result = jsonString;
+    
+    // First, let's handle any potential control characters that might be invalid in JSON
+    result = result.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+    
+    // Try to fix unescaped quotes in a way that preserves the structure
+    // This is complex to do perfectly with regex, so we'll use a simplified approach
+    
+    // Replace instances where there might be nested quotes
+    result = result.replace(/: ?"([^"]*)"([^"]*)"([^"]*)"/g, ': "$1\'$2\'$3"');
+    
+    return result;
+  }
+  
+  // Fallback method to extract scenes when JSON parsing fails
+  private extractScenesManually(text: string): string[] | null {
+    try {
+      console.log("Attempting manual scene extraction...");
+      
+      // Look for scene_beat patterns
+      const sceneRegex = /"scene_beat"\s*:\s*"([^"]*)"/g;
+      const scenes: string[] = [];
+      let match;
+      
+      while ((match = sceneRegex.exec(text)) !== null) {
+        if (match[1] && match[1].trim()) {
+          scenes.push(match[1].trim());
+        }
+      }
+      
+      // If we found scenes, return them
+      if (scenes.length > 0) {
+        console.log(`Manually extracted ${scenes.length} scenes`);
+        return scenes;
+      }
+      
+      // If the regex approach failed, try a more aggressive line-by-line approach
+      const lines = text.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('"scene_beat"') && i + 1 < lines.length) {
+          // Extract the content after "scene_beat":
+          const content = line.split('"scene_beat"')[1].trim();
+          if (content.startsWith(':')) {
+            // Get the content after the colon
+            let sceneBeat = content.substring(1).trim();
+            // Remove starting and ending quotes if present
+            if (sceneBeat.startsWith('"')) {
+              sceneBeat = sceneBeat.substring(1);
+            }
+            if (sceneBeat.endsWith('"') || sceneBeat.endsWith('",')) {
+              sceneBeat = sceneBeat.replace(/",?$/, '');
+            }
+            if (sceneBeat) {
+              scenes.push(sceneBeat);
+            }
+          }
+        }
+      }
+      
+      if (scenes.length > 0) {
+        console.log(`Extracted ${scenes.length} scenes using line-by-line approach`);
+        return scenes;
+      }
+      
+      // If all else fails, try to extract any text that looks like a scene description
+      const paragraphs = text.split(/\n\s*\n/);
+      for (const paragraph of paragraphs) {
+        // Look for paragraphs that might be scene descriptions
+        // They typically mention the narrator and have substantial content
+        if (paragraph.includes('(The Narrator)') && paragraph.length > 100) {
+          scenes.push(paragraph.trim());
+        }
+      }
+      
+      if (scenes.length > 0) {
+        console.log(`Extracted ${scenes.length} scenes by looking for narrator mentions`);
+        return scenes;
+      }
+      
+      console.log("Failed to extract scenes manually");
+      return null;
+    } catch (err) {
+      console.error("Error in manual scene extraction:", err);
       return null;
     }
   }
@@ -578,168 +700,87 @@ ${outline.join('\n')}
   }
 
   // Process text in smaller chunks
-  public async rewriteInChunks(text: string): Promise<string> {
-    if (!this.userSettings) {
-      await this.loadUserSettings();
-    }
-
-    // Create a simple cache key based on text content
-    const cacheKey = `rewrite_${text.substring(0, 100).replace(/\s+/g, '_')}`;
-    const cachedResult = browserCache.get<string>(cacheKey);
-    
-    // Return cached result if available
-    if (cachedResult) {
-      console.log('Using cached rewrite result');
-      return cachedResult;
-    }
-
-    console.log('Starting parallel text rewriting process');
-    const startTime = performance.now();
-
-    // Verify the rewrite model is set
-    const model = this.userSettings.rewrite_model;
-    if (!model) {
-      console.error('No rewrite_model specified in user settings, using original text');
-      return text;
-    }
-    console.log(`Using rewrite model: ${model}`);
-    
-    // Check if this looks like a fine-tuned model
-    const isFineTunedModel = model.includes(':ft-') || model.includes('ft:');
-    if (!isFineTunedModel) {
-      console.warn(`Warning: The rewrite_model "${model}" does not appear to be a fine-tuned model. ` +
-                  `Fine-tuned models typically include ":ft-" or "ft:" in their ID. ` +
-                  `If this is a fine-tuned model, you can ignore this warning.`);
-    }
-
-    // Preserve exact formatting by splitting on paragraph boundaries
-    // This regex captures paragraph breaks with their exact formatting
-    const paragraphRegex = /(\n\n+|\n+)/;
-    const parts = text.split(paragraphRegex);
-    
-    // Process parts in groups of 3: text, separator, text, separator, etc.
-    const chunks = [];
-    
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      
-      // If this is a separator (newlines), preserve it exactly
-      if (paragraphRegex.test(part)) {
-        chunks.push({
-          text: part,
-          type: 'separator'
-        });
-        continue;
-      }
-      
-      // Skip empty parts
-      if (!part.trim()) {
-        chunks.push({
-          text: part,
-          type: 'empty'
-        });
-        continue;
-      }
-      
-      // Check if this is dialogue (starts with a quote)
-      if (part.trim().startsWith('"')) {
-        chunks.push({
-          text: part,
-          type: 'dialogue'
-        });
-        continue;
-      }
-      
-      // This is a narrative paragraph, process it
-      chunks.push({
-        text: part,
-        type: 'narrative'
-      });
-    }
-
-    // Get the appropriate client based on user settings
-    const client = this.getOpenAIClient();
-    
-    console.log(`Using OpenAI with model: ${model} for text rewriting`);
-    console.log(`Processing ${chunks.filter(c => c.type === 'narrative').length} narrative chunks in parallel`);
-
+  public async rewriteInChunks(
+    text: string,
+    onProgress?: (chunk: string) => void,
+    signal?: AbortSignal
+  ): Promise<string> {
     try {
-      // Process all narrative chunks in parallel
-      const processChunk = async (chunk: { text: string, type: string }, index: number): Promise<string> => {
-        // If it's not a narrative chunk, return it unchanged
-        if (chunk.type !== 'narrative') {
-          return chunk.text;
-        }
-        
-        try {
-          console.log(`Processing narrative chunk ${index} (${chunk.text.length} chars):`);
-          console.log(`Original text (first 100 chars): ${chunk.text.substring(0, 100)}...`);
-          
-          // Add a system message to ensure the model knows what to do
-          const response = await client.chat.completions.create({
-            model: model,
-            messages: [
-              {
-                role: "system",
-                content: "You are an expert copy editor. Rewrite the given text to improve its quality, clarity, and flow while maintaining the same meaning and tone. Focus on making the text more engaging and readable."
-              },
-              {
-                role: "user",
-                content: chunk.text
-              }
-            ],
-            temperature: 0.5,
-            frequency_penalty: 0.3
-          });
-          
-          const result = response.choices[0].message.content || chunk.text;
-          
-          // Log the before and after to verify changes
-          console.log(`Rewritten text (first 100 chars): ${result.substring(0, 100)}...`);
-          console.log(`Chunk ${index} changed: ${result !== chunk.text}`);
-          
-          // If the text didn't change at all, that's suspicious
-          if (result === chunk.text) {
-            console.warn(`Warning: Chunk ${index} was not modified by the model at all`);
-          }
-          
-          return result;
-        } catch (err) {
-          console.error(`Error processing chunk ${index}:`, err);
-          // On error, return the original chunk to maintain story continuity
-          return chunk.text;
-        }
-      };
+      if (!this.userSettings) {
+        await this.loadUserSettings();
+      }
 
-      // Process all chunks in parallel with Promise.all
-      const processedChunks = await Promise.all(
-        chunks.map((chunk, index) => processChunk(chunk, index))
-      );
-      
-      // Combine all processed chunks exactly as they were
-      const result = processedChunks.join('');
-      
-      // Log a summary of changes
-      const originalLength = text.length;
-      const newLength = result.length;
-      const percentChange = ((newLength - originalLength) / originalLength * 100).toFixed(2);
-      console.log(`Text rewriting summary:`);
-      console.log(`- Original length: ${originalLength} chars`);
-      console.log(`- New length: ${newLength} chars`);
-      console.log(`- Change: ${percentChange}% (${newLength - originalLength} chars)`);
-      console.log(`- Text changed: ${result !== text}`);
-      
-      // Cache the result for future use
-      browserCache.set(cacheKey, result, 60 * 60 * 1000); // Cache for 1 hour
-      
-      const endTime = performance.now();
-      console.log(`Rewriting completed in ${((endTime - startTime) / 1000).toFixed(2)} seconds`);
-      
-      return result;
-    } catch (err) {
-      console.error('Error in parallel processing:', err);
-      // In case of a catastrophic error, return the original text
-      return text;
+      const client = this.getOpenRouterClient();
+      const model = this.userSettings.story_generation_model;
+
+      console.log('Starting chapter rewrite with model:', model);
+
+      const stream = await client.chat.completions.create({
+        model: model,
+        messages: [
+          {
+            role: "system",
+            content: `##INSTRUCTIONS
+You will be given a section of text and you MUST perform the following to it:
+
+-Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
+-Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
+-Eliminate all metaphors in the text.
+-Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the scene.
+-Eliminate all sentences that hinder the pacing of the scene by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
+-Eliminate all phrases that mention the character's heart pounding or heart in their throat.
+If a paragraph doesn’t need to be changed, leave it as is in the returned text.
+-Eliminate all sentences and phrases that mention light casting long shadows.
+- Re-word any sentences or phrases that have "I frowned" in them or similar wording.
+
+##WORDS TO REPLACE
+#Replace the following words with synonyms that are casual and simple.
+
+#Words:
+- Loomed
+- Sinewy
+- Foreboding
+- Grotesque
+- Familiar
+- Shift/Shifting/Shifted
+- Gaze
+
+
+Only respond with the modified text and nothing else.`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ],
+        temperature: 1,
+        stream: true
+      }, {
+        signal
+      });
+
+      let fullContent = '';
+
+      // Process the stream
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullContent += content;
+          // Call the progress callback if provided
+          if (onProgress) {
+            onProgress(content);
+          }
+        }
+      }
+
+      return fullContent || text; // Return original text if rewrite fails
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Chapter rewrite aborted');
+        throw err;
+      }
+      console.error('Error rewriting chapter:', err);
+      return text; // Return original text on error
     }
   }
 

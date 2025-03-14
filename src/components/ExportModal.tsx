@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "./ui/progress";
 import { userSettingsService } from "@/services/UserSettingsService";
 import { toast } from "@/components/ui/use-toast";
+import { storyService } from "@/services/StoryService";
 
 interface Chapter {
   title: string;
@@ -132,29 +133,30 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
 
         const chapter = chapters[i];
         setCurrentChapter(chapter.title);
-        setProgress((i / chapters.length) * 100);
+        
+        // Calculate base progress for this chapter (each chapter is worth 100/total chapters)
+        const baseProgress = (i / chapters.length) * 100;
+        const progressPerChapter = 100 / chapters.length;
 
         try {
-          const response = await fetch("http://localhost:3001/api/rewrite", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({ 
-              text: chapter.content,
-              useOpenAI: settings.use_openai_for_story_gen,
-              model: settings.story_generation_model
-            }),
-            signal: newController.signal
-          });
+          // Track streaming progress for current chapter
+          let chapterStreamProgress = 0;
+          const streamCallback = (chunk: string) => {
+            // Update progress to include both chapter progress and streaming progress
+            // Each chapter's streaming progress is worth its portion of the total progress
+            chapterStreamProgress += chunk.length / chapter.content.length;
+            const streamingProgress = Math.min(chapterStreamProgress * progressPerChapter, progressPerChapter);
+            setProgress(baseProgress + streamingProgress);
+          };
 
-          if (!response.ok) {
-            throw new Error(`Failed to process chapter: ${response.statusText}`);
-          }
+          // Use StoryService's rewriteInChunks
+          const rewrittenContent = await storyService.rewriteInChunks(
+            chapter.content,
+            streamCallback,
+            newController.signal
+          );
 
-          const data = await response.json();
-          processedChapters.push(data.content || chapter.content);
+          processedChapters.push(rewrittenContent);
         } catch (error) {
           if (error.name === 'AbortError') {
             throw new Error('Export cancelled');
@@ -746,7 +748,9 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
                     ? (videoProgress || 'Starting video generation...') 
                     : isGeneratingAudio
                       ? (audioProgress || 'Starting audio generation...')
-                      : (currentChapter ? `Processing ${currentChapter}...` : 'Starting export...')}
+                      : (currentChapter 
+                          ? `Rewriting ${currentChapter} (${Math.round(progress)}%)` 
+                          : 'Starting export...')}
                 </p>
                 {isGeneratingAudio && audioGenerationDetails && (
                   <p className="text-xs text-muted-foreground text-center">
