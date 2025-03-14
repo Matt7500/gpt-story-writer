@@ -251,8 +251,9 @@ export class StoryService {
 I need a detailed summary of the following horror story from r/nosleep. 
 Create a comprehensive summary about the story with as much detail as possible, focus on the plot and events in the story with minimal dialogue.
 The summary should be completely new and different from the given story to avoid copyright issues.
-You must change the characters, locations, and events to create a new story that is based on the original story but is not a direct copy.
+You MUST change the characters, locations, and events to create a new story that is based on the original story but is not a direct copy.
 Focus on the core narrative, key events, and the horror elements that make this story effective when writing the new story summary.
+DO NOT write any comments, only write the summary.
 
 Story Content:
 ${randomPost.selftext}
@@ -451,6 +452,7 @@ Please provide a detailed summary in 400-600 words.
 - The plot outline must contain between 4 and 6 chapters, these are STRICT requirements.
 - DO NOT create more than 6 chapters under any circumstances.
 - DO NOT create 8 chapters - this is explicitly prohibited.
+- If there are plot holes in the story idea, you MUST fix them in the plot outline.
 
 ## Instructions
 - Write a full plot outline for the given story idea.
@@ -1154,6 +1156,7 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 - When there is no context, start the scene with exposition to give the reader a better understanding of the plot and characters.
 - Do NOT write any appositive phrases.
 - Do NOT write any redundant descriptive phrases that are not necessary to the scene.
+- Do NOT use asterisks (*) for emphasis or to indicate actions. Use proper narrative descriptions instead.
 
 # Core Requirements
     - Write from first-person narrator perspective only
@@ -1233,8 +1236,11 @@ ${sceneBeat}
         console.log('Processing stream...');
         for await (const chunk of stream) {
           chunkCount++;
-          const content = chunk.choices[0]?.delta?.content || '';
+          let content = chunk.choices[0]?.delta?.content || '';
+          
+          // Remove asterisks from the content
           if (content) {
+            content = content.replace(/\*/g, '');
             fullContent += content;
             // Call the progress callback if provided
             if (onProgress) {
@@ -1247,6 +1253,9 @@ ${sceneBeat}
             console.log(`Processed ${chunkCount} chunks, current content length: ${fullContent.length}`);
           }
         }
+        
+        // Final check to remove any asterisks that might have been missed
+        fullContent = fullContent.replace(/\*/g, '');
         
         console.log('Stream processing complete, content length:', fullContent.length, 'chunks:', chunkCount);
         return fullContent || 'Failed to generate scene content';

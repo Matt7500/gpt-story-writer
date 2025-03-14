@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +11,7 @@ import Auth from "./pages/Auth";
 import Stories from "./pages/Stories";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import ImageEditor from "./pages/ImageEditor";
 import { useAuth } from "./components/AuthProvider";
 
 const queryClient = new QueryClient();
@@ -35,6 +35,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <Editor />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/image-editor"
+        element={
+          <PrivateRoute>
+            <ImageEditor />
           </PrivateRoute>
         }
       />

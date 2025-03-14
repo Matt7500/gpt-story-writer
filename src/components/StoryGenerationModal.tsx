@@ -531,7 +531,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
                                   transition={{ duration: 0.3, ease: "easeInOut" }}
                                 >
                                   <div className="px-4 pb-4">
-                                    <div className="bg-white/50 dark:bg-gray-700/50 p-3 rounded text-sm text-muted-foreground max-h-[200px] overflow-y-auto">
+                                    <div className="bg-white/50 dark:bg-gray-700/50 p-3 rounded text-sm text-muted-foreground max-h-[400px] overflow-y-auto">
                                       {storyIdea}
                                     </div>
                                   </div>

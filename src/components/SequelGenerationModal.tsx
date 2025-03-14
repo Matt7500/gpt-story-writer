@@ -641,7 +641,7 @@ export function SequelGenerationModal({
                                   transition={{ duration: 0.3, ease: "easeInOut" }}
                                 >
                                   <div className="p-4">
-                                    <ScrollArea className="max-h-[200px] overflow-auto bg-white/30 dark:bg-gray-700/30 rounded">
+                                    <ScrollArea className="max-h-[400px] overflow-auto bg-white/30 dark:bg-gray-700/30 rounded">
                                       <div className="p-3 pr-6">
                                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{sequelIdea}</p>
                                       </div>
