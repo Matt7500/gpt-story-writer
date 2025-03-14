@@ -374,6 +374,52 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
 
   // Function to combine audio buffers with a silence gap
   const combineAudioBuffers = async (audioBuffers: ArrayBuffer[]): Promise<Blob> => {
+    try {
+      // Create a silent gap (0.4 seconds)
+      const sampleRate = 44100; // Standard sample rate
+      const silenceDuration = 0.4; // seconds
+      const silenceLength = Math.floor(sampleRate * silenceDuration) * 4; // 4 bytes per sample (16-bit stereo)
+      const silenceBuffer = new ArrayBuffer(silenceLength);
+      const silenceView = new Uint8Array(silenceBuffer);
+      silenceView.fill(0); // Fill with zeros for silence
+      
+      // Use a more reliable method for combining audio
+      // First, create a single large buffer with all content
+      const totalLength = audioBuffers.reduce((acc, buffer) => acc + buffer.byteLength, 0) + 
+                          (silenceBuffer.byteLength * (audioBuffers.length - 1));
+      const combinedBuffer = new Uint8Array(totalLength);
+      
+      let offset = 0;
+      for (let i = 0; i < audioBuffers.length; i++) {
+        // Add the audio buffer
+        combinedBuffer.set(new Uint8Array(audioBuffers[i]), offset);
+        offset += audioBuffers[i].byteLength;
+        
+        // Add silence between chapters (but not after the last one)
+        if (i < audioBuffers.length - 1) {
+          combinedBuffer.set(new Uint8Array(silenceBuffer), offset);
+          offset += silenceBuffer.byteLength;
+        }
+      }
+      
+      // Create a more compatible audio format
+      // Use WAV format which is more reliable for editing software
+      const wavHeader = createWavHeader(totalLength, sampleRate);
+      const finalBuffer = new Uint8Array(wavHeader.length + combinedBuffer.length);
+      finalBuffer.set(wavHeader, 0);
+      finalBuffer.set(combinedBuffer, wavHeader.length);
+      
+      // Return as a WAV file which is more compatible with editing software
+      return new Blob([finalBuffer], { type: 'audio/wav' });
+    } catch (error) {
+      console.error("Error combining audio buffers:", error);
+      // Fallback to the original method if the new method fails
+      return fallbackCombineAudioBuffers(audioBuffers);
+    }
+  };
+  
+  // Fallback method using the original approach
+  const fallbackCombineAudioBuffers = (audioBuffers: ArrayBuffer[]): Blob => {
     // Create a silent gap (0.4 seconds)
     const sampleRate = 44100; // Standard sample rate
     const silenceDuration = 0.4; // seconds
@@ -404,40 +450,68 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     
     return new Blob([result], { type: 'audio/mpeg' });
   };
-
-  // Helper function to validate ElevenLabs settings
-  const validateElevenLabsSettings = (settings: any) => {
-    if (!settings.elevenlabs_key) {
-      throw new Error('ElevenLabs API key not configured. Please add it in settings.');
-    }
+  
+  // Function to create a WAV header
+  const createWavHeader = (dataLength: number, sampleRate: number): Uint8Array => {
+    const numChannels = 2; // Stereo
+    const bytesPerSample = 2; // 16-bit
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const wavHeader = new Uint8Array(44);
     
-    if (!settings.elevenlabs_voice_id) {
-      throw new Error('ElevenLabs voice not selected. Please select a voice in settings.');
-    }
+    // "RIFF" chunk descriptor
+    wavHeader.set([0x52, 0x49, 0x46, 0x46]); // "RIFF" in ASCII
     
-    // ElevenLabs voice IDs are typically 24-character alphanumeric strings
-    if (settings.elevenlabs_voice_id.includes('@') || 
-        settings.elevenlabs_voice_id.length < 20 || 
-        !/^[a-zA-Z0-9]+$/.test(settings.elevenlabs_voice_id)) {
-      throw new Error(
-        'Invalid ElevenLabs voice ID format. Please go to Settings and select a valid voice ID. ' +
-        'Voice IDs can be found in your ElevenLabs account under "Profile" > "API Key".'
-      );
-    }
+    // Chunk size (file size - 8 bytes)
+    const chunkSize = dataLength + 36;
+    wavHeader[4] = (chunkSize & 0xff);
+    wavHeader[5] = ((chunkSize >> 8) & 0xff);
+    wavHeader[6] = ((chunkSize >> 16) & 0xff);
+    wavHeader[7] = ((chunkSize >> 24) & 0xff);
     
-    if (!settings.elevenlabs_model) {
-      throw new Error('ElevenLabs model not selected. Please select a model in settings.');
-    }
+    // Format ("WAVE")
+    wavHeader.set([0x57, 0x41, 0x56, 0x45], 8); // "WAVE" in ASCII
     
-    return {
-      key: settings.elevenlabs_key,
-      voiceId: settings.elevenlabs_voice_id,
-      model: settings.elevenlabs_model,
-      stability: settings.voice_stability ?? 0.75,
-      similarityBoost: settings.voice_similarity_boost ?? 0.75,
-      voiceStyle: settings.voice_style,
-      speakerBoost: settings.voice_speaker_boost
-    };
+    // "fmt " sub-chunk
+    wavHeader.set([0x66, 0x6d, 0x74, 0x20], 12); // "fmt " in ASCII
+    
+    // Sub-chunk size (16 for PCM)
+    wavHeader.set([16, 0, 0, 0], 16);
+    
+    // Audio format (1 for PCM)
+    wavHeader.set([1, 0], 20);
+    
+    // Number of channels
+    wavHeader.set([numChannels, 0], 22);
+    
+    // Sample rate
+    wavHeader[24] = (sampleRate & 0xff);
+    wavHeader[25] = ((sampleRate >> 8) & 0xff);
+    wavHeader[26] = ((sampleRate >> 16) & 0xff);
+    wavHeader[27] = ((sampleRate >> 24) & 0xff);
+    
+    // Byte rate
+    wavHeader[28] = (byteRate & 0xff);
+    wavHeader[29] = ((byteRate >> 8) & 0xff);
+    wavHeader[30] = ((byteRate >> 16) & 0xff);
+    wavHeader[31] = ((byteRate >> 24) & 0xff);
+    
+    // Block align
+    wavHeader.set([blockAlign, 0], 32);
+    
+    // Bits per sample
+    wavHeader.set([bytesPerSample * 8, 0], 34);
+    
+    // "data" sub-chunk
+    wavHeader.set([0x64, 0x61, 0x74, 0x61], 36); // "data" in ASCII
+    
+    // Sub-chunk size (data length)
+    wavHeader[40] = (dataLength & 0xff);
+    wavHeader[41] = ((dataLength >> 8) & 0xff);
+    wavHeader[42] = ((dataLength >> 16) & 0xff);
+    wavHeader[43] = ((dataLength >> 24) & 0xff);
+    
+    return wavHeader;
   };
 
   const handleGenerateAudio = async () => {
@@ -550,7 +624,7 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       const a = document.createElement('a');
       a.href = url;
       const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      a.download = `${sanitizedTitle}_audio.mp3`;
+      a.download = `${sanitizedTitle}_audio.wav`;
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -616,6 +690,41 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
         });
       }
     }
+  };
+
+  // Helper function to validate ElevenLabs settings
+  const validateElevenLabsSettings = (settings: any) => {
+    if (!settings.elevenlabs_key) {
+      throw new Error('ElevenLabs API key not configured. Please add it in settings.');
+    }
+    
+    if (!settings.elevenlabs_voice_id) {
+      throw new Error('ElevenLabs voice not selected. Please select a voice in settings.');
+    }
+    
+    // ElevenLabs voice IDs are typically 24-character alphanumeric strings
+    if (settings.elevenlabs_voice_id.includes('@') || 
+        settings.elevenlabs_voice_id.length < 20 || 
+        !/^[a-zA-Z0-9]+$/.test(settings.elevenlabs_voice_id)) {
+      throw new Error(
+        'Invalid ElevenLabs voice ID format. Please go to Settings and select a valid voice ID. ' +
+        'Voice IDs can be found in your ElevenLabs account under "Profile" > "API Key".'
+      );
+    }
+    
+    if (!settings.elevenlabs_model) {
+      throw new Error('ElevenLabs model not selected. Please select a model in settings.');
+    }
+    
+    return {
+      key: settings.elevenlabs_key,
+      voiceId: settings.elevenlabs_voice_id,
+      model: settings.elevenlabs_model,
+      stability: settings.voice_stability ?? 0.75,
+      similarityBoost: settings.voice_similarity_boost ?? 0.75,
+      voiceStyle: settings.voice_style,
+      speakerBoost: settings.voice_speaker_boost
+    };
   };
 
   return (
