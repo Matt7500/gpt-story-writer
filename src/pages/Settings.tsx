@@ -28,6 +28,10 @@ export default function Settings() {
   const [elevenLabsModel, setElevenLabsModel] = useState("");
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState("");
   const [replicateKey, setReplicateKey] = useState("");
+  const [voiceStability, setVoiceStability] = useState(0.75);
+  const [voiceSimilarityBoost, setVoiceSimilarityBoost] = useState(0.75);
+  const [voiceStyle, setVoiceStyle] = useState(0.5);
+  const [voiceSpeakerBoost, setVoiceSpeakerBoost] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,6 +88,12 @@ export default function Settings() {
         setElevenLabsModel(settings.elevenlabs_model || "eleven_multilingual_v2");
         setElevenLabsVoiceId(settings.elevenlabs_voice_id || "");
         setReplicateKey(settings.replicate_key || "");
+        
+        // Load voice settings
+        setVoiceStability(settings.voice_stability ?? 0.75);
+        setVoiceSimilarityBoost(settings.voice_similarity_boost ?? 0.75);
+        setVoiceStyle(settings.voice_style ?? 0.5);
+        setVoiceSpeakerBoost(settings.voice_speaker_boost ?? false);
       } catch (error: any) {
         console.error("Error loading settings:", error);
         toast({
@@ -166,6 +176,10 @@ export default function Settings() {
               elevenLabsModel={elevenLabsModel}
               elevenLabsVoiceId={elevenLabsVoiceId}
               replicateKey={replicateKey}
+              voiceStability={voiceStability}
+              voiceSimilarityBoost={voiceSimilarityBoost}
+              voiceStyle={voiceStyle}
+              voiceSpeakerBoost={voiceSpeakerBoost}
               onOpenAIKeyChange={setOpenAIKey}
               onOpenaiKeyChange={setOpenaiKey}
               onOpenAIModelChange={setOpenAIModel}
@@ -179,6 +193,10 @@ export default function Settings() {
               onElevenLabsModelChange={setElevenLabsModel}
               onElevenLabsVoiceIdChange={setElevenLabsVoiceId}
               onReplicateKeyChange={setReplicateKey}
+              onVoiceStabilityChange={setVoiceStability}
+              onVoiceSimilarityBoostChange={setVoiceSimilarityBoost}
+              onVoiceStyleChange={setVoiceStyle}
+              onVoiceSpeakerBoostChange={setVoiceSpeakerBoost}
             />
           </motion.div>
         </div>

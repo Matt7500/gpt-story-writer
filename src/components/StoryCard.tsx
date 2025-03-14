@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Book, Trash2, Download, GitBranch, ArrowRight, BookCopy, ChevronDown, ChevronUp } from "lucide-react";
+import { Book, Trash2, Download, GitBranch, ArrowRight, BookCopy, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
@@ -159,6 +159,11 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
 
   const totalChars = Array.isArray(story.chapters) ? story.chapters.reduce((acc, chapter) => 
     acc + getCharCount(chapter.content || ''), 0) : 0;
+    
+  // Check if all chapters are completed
+  const isStoryCompleted = Array.isArray(story.chapters) && story.chapters.length > 0 
+    ? story.chapters.every(chapter => chapter.completed)
+    : false;
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -179,9 +184,13 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
       
       // Add each chapter's content, separated by three newlines
       if (Array.isArray(chapters)) {
-        chapters.forEach((chapter: any) => {
+        chapters.forEach((chapter: any, index: number) => {
           if (chapter.content) {
-            content += `${chapter.content}\n\n\n\n`;
+            content += chapter.content;
+            // Add separator between chapters, but not after the last one
+            if (index < chapters.length - 1) {
+              content += '\n\n\n\n';
+            }
           }
         });
       }
@@ -204,6 +213,52 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
     } catch (error: any) {
       toast({
         title: "Error downloading story",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      // Fetch the full story content
+      const { data, error } = await supabase
+        .from('stories')
+        .select('*')
+        .eq('id', story.id)
+        .single();
+
+      if (error) throw error;
+
+      // Parse the chapters and create content string
+      const chaptersData = data.chapters || '[]';
+      const chapters = typeof chaptersData === 'string' ? JSON.parse(chaptersData) : chaptersData;
+      let content = '';
+      
+      // Add each chapter's content, separated by three newlines
+      if (Array.isArray(chapters)) {
+        chapters.forEach((chapter: any, index: number) => {
+          if (chapter.content) {
+            content += chapter.content;
+            // Add separator between chapters, but not after the last one
+            if (index < chapters.length - 1) {
+              content += '\n\n\n\n';
+            }
+          }
+        });
+      }
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(content);
+
+      toast({
+        title: "Story copied",
+        description: "Your story has been copied to clipboard.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error copying story",
         description: error.message,
         variant: "destructive",
       });
@@ -270,6 +325,14 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                       <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 hover:bg-purple-200">
                         Series
                       </Badge>
+                      {isStoryCompleted && (
+                        <Badge 
+                          variant="secondary" 
+                          className="text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200"
+                        >
+                          Completed
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -321,6 +384,15 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                     <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
                       {relatedStory.story_idea}
                     </div>
+                    {Array.isArray(relatedStory.chapters) && relatedStory.chapters.length > 0 && 
+                      relatedStory.chapters.every(chapter => chapter.completed) && (
+                      <Badge 
+                        variant="secondary" 
+                        className="text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200 mt-1"
+                      >
+                        Completed
+                      </Badge>
+                    )}
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </div>
@@ -354,6 +426,14 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                       Series
                     </Badge>
                   ) : null}
+                  {isStoryCompleted && (
+                    <Badge 
+                      variant="secondary" 
+                      className="text-xs font-semibold bg-green-100 text-green-800 hover:bg-green-200"
+                    >
+                      Completed
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
@@ -375,6 +455,15 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                   <GitBranch className="h-4 w-4" />
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-primary"
+                onClick={handleCopy}
+                title="Copy Story to Clipboard"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"

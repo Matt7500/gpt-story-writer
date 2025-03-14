@@ -358,7 +358,15 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText} ${JSON.stringify(errorData)}`);
+      
+      // Provide more specific error messages for common issues
+      if (errorData.detail?.status === 'invalid_uid') {
+        throw new Error(`Invalid ElevenLabs voice ID: "${voiceId}". Please go to Settings and select a valid voice ID from your ElevenLabs account.`);
+      } else if (response.status === 401) {
+        throw new Error('ElevenLabs API authentication failed. Please check your API key in Settings.');
+      } else {
+        throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText} ${JSON.stringify(errorData)}`);
+      }
     }
 
     return await response.arrayBuffer();
@@ -397,6 +405,41 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     return new Blob([result], { type: 'audio/mpeg' });
   };
 
+  // Helper function to validate ElevenLabs settings
+  const validateElevenLabsSettings = (settings: any) => {
+    if (!settings.elevenlabs_key) {
+      throw new Error('ElevenLabs API key not configured. Please add it in settings.');
+    }
+    
+    if (!settings.elevenlabs_voice_id) {
+      throw new Error('ElevenLabs voice not selected. Please select a voice in settings.');
+    }
+    
+    // ElevenLabs voice IDs are typically 24-character alphanumeric strings
+    if (settings.elevenlabs_voice_id.includes('@') || 
+        settings.elevenlabs_voice_id.length < 20 || 
+        !/^[a-zA-Z0-9]+$/.test(settings.elevenlabs_voice_id)) {
+      throw new Error(
+        'Invalid ElevenLabs voice ID format. Please go to Settings and select a valid voice ID. ' +
+        'Voice IDs can be found in your ElevenLabs account under "Profile" > "API Key".'
+      );
+    }
+    
+    if (!settings.elevenlabs_model) {
+      throw new Error('ElevenLabs model not selected. Please select a model in settings.');
+    }
+    
+    return {
+      key: settings.elevenlabs_key,
+      voiceId: settings.elevenlabs_voice_id,
+      model: settings.elevenlabs_model,
+      stability: settings.voice_stability ?? 0.75,
+      similarityBoost: settings.voice_similarity_boost ?? 0.75,
+      voiceStyle: settings.voice_style,
+      speakerBoost: settings.voice_speaker_boost
+    };
+  };
+
   const handleGenerateAudio = async () => {
     try {
       setIsGeneratingAudio(true);
@@ -416,20 +459,8 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       userSettingsService.clearCache(session.user.id);
       const settings = await userSettingsService.getSettings(session.user.id);
       
-      // Check if ElevenLabs key is configured
-      if (!settings.elevenlabs_key) {
-        throw new Error('ElevenLabs API key not configured. Please add it in settings.');
-      }
-      
-      if (!settings.elevenlabs_voice_id) {
-        throw new Error('ElevenLabs voice not selected. Please select a voice in settings.');
-      }
-      
-      // Get voice settings with defaults if not set
-      const stability = settings.voice_stability ?? 0.75;
-      const similarityBoost = settings.voice_similarity_boost ?? 0.75;
-      const voiceStyle = settings.voice_style;
-      const speakerBoost = settings.voice_speaker_boost;
+      // Validate ElevenLabs settings and get voice parameters
+      const voiceParams = validateElevenLabsSettings(settings);
       
       // Set initial progress
       setAudioProgress('Preparing chapters for audio generation...');
@@ -480,13 +511,13 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
           try {
             const audioBuffer = await generateAudioForChunk(
               chunks[chunkIndex],
-              settings.elevenlabs_key,
-              settings.elevenlabs_voice_id,
-              settings.elevenlabs_model,
-              stability,
-              similarityBoost,
-              voiceStyle,
-              speakerBoost
+              voiceParams.key,
+              voiceParams.voiceId,
+              voiceParams.model,
+              voiceParams.stability,
+              voiceParams.similarityBoost,
+              voiceParams.voiceStyle,
+              voiceParams.speakerBoost
             );
             
             chunkAudioBuffers.push(audioBuffer);
@@ -560,10 +591,28 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       
       // Only show error message if it wasn't a cancellation
       if (error.message !== 'Audio generation cancelled') {
+        const isVoiceIdError = error.message.includes('Invalid ElevenLabs voice ID') || 
+                              error.message.includes('invalid_uid');
+        
         toast({
           title: "Audio Generation Failed",
           description: error.message || "Error generating audio",
           variant: "destructive",
+          action: isVoiceIdError ? (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                // You can add navigation to settings here if you have a settings page
+                toast({
+                  title: "ElevenLabs Setup",
+                  description: "Go to Settings and update your ElevenLabs voice ID. You can find your voice IDs in your ElevenLabs account dashboard.",
+                });
+              }}
+            >
+              Help
+            </Button>
+          ) : undefined,
         });
       }
     }

@@ -51,6 +51,10 @@ interface AISettingsProps {
   elevenLabsModel: string;
   elevenLabsVoiceId: string;
   replicateKey: string;
+  voiceStability: number;
+  voiceSimilarityBoost: number;
+  voiceStyle: number;
+  voiceSpeakerBoost: boolean;
   onOpenAIKeyChange: (key: string) => void;
   onOpenaiKeyChange: (key: string) => void;
   onOpenAIModelChange: (model: string) => void;
@@ -64,6 +68,10 @@ interface AISettingsProps {
   onElevenLabsModelChange: (model: string) => void;
   onElevenLabsVoiceIdChange: (voiceId: string) => void;
   onReplicateKeyChange: (key: string) => void;
+  onVoiceStabilityChange: (stability: number) => void;
+  onVoiceSimilarityBoostChange: (similarityBoost: number) => void;
+  onVoiceStyleChange: (style: number) => void;
+  onVoiceSpeakerBoostChange: (speakerBoost: boolean) => void;
 }
 
 const API_KEY_PATTERNS = {
@@ -92,6 +100,10 @@ export function AISettings({
   elevenLabsModel,
   elevenLabsVoiceId,
   replicateKey,
+  voiceStability,
+  voiceSimilarityBoost,
+  voiceStyle,
+  voiceSpeakerBoost,
   onOpenAIKeyChange,
   onOpenaiKeyChange,
   onOpenAIModelChange,
@@ -105,6 +117,10 @@ export function AISettings({
   onElevenLabsModelChange,
   onElevenLabsVoiceIdChange,
   onReplicateKeyChange,
+  onVoiceStabilityChange,
+  onVoiceSimilarityBoostChange,
+  onVoiceStyleChange,
+  onVoiceSpeakerBoostChange,
 }: AISettingsProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -112,10 +128,10 @@ export function AISettings({
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadingVoices, setLoadingVoices] = useState(false);
-  const [stability, setStability] = useState(0.75);
-  const [similarityBoost, setSimilarityBoost] = useState(0.75);
-  const [voiceStyle, setVoiceStyle] = useState(0.5);
-  const [speakerBoost, setSpeakerBoost] = useState(false);
+  const [stability, setStability] = useState(voiceStability);
+  const [similarityBoost, setSimilarityBoost] = useState(voiceSimilarityBoost);
+  const [voiceStyleState, setVoiceStyleState] = useState(voiceStyle);
+  const [speakerBoostState, setSpeakerBoostState] = useState(voiceSpeakerBoost);
   const [editingKeys, setEditingKeys] = useState<Record<string, boolean>>({
     openai: false,
     openrouter: false,
@@ -338,8 +354,8 @@ export function AISettings({
         replicate_key: replicateKey,
         voice_stability: stability,
         voice_similarity_boost: similarityBoost,
-        voice_style: voiceStyle,
-        voice_speaker_boost: speakerBoost
+        voice_style: voiceStyleState,
+        voice_speaker_boost: speakerBoostState
       };
       
       await saveSettings(settings);
@@ -465,6 +481,30 @@ export function AISettings({
 
   // Check if the selected model is multilingual_v2
   const isMultilingualV2 = elevenLabsModel === "eleven_multilingual_v2";
+
+  // Update parent component state when voice settings change
+  const handleStabilityChange = (values: number[]) => {
+    const value = values[0];
+    setStability(value);
+    onVoiceStabilityChange(value);
+  };
+  
+  const handleSimilarityBoostChange = (values: number[]) => {
+    const value = values[0];
+    setSimilarityBoost(value);
+    onVoiceSimilarityBoostChange(value);
+  };
+  
+  const handleVoiceStyleChange = (values: number[]) => {
+    const value = values[0];
+    setVoiceStyleState(value);
+    onVoiceStyleChange(value);
+  };
+  
+  const handleSpeakerBoostChange = (checked: boolean) => {
+    setSpeakerBoostState(checked);
+    onVoiceSpeakerBoostChange(checked);
+  };
 
   return (
     <div className="space-y-4">
@@ -737,8 +777,8 @@ export function AISettings({
               onElevenLabsModelChange(value);
               // Reset style when changing models
               if (value !== "eleven_multilingual_v2") {
-                setVoiceStyle(0.5);
-                setSpeakerBoost(false);
+                setVoiceStyleState(0.5);
+                setSpeakerBoostState(false);
               }
             }}
             disabled={loadingModels || !elevenLabsKey || !keyValidation.elevenlabs.isValid}
@@ -792,32 +832,68 @@ export function AISettings({
         </div>
 
         <div>
-          <label className="text-sm font-medium">Voice Stability: {stability.toFixed(2)}</label>
-          <Slider
-            className="mt-2"
-            min={0}
-            max={1}
-            step={0.01}
-            value={[stability]}
-            onValueChange={(values) => setStability(values[0])}
-            disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
-          />
+          <label className="text-sm font-medium">Voice Stability: </label>
+          <div className="flex items-center gap-2">
+            <Slider
+              className="flex-1"
+              min={0}
+              max={1}
+              step={0.01}
+              value={[stability]}
+              onValueChange={handleStabilityChange}
+              disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+            />
+            <Input
+              type="number"
+              min={0}
+              max={1}
+              step={0.01}
+              value={stability}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value);
+                if (!isNaN(value) && value >= 0 && value <= 1) {
+                  setStability(value);
+                  onVoiceStabilityChange(value);
+                }
+              }}
+              className="w-20"
+              disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+            />
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
             Higher values make the voice more consistent but may sound less natural
           </p>
         </div>
         
         <div>
-          <label className="text-sm font-medium">Similarity Boost: {similarityBoost.toFixed(2)}</label>
-          <Slider
-            className="mt-2"
-            min={0}
-            max={1}
-            step={0.01}
-            value={[similarityBoost]}
-            onValueChange={(values) => setSimilarityBoost(values[0])}
-            disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
-          />
+          <label className="text-sm font-medium">Similarity Boost: </label>
+          <div className="flex items-center gap-2">
+            <Slider
+              className="flex-1"
+              min={0}
+              max={1}
+              step={0.01}
+              value={[similarityBoost]}
+              onValueChange={handleSimilarityBoostChange}
+              disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+            />
+            <Input
+              type="number"
+              min={0}
+              max={1}
+              step={0.01}
+              value={similarityBoost}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value);
+                if (!isNaN(value) && value >= 0 && value <= 1) {
+                  setSimilarityBoost(value);
+                  onVoiceSimilarityBoostChange(value);
+                }
+              }}
+              className="w-20"
+              disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+            />
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
             Higher values make the voice more similar to the original but may reduce quality
           </p>
@@ -826,16 +902,34 @@ export function AISettings({
         {/* Voice Style - only for multilingual_v2 model */}
         {isMultilingualV2 && (
           <div>
-            <label className="text-sm font-medium">Voice Style: {voiceStyle.toFixed(2)}</label>
-            <Slider
-              className="mt-2"
-              min={0}
-              max={1}
-              step={0.01}
-              value={[voiceStyle]}
-              onValueChange={(values) => setVoiceStyle(values[0])}
-              disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
-            />
+            <label className="text-sm font-medium">Voice Style: </label>
+            <div className="flex items-center gap-2">
+              <Slider
+                className="flex-1"
+                min={0}
+                max={1}
+                step={0.01}
+                value={[voiceStyleState]}
+                onValueChange={handleVoiceStyleChange}
+                disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+              />
+              <Input
+                type="number"
+                min={0}
+                max={1}
+                step={0.01}
+                value={voiceStyleState}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (!isNaN(value) && value >= 0 && value <= 1) {
+                    setVoiceStyleState(value);
+                    onVoiceStyleChange(value);
+                  }
+                }}
+                className="w-20"
+                disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
+              />
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               Controls the style of the voice. Higher values make the voice more expressive
             </p>
@@ -844,17 +938,17 @@ export function AISettings({
 
         {/* Speaker Boost Toggle - only for multilingual_v2 model */}
         {isMultilingualV2 && (
-          <div className="flex items-center space-x-2 pt-2">
+          <div className="flex items-center space-x-2 mt-4">
             <Switch
               id="speaker-boost"
-              checked={speakerBoost}
-              onCheckedChange={setSpeakerBoost}
+              checked={speakerBoostState}
+              onCheckedChange={handleSpeakerBoostChange}
               disabled={!elevenLabsKey || !keyValidation.elevenlabs.isValid}
             />
-            <Label htmlFor="speaker-boost">Enable Speaker Boost</Label>
-            <p className="text-xs text-muted-foreground ml-2">
-              Enhances the clarity and presence of the voice
-            </p>
+            <Label htmlFor="speaker-boost">Speaker Boost</Label>
+            <div className="ml-2 text-xs text-muted-foreground">
+              {speakerBoostState ? "On" : "Off"}
+            </div>
           </div>
         )}
       </div>
