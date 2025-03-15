@@ -58,6 +58,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
   const [proposedTitle, setProposedTitle] = useState<string | null>(null);
   const [storyData, setStoryData] = useState<any>(null);
   const [storyIdea, setStoryIdea] = useState<string | null>(null);
+  const [storyIdeaSummary, setStoryIdeaSummary] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [isStoryIdeaOpen, setIsStoryIdeaOpen] = useState(false);
@@ -75,6 +76,17 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
       if (source === 'custom' && customIdea) {
         // If we have a custom idea, use it directly
         setStoryIdea(customIdea);
+        
+        // Generate a summary of the custom idea
+        const summary = await storyService.generateStoryIdeaSummary(
+          customIdea,
+          abortControllerRef.current?.signal
+        );
+        
+        // Check if we're cancelling
+        if (isCancelling || !abortControllerRef.current) return;
+        
+        setStoryIdeaSummary(summary);
         setCurrentStep(1); // Skip to the next step
         
         // Generate title from the custom idea
@@ -120,6 +132,17 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
       
       setStoryIdea(idea);
       
+      // Generate a summary of the idea
+      const summary = await storyService.generateStoryIdeaSummary(
+        idea,
+        abortControllerRef.current?.signal
+      );
+      
+      // Check if we're cancelling
+      if (isCancelling || !abortControllerRef.current) return;
+      
+      setStoryIdeaSummary(summary);
+      
       // Generate title from the idea
       setCurrentStep(1);
       const title = await storyService.createTitle(
@@ -161,6 +184,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
       setProposedTitle(null);
       setStoryData(null);
       setStoryIdea(null);
+      setStoryIdeaSummary(null);
       setIsEditingTitle(false);
       setCustomTitle("");
       setIsStoryIdeaOpen(false);
@@ -206,6 +230,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
     setProposedTitle(null);
     setStoryData(null);
     setStoryIdea(null);
+    setStoryIdeaSummary(null);
     setIsEditingTitle(false);
     setCustomTitle("");
     setIsStoryIdeaOpen(false);
@@ -511,7 +536,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
                           className="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800/50"
                         >
                           <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-left">
-                            <div className="font-medium">Story Idea Preview</div>
+                            <div className="font-medium">Story Idea Summary</div>
                             <div className="text-muted-foreground">
                               <motion.div
                                 animate={{ rotate: isStoryIdeaOpen ? 180 : 0 }}
@@ -532,7 +557,7 @@ export function StoryGenerationModal({ open, onClose, onComplete, source = 'redd
                                 >
                                   <div className="px-4 pb-4">
                                     <div className="bg-white/50 dark:bg-gray-700/50 p-3 rounded text-sm text-muted-foreground max-h-[400px] overflow-y-auto">
-                                      {storyIdea}
+                                      {storyIdeaSummary || "Generating summary..."}
                                     </div>
                                   </div>
                                 </motion.div>

@@ -73,6 +73,7 @@ export function SequelGenerationModal({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [sequelIdea, setSequelIdea] = useState<string | null>(null);
+  const [sequelIdeaSummary, setSequelIdeaSummary] = useState<string | null>(null);
   const [isSequelIdeaOpen, setIsSequelIdeaOpen] = useState(false);
   const [storyData, setStoryData] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -93,6 +94,7 @@ export function SequelGenerationModal({
       setIsEditingTitle(false);
       setCustomTitle("");
       setSequelIdea(null);
+      setSequelIdeaSummary(null);
       setStoryData(null);
       setIsSequelIdeaOpen(false);
       
@@ -117,6 +119,17 @@ export function SequelGenerationModal({
           if (isCancelling || !isActive || !abortControllerRef.current) return;
           
           setSequelIdea(sequelIdea);
+          
+          // Generate a summary of the sequel idea
+          const summary = await storyService.generateStoryIdeaSummary(
+            sequelIdea,
+            abortControllerRef.current?.signal
+          );
+          
+          // Check if cancelled after the operation
+          if (isCancelling || !isActive || !abortControllerRef.current) return;
+          
+          setSequelIdeaSummary(summary);
 
           // Step 2: Generate title
           setCurrentStep(1);
@@ -393,6 +406,7 @@ export function SequelGenerationModal({
     setIsEditingTitle(false);
     setCustomTitle("");
     setSequelIdea(null);
+    setSequelIdeaSummary(null);
     setStoryData(null);
     setIsSequelIdeaOpen(false);
     
@@ -425,6 +439,7 @@ export function SequelGenerationModal({
       setIsEditingTitle(false);
       setCustomTitle("");
       setSequelIdea(null);
+      setSequelIdeaSummary(null);
       setStoryData(null);
       setIsSequelIdeaOpen(false);
       
@@ -619,7 +634,7 @@ export function SequelGenerationModal({
                           className="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800/50"
                         >
                           <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-left">
-                            <div className="font-medium">Sequel Idea Preview</div>
+                            <div className="font-medium">Sequel Idea Summary</div>
                             <div className="text-muted-foreground">
                               <motion.div
                                 animate={{ rotate: isSequelIdeaOpen ? 180 : 0 }}
@@ -643,7 +658,7 @@ export function SequelGenerationModal({
                                   <div className="p-4">
                                     <ScrollArea className="max-h-[400px] overflow-auto bg-white/30 dark:bg-gray-700/30 rounded">
                                       <div className="p-3 pr-6">
-                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{sequelIdea}</p>
+                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{sequelIdeaSummary || "Generating summary..."}</p>
                                       </div>
                                     </ScrollArea>
                                   </div>

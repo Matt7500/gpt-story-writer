@@ -1646,12 +1646,10 @@ Write only the transition paragraph(s). Do not include any meta-commentary, expl
       }
       
       // Get the appropriate client based on user settings
-      const client = this.getClient();
+      const client = this.getOpenRouterClient();
       
       // Use the reasoning model for summarization
-      const model = this.userSettings.use_openai_for_story_gen 
-        ? this.userSettings.reasoning_model || 'gpt-4o'
-        : this.userSettings.reasoning_model || 'anthropic/claude-3.7-sonnet:thinking';
+      const model = 'anthropic/claude-3.7-sonnet:beta';
       
       console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for story idea summarization`);
       
@@ -1660,7 +1658,6 @@ Create a concise summary of the following story idea. The summary should:
 - Be approximately 100-150 words
 - Capture the core concept and main plot points
 - Highlight the most interesting elements
-- Avoid revealing any major twists or endings
 - Be written in an engaging style that makes the reader want to know more
 
 Story Idea:
