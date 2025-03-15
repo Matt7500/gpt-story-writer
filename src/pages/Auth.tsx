@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { setDocumentTitle } from "@/utils/document";
+import { createUser, signInUser } from "@/lib/auth";
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -24,36 +24,25 @@ export default function Auth() {
 
     try {
       if (isSignUp) {
-        console.log("Attempting to sign up with email:", email);
-        
-        // Use window.location.origin instead of hardcoded URL
-        const redirectTo = window.location.origin;
-        console.log("Using redirect URL:", redirectTo);
-        
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectTo
-          }
-        });
+        // Use the helper function for signup
+        const { data, error } = await createUser(email, password);
         
         if (error) {
-          console.error("Signup error:", error);
           throw error;
         }
         
-        console.log("Signup successful:", data);
         toast({
-          title: "Success!",
+          title: "Account created",
           description: "Please check your email to confirm your account.",
         });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
+        // Use the helper function for signin
+        const { data, error } = await signInUser(email, password);
+        
+        if (error) {
+          throw error;
+        }
+        
         navigate("/");
       }
     } catch (error: any) {
