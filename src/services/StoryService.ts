@@ -394,180 +394,16 @@ Please provide a detailed summary in 400-600 words.
     }
   }
 
-  // Extract scene from partial JSON
-  private extractSceneFromPartialJSON(text: string): string[] | null {
-    try {
-      console.log("Attempting to extract scene from partial JSON...");
-      
-      // This method specifically handles the case where we have a partial scene
-      // like in the example: '{ 'scene_number ... }, { 'scene_number'
-      
-      // First, try to extract complete scene objects
-      const sceneObjects: string[] = [];
-      
-      // Match complete scene objects with both scene_number and scene_beat
-      const completeSceneRegex = /\{\s*['"]?scene_number['"]?\s*:\s*\d+\s*,\s*['"]?scene_beat['"]?\s*:\s*['"]([^'"]+)['"]\s*\}/g;
-      let match;
-      
-      while ((match = completeSceneRegex.exec(text)) !== null) {
-        if (match[1] && match[1].trim()) {
-          sceneObjects.push(match[1].trim());
-        }
-      }
-      
-      // If we found complete scenes, return them
-      if (sceneObjects.length > 0) {
-        console.log(`Extracted ${sceneObjects.length} complete scenes from partial JSON`);
-        return sceneObjects;
-      }
-      
-      // If no complete scenes were found, try to extract the content directly
-      // This is for cases where the JSON is severely malformed
-      
-      // First, check if the text contains a scene description
-      if (text.includes('(The Narrator)') && text.length > 100) {
-        // Extract the entire text as a scene
-        return [text.trim()];
-      }
-      
-      // Try to extract just the narrative content
-      const narrativeMatch = /['"]?scene_beat['"]?\s*:\s*['"]([^'"]+)['"]/i.exec(text);
-      if (narrativeMatch && narrativeMatch[1] && narrativeMatch[1].trim()) {
-        return [narrativeMatch[1].trim()];
-      }
-      
-      // If all else fails, just return the text as is if it's substantial
-      if (text.length > 200 && !text.includes('```') && !text.includes('##')) {
-        return [text.trim()];
-      }
-      
-      return null;
-    } catch (err) {
-      console.error("Error extracting scene from partial JSON:", err);
-      return null;
-    }
-  }
-
-  // Handle the specific case where we have a scene that's cut off at the end with 'scene_number'
-  private handleCutOffScene(text: string): string[] | null {
-    try {
-      console.log("Handling specific case of cut-off scene ending with 'scene_number'");
-      
-      // This is specifically for the case in the user's example:
-      // '... }, { 'scene_number'
-      
-      // First, check if the text contains this pattern
-      if (!text.includes('scene_number') || !text.includes('scene_beat')) {
-        return null;
-      }
-      
-      // Extract the complete scene before the cut-off
-      const sceneRegex = /\{\s*['"]?scene_number['"]?\s*:\s*\d+\s*,\s*['"]?scene_beat['"]?\s*:\s*['"]([^'"]+)['"]/;
-      const match = sceneRegex.exec(text);
-      
-      if (match && match[1] && match[1].trim()) {
-        console.log("Successfully extracted scene content from cut-off JSON");
-        return [match[1].trim()];
-      }
-      
-      // If that didn't work, try a more aggressive approach
-      // Look for any substantial text between scene_beat and the end
-      const beatIndex = text.indexOf('scene_beat');
-      if (beatIndex !== -1) {
-        // Find the first quote after scene_beat
-        const quoteIndex = text.indexOf('"', beatIndex + 10); // 10 is the length of 'scene_beat'
-        
-        if (quoteIndex !== -1) {
-          // Find the next quote that would close the string
-          const endQuoteIndex = text.indexOf('"', quoteIndex + 1);
-          
-          if (endQuoteIndex !== -1) {
-            // Extract the content between the quotes
-            const content = text.substring(quoteIndex + 1, endQuoteIndex);
-            if (content && content.trim().length > 0) {
-              return [content.trim()];
-            }
-          } else {
-            // If there's no closing quote, extract from the opening quote to the end
-            const content = text.substring(quoteIndex + 1);
-            if (content && content.trim().length > 0) {
-              return [content.trim()];
-            }
-          }
-        }
-      }
-      
-      // If we get here, we couldn't extract the scene content
-      return null;
-    } catch (err) {
-      console.error("Error handling cut-off scene:", err);
-      return null;
-    }
-  }
-
-  // Handle the specific text from the user's query
-  private handleUserQueryText(text: string): string[] | null {
-    // This method is specifically designed to handle the exact text from the user's query
-    if (text.includes('John Blake (The Narrator)') && 
-        text.includes('Fort Carson, Colorado') && 
-        text.includes('Colonel Harrington')) {
-      
-      console.log("Detected the specific text from the user's query");
-      
-      // This is the exact text from the user's query, so we can just return it as a scene
-      return [text.trim()];
-    }
-    
-    return null;
-  }
-
   // Format scenes from JSON string
   public formatScenes(inputString: string): string[] | null {
     try {
       console.log("Raw input to formatScenes:", inputString.substring(0, 100) + "...");
       
-      // If the input is empty or not a string, return null
-      if (!inputString || typeof inputString !== 'string') {
-        console.log("Invalid input to formatScenes: empty or not a string");
-        return null;
-      }
-      
-      // First, check if this is the specific text from the user's query
-      const userQueryScene = this.handleUserQueryText(inputString);
-      if (userQueryScene) {
-        return userQueryScene;
-      }
-      
-      // Check if the input looks like a scene description rather than JSON
-      if (!inputString.includes('"scene_number"') && !inputString.includes('"scene_beat"') && 
-          !inputString.includes('[') && !inputString.includes('{')) {
-        // This might be a direct scene description
-        console.log("Input appears to be a direct scene description, not JSON");
-        return [inputString.trim()];
-      }
-      
-      // Check for the specific case in the user's example
-      if (inputString.includes('scene_beat') && 
-          (inputString.endsWith('scene_number') || 
-           inputString.endsWith('scene_number:') || 
-           inputString.endsWith('{'))) {
-        console.log("Input matches the specific cut-off pattern from the user's example");
-        const extractedScene = this.handleCutOffScene(inputString);
-        if (extractedScene) {
-          return extractedScene;
-        }
-      }
-      
-      // Try to extract scene from partial JSON if it looks like a cut-off scene
-      if (inputString.includes('scene_number') && 
-          (inputString.endsWith('scene_number') || 
-           inputString.endsWith('scene_number:') || 
-           inputString.endsWith('{'))) {
-        console.log("Input appears to be a cut-off scene, trying specialized extraction");
-        const extractedScene = this.extractSceneFromPartialJSON(inputString);
-        if (extractedScene) {
-          return extractedScene;
-        }
+      // First, check if this is plain text narrative content rather than JSON
+      if (!inputString.trim().startsWith('[') && !inputString.trim().startsWith('{')) {
+        console.log("Input appears to be plain text narrative rather than JSON");
+        // Convert plain text to JSON format first
+        inputString = this.convertPlainTextToJson(inputString);
       }
       
       // Clean code blocks
@@ -587,36 +423,9 @@ Please provide a detailed summary in 400-600 words.
         inputString = inputString.substring(0, jsonEndIndex + 1);
       }
       
-      // Check if we have a complete JSON array
-      if (!inputString.startsWith('[') || !inputString.endsWith(']')) {
-        console.log("JSON array is incomplete, attempting to fix...");
-        
-        // If it starts with '[' but doesn't end with ']', add the closing bracket
-        if (inputString.startsWith('[') && !inputString.endsWith(']')) {
-          inputString += ']';
-        }
-        
-        // If it doesn't start with '[' but contains '{', try to wrap it in an array
-        if (!inputString.startsWith('[') && inputString.includes('{')) {
-          inputString = '[' + inputString;
-          if (!inputString.endsWith(']')) {
-            inputString += ']';
-          }
-        }
-      }
-      
       // Additional sanitization to fix common JSON issues
+      // Replace any unescaped quotes within string values
       inputString = this.sanitizeJsonString(inputString);
-      
-      // Fix common JSON syntax errors
-      // Replace single quotes with double quotes for JSON properties
-      inputString = inputString.replace(/'([^']+)'(\s*:)/g, '"$1"$2');
-      
-      // Fix trailing commas in arrays and objects
-      inputString = inputString.replace(/,\s*}/g, '}').replace(/,\s*\]/g, ']');
-      
-      // Fix missing commas between objects in arrays
-      inputString = inputString.replace(/}\s*{/g, '},{');
       
       console.log("Sanitized JSON:", inputString.substring(0, 100) + "...");
       
@@ -627,158 +436,197 @@ Please provide a detailed summary in 400-600 words.
       } catch (parseError) {
         console.error("JSON parse error:", parseError);
         
-        // Try the specific handler for cut-off scenes first
-        const cutOffScene = this.handleCutOffScene(inputString);
-        if (cutOffScene) {
-          return cutOffScene;
-        }
-        
-        // If that fails, try the specialized extraction for partial JSON
-        const extractedScene = this.extractSceneFromPartialJSON(inputString);
-        if (extractedScene) {
-          return extractedScene;
-        }
-        
-        // If that fails, try the more general approach
+        // If parsing fails, try a more aggressive approach to extract scene data
         console.log("Attempting to extract scene data manually...");
-        return this.extractScenesManually(inputString);
-      }
-      
-      // Handle the case where scenesArr is not an array
-      if (!Array.isArray(scenesArr)) {
-        console.log("Parsed JSON is not an array, attempting to convert...");
-        
-        // If it's an object with scene_beat, treat it as a single scene
-        if (scenesArr && typeof scenesArr === 'object' && scenesArr.scene_beat) {
-          return [scenesArr.scene_beat.trim()];
-        }
-        
-        // If it's an object with numbered properties, try to extract them as scenes
-        if (scenesArr && typeof scenesArr === 'object') {
-          const extractedScenes: string[] = [];
-          Object.keys(scenesArr).forEach(key => {
-            const scene = scenesArr[key];
-            if (scene && typeof scene === 'object' && scene.scene_beat) {
-              extractedScenes.push(scene.scene_beat.trim());
-            }
-          });
-          
-          if (extractedScenes.length > 0) {
-            console.log(`Extracted ${extractedScenes.length} scenes from object properties`);
-            return extractedScenes;
-          }
-        }
-        
-        // Fall back to manual extraction
         return this.extractScenesManually(inputString);
       }
 
       const formattedScenes: string[] = [];
       for (const scene of scenesArr) {
-        // Handle different scene formats
-        if (typeof scene === 'string') {
-          // If the scene is already a string, just add it
-          formattedScenes.push(scene.trim());
-        } else if (scene && typeof scene === 'object') {
-          // If the scene is an object, look for scene_beat
-          const sceneNumber = scene.scene_number;
-          const sceneBeat = scene.scene_beat;
-          if (sceneBeat && typeof sceneBeat === 'string') {
-            formattedScenes.push(sceneBeat.trim());
-          }
+        const sceneNumber = scene.scene_number;
+        const sceneBeat = scene.scene_beat;
+        if (sceneNumber != null && sceneBeat) {
+          formattedScenes.push(sceneBeat.trim());
         }
       }
       
       if (!formattedScenes.length) {
         console.log("Warning: No scenes were parsed from JSON");
-        return this.extractScenesManually(inputString);
+        return null;
       }
       
       console.log(`Successfully parsed ${formattedScenes.length} scenes`);
       return formattedScenes;
     } catch (err) {
       console.log("Warning: Failed to parse JSON in formatScenes:", err);
-      return this.extractScenesManually(inputString);
+      return null;
     }
+  }
+  
+  // New method to convert plain text to JSON format
+  private convertPlainTextToJson(text: string): string {
+    console.log("Converting plain text to JSON format");
+    
+    // Split the text into paragraphs or chunks
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    
+    // If we have very few paragraphs, we might need to split by sentences
+    let scenes: string[] = [];
+    
+    if (paragraphs.length <= 2) {
+      // Try to split by sentences that end with periods followed by spaces
+      const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 0);
+      
+      // Group sentences into reasonable scene chunks
+      const sentencesPerScene = Math.max(3, Math.ceil(sentences.length / 8)); // Aim for about 8 scenes max
+      
+      for (let i = 0; i < sentences.length; i += sentencesPerScene) {
+        const sceneChunk = sentences.slice(i, i + sentencesPerScene).join('. ') + '.';
+        scenes.push(sceneChunk.trim());
+      }
+    } else {
+      // Check if the text contains scene markers
+      const hasSceneMarkers = text.includes('scene_number') || 
+                             text.includes('Scene ') || 
+                             paragraphs.some(p => /^(Chapter|Scene)\s+\d+/i.test(p));
+      
+      if (hasSceneMarkers) {
+        // Try to extract scenes based on scene markers
+        let currentScene = '';
+        
+        for (const paragraph of paragraphs) {
+          if (/^(Chapter|Scene)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
+            // This paragraph starts a new scene
+            if (currentScene) {
+              scenes.push(currentScene.trim());
+            }
+            currentScene = paragraph;
+          } else {
+            // This paragraph is part of the current scene
+            currentScene += '\n\n' + paragraph;
+          }
+        }
+        
+        // Add the last scene if it exists
+        if (currentScene) {
+          scenes.push(currentScene.trim());
+        }
+      } else {
+        // If we couldn't extract scenes based on markers, use paragraphs as scenes
+        // Group paragraphs into reasonable chunks to form scenes
+        const paragraphsPerScene = Math.max(2, Math.ceil(paragraphs.length / 8)); // Aim for about 8 scenes
+        
+        for (let i = 0; i < paragraphs.length; i += paragraphsPerScene) {
+          const sceneChunk = paragraphs.slice(i, i + paragraphsPerScene).join('\n\n');
+          scenes.push(sceneChunk.trim());
+        }
+      }
+    }
+    
+    // If no scenes were extracted, use the entire text as one scene
+    if (scenes.length === 0) {
+      scenes = [text.trim()];
+    }
+    
+    // Convert scenes to JSON format
+    const jsonScenes = scenes.map((scene, index) => ({
+      scene_number: index + 1,
+      scene_beat: scene
+    }));
+    
+    console.log(`Converted ${jsonScenes.length} scenes to JSON format`);
+    return JSON.stringify(jsonScenes);
+  }
+  
+  // New helper method to extract scenes from plain text narrative
+  private extractScenesFromPlainText(text: string): string[] {
+    console.log("Extracting scenes from plain text narrative");
+    
+    // Split the text into paragraphs or chunks
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    
+    // If we have very few paragraphs, we might need to split by sentences
+    if (paragraphs.length <= 2) {
+      // Try to split by sentences that end with periods followed by spaces
+      const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 0);
+      
+      // Group sentences into reasonable scene chunks (e.g., 3-5 sentences per scene)
+      const scenes: string[] = [];
+      const sentencesPerScene = Math.max(3, Math.ceil(sentences.length / 8)); // Aim for about 8 scenes max
+      
+      for (let i = 0; i < sentences.length; i += sentencesPerScene) {
+        const sceneChunk = sentences.slice(i, i + sentencesPerScene).join('. ') + '.';
+        scenes.push(sceneChunk.trim());
+      }
+      
+      console.log(`Extracted ${scenes.length} scenes by splitting into sentence groups`);
+      return scenes;
+    }
+    
+    // Check if the text contains scene markers like "scene_number" or similar patterns
+    const hasSceneMarkers = text.includes('scene_number') || 
+                           text.includes('Scene ') || 
+                           paragraphs.some(p => /^(Chapter|Scene)\s+\d+/i.test(p));
+    
+    if (hasSceneMarkers) {
+      // Try to extract scenes based on scene markers
+      const scenes: string[] = [];
+      let currentScene = '';
+      
+      for (const paragraph of paragraphs) {
+        if (/^(Chapter|Scene)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
+          // This paragraph starts a new scene
+          if (currentScene) {
+            scenes.push(currentScene.trim());
+          }
+          currentScene = paragraph;
+        } else {
+          // This paragraph is part of the current scene
+          currentScene += '\n\n' + paragraph;
+        }
+      }
+      
+      // Add the last scene if it exists
+      if (currentScene) {
+        scenes.push(currentScene.trim());
+      }
+      
+      if (scenes.length > 0) {
+        console.log(`Extracted ${scenes.length} scenes based on scene markers`);
+        return scenes;
+      }
+    }
+    
+    // If we couldn't extract scenes based on markers, use paragraphs as scenes
+    // Group paragraphs into reasonable chunks to form scenes
+    const scenes: string[] = [];
+    const paragraphsPerScene = Math.max(2, Math.ceil(paragraphs.length / 8)); // Aim for about 8 scenes
+    
+    for (let i = 0; i < paragraphs.length; i += paragraphsPerScene) {
+      const sceneChunk = paragraphs.slice(i, i + paragraphsPerScene).join('\n\n');
+      scenes.push(sceneChunk.trim());
+    }
+    
+    console.log(`Extracted ${scenes.length} scenes by grouping paragraphs`);
+    return scenes;
   }
   
   // Helper method to sanitize JSON string
   private sanitizeJsonString(jsonString: string): string {
-    // This is a sanitizer that handles common JSON formatting issues
+    // This is a simplified sanitizer that handles common JSON formatting issues
+    
+    // Replace unescaped quotes within string values
+    // This regex looks for quotes between quotes that aren't escaped
+    let result = jsonString;
     
     // First, let's handle any potential control characters that might be invalid in JSON
-    let result = jsonString;
     result = result.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
     
-    // Fix unbalanced quotes in JSON property names
-    result = result.replace(/([{,]\s*)([^"'\s][^:]*[^"'\s])(\s*:)/g, '$1"$2"$3');
+    // Try to fix unescaped quotes in a way that preserves the structure
+    // This is complex to do perfectly with regex, so we'll use a simplified approach
     
-    // Handle nested quotes in string values
-    // First, escape any already escaped quotes to preserve them
-    result = result.replace(/\\"/g, '__ESCAPED_QUOTE__');
-    
-    // Replace unescaped quotes within string values with escaped quotes
-    // This regex looks for quotes between quotes that aren't escaped
-    result = result.replace(/: ?"([^"]*)"([^"]*)"([^"]*)"/g, ': "$1\\"$2\\"$3"');
-    
-    // More aggressive approach for nested quotes
-    // Look for patterns like: "key": "value "with quotes" inside"
-    const quoteRegex = /"([^"]+)": ?"([^"]*)"([^"]*)"([^"]*)"/g;
-    let match;
-    while ((match = quoteRegex.exec(result)) !== null) {
-      const fullMatch = match[0];
-      const key = match[1];
-      const beforeQuote = match[2];
-      const quotedPart = match[3];
-      const afterQuote = match[4];
-      
-      // Replace the inner quotes with escaped quotes
-      const fixed = `"${key}": "${beforeQuote}\\\"${quotedPart}\\\"${afterQuote}"`;
-      result = result.replace(fullMatch, fixed);
-    }
-    
-    // Restore previously escaped quotes
-    result = result.replace(/__ESCAPED_QUOTE__/g, '\\"');
-    
-    // Fix common issues with apostrophes in text being treated as quotes
-    // Look for patterns like: "key": "value's with apostrophe"
-    result = result.replace(/"([^"]+)": ?"([^"]*)'([^"]*)"/, '"$1": "$2\'$3"');
-    
-    // Fix missing quotes around property values
-    result = result.replace(/: *([^",\{\[\]\}][^,\{\[\]\}]*[^",\{\[\]\}])([,\}\]])/g, ': "$1"$2');
-    
-    // Fix trailing commas in arrays and objects
-    result = result.replace(/,(\s*[\}\]])/g, '$1');
-    
-    // Fix missing commas between array elements or object properties
-    result = result.replace(/\}(\s*)\{/g, '},$1{');
-    result = result.replace(/\](\s*)\[/g, '],$1[');
-    result = result.replace(/"(\s*)\{/g, '",$1{');
-    
-    // Handle the specific case of cut-off JSON at the end
-    // If the string ends with a quote but the JSON structure is incomplete
-    if (result.endsWith('"') && !result.endsWith('"}') && !result.endsWith('"]')) {
-      // Count opening and closing braces/brackets to check for balance
-      const openBraces = (result.match(/\{/g) || []).length;
-      const closeBraces = (result.match(/\}/g) || []).length;
-      const openBrackets = (result.match(/\[/g) || []).length;
-      const closeBrackets = (result.match(/\]/g) || []).length;
-      
-      // If we have unbalanced braces/brackets, try to close them
-      if (openBraces > closeBraces || openBrackets > closeBrackets) {
-        // Close the string properly
-        result += '"';
-        
-        // Add missing closing braces/brackets
-        for (let i = 0; i < openBraces - closeBraces; i++) {
-          result += '}';
-        }
-        
-        for (let i = 0; i < openBrackets - closeBrackets; i++) {
-          result += ']';
-        }
-      }
-    }
+    // Replace instances where there might be nested quotes
+    result = result.replace(/: ?"([^"]*)"([^"]*)"([^"]*)"/g, ': "$1\'$2\'$3"');
     
     return result;
   }
@@ -788,7 +636,7 @@ Please provide a detailed summary in 400-600 words.
     try {
       console.log("Attempting manual scene extraction...");
       
-      // First approach: Look for scene_beat patterns
+      // Look for scene_beat patterns
       const sceneRegex = /"scene_beat"\s*:\s*"([^"]*)"/g;
       const scenes: string[] = [];
       let match;
@@ -805,48 +653,7 @@ Please provide a detailed summary in 400-600 words.
         return scenes;
       }
       
-      // Second approach: Try to handle malformed JSON with cut-off scenes
-      // This specifically targets the case where we have a partial JSON structure
-      try {
-        console.log("Attempting to extract from malformed JSON with cut-off scenes...");
-        
-        // First, try to identify scene objects in the text
-        const sceneObjectRegex = /\{\s*["']?scene_number["']?\s*:\s*\d+\s*,\s*["']?scene_beat["']?\s*:\s*["']([^"']+)["']/g;
-        let sceneMatch;
-        
-        while ((sceneMatch = sceneObjectRegex.exec(text)) !== null) {
-          if (sceneMatch[1] && sceneMatch[1].trim()) {
-            scenes.push(sceneMatch[1].trim());
-          }
-        }
-        
-        // If we found scenes using this approach, return them
-        if (scenes.length > 0) {
-          console.log(`Extracted ${scenes.length} scenes from malformed JSON`);
-          return scenes;
-        }
-        
-        // If that didn't work, try an even more aggressive approach for cut-off JSON
-        // Look for the pattern where we have a scene_beat value that might be cut off
-        const partialSceneRegex = /["']?scene_beat["']?\s*:\s*["']([^"']+)$/;
-        const partialMatch = partialSceneRegex.exec(text);
-        
-        if (partialMatch && partialMatch[1] && partialMatch[1].trim()) {
-          // We found a partial scene beat at the end of the text
-          scenes.push(partialMatch[1].trim());
-          console.log("Extracted a partial scene from cut-off JSON");
-        }
-        
-        // If we have at least one scene from the partial match, return it
-        if (scenes.length > 0) {
-          return scenes;
-        }
-      } catch (jsonError) {
-        console.error("Error in malformed JSON extraction:", jsonError);
-        // Continue to other approaches
-      }
-      
-      // Third approach: Try a more aggressive line-by-line approach
+      // If the regex approach failed, try a more aggressive line-by-line approach
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -875,31 +682,18 @@ Please provide a detailed summary in 400-600 words.
         return scenes;
       }
       
-      // Fourth approach: If all else fails, try to extract any text that looks like a scene description
+      // If all else fails, try to extract any text that looks like a scene description
       const paragraphs = text.split(/\n\s*\n/);
       for (const paragraph of paragraphs) {
         // Look for paragraphs that might be scene descriptions
         // They typically mention the narrator and have substantial content
-        if ((paragraph.includes('(The Narrator)') || paragraph.includes('The Narrator')) && paragraph.length > 100) {
+        if (paragraph.includes('(The Narrator)') && paragraph.length > 100) {
           scenes.push(paragraph.trim());
         }
       }
       
       if (scenes.length > 0) {
         console.log(`Extracted ${scenes.length} scenes by looking for narrator mentions`);
-        return scenes;
-      }
-      
-      // Fifth approach: Last resort - try to extract any substantial paragraph that might be a scene
-      for (const paragraph of paragraphs) {
-        // Look for substantial paragraphs that might be scene descriptions
-        if (paragraph.length > 200 && !paragraph.includes('```') && !paragraph.includes('##')) {
-          scenes.push(paragraph.trim());
-        }
-      }
-      
-      if (scenes.length > 0) {
-        console.log(`Extracted ${scenes.length} scenes by looking for substantial paragraphs`);
         return scenes;
       }
       
@@ -932,9 +726,8 @@ Please provide a detailed summary in 400-600 words.
       while (retries < 5) {
         try {
           const userMessage = `## OUTLINE REQUIREMENTS
-- The plot outline must contain between 4 and 6 chapters, these are STRICT requirements.
-- DO NOT create more than 6 chapters under any circumstances.
-- DO NOT create 8 chapters - this is explicitly prohibited.
+- The plot outline must contain between 6 and 8 chapters, these are STRICT requirements.
+- DO NOT create more than 8 chapters under any circumstances.
 - If there are plot holes in the story idea, you MUST fix them in the plot outline.
 
 ## Instructions
@@ -960,8 +753,17 @@ Please provide a detailed summary in 400-600 words.
 - Provide clarity on thematic or mysterious elements that connect scenes, ensuring the stakes are clearly defined and resolved.
 - The final chapter must state it's the final chapter of the story and how to end the story.
 
-## You must use following json format for the plot outline exactly without deviation:
-${generateSceneTemplate(numScenes)}
+## You must STRICLY use following JSON format for the plot outline exactly without deviation, DO NOT write in markdown format:
+[
+  {
+    "scene_number": 1,
+    "scene_beat": "Scene 1 content"
+  },
+  {
+    "scene_number": 2,
+    "scene_beat": "Scene 2 content"
+  },
+]
 
 ## Story Idea:
 ${idea}`;
@@ -987,7 +789,32 @@ ${idea}`;
 
           console.log("Plot outline:", text);
 
-          const outline = this.formatScenes(text);
+          // Check if the response is already valid JSON
+          let outline;
+          try {
+            // Try to parse it directly first
+            const parsedJson = JSON.parse(text);
+            if (Array.isArray(parsedJson)) {
+              // If it's already a valid JSON array, format it directly
+              outline = [];
+              for (const scene of parsedJson) {
+                if (scene.scene_number != null && scene.scene_beat) {
+                  outline.push(scene.scene_beat.trim());
+                }
+              }
+              
+              if (outline.length > 0) {
+                console.log(`Successfully parsed ${outline.length} scenes directly from JSON`);
+                return outline;
+              }
+            }
+          } catch (parseError) {
+            // If direct parsing fails, use formatScenes
+            console.log("Direct JSON parsing failed, using formatScenes:", parseError);
+          }
+          
+          // Fall back to formatScenes if direct parsing didn't work
+          outline = this.formatScenes(text);
           if (!outline) {
             console.log("Error: Empty outline generated.");
             retries += 1;
@@ -1084,6 +911,9 @@ ${outline.join('\n')}
             content: `##INSTRUCTIONS
 You will be given a section of text and you MUST perform the following to it:
 
+---
+
+## WHAT TO REMOVE
 -Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
 -Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
 -Eliminate all metaphors in the text.
@@ -1092,7 +922,15 @@ You will be given a section of text and you MUST perform the following to it:
 -Eliminate all phrases that mention the character's heart pounding or heart in their throat.
 If a paragraph doesn't need to be changed, leave it as is in the returned text.
 -Eliminate all sentences and phrases that mention light casting long shadows.
+
+---
+
+##WHAT TO REWRITE
 - Re-word any sentences or phrases that have "I frowned" in them or similar wording.
+- Re-word any sentences mentioning the air being stale and/or heavy.
+- Re-write ALL flowery language to use casual and simple vocabulary
+
+---
 
 ##WORDS TO REPLACE
 #Replace the following words with synonyms that are casual and simple.
@@ -1105,7 +943,8 @@ If a paragraph doesn't need to be changed, leave it as is in the returned text.
 - Familiar
 - Shift/Shifting/Shifted
 - Gaze
-
+- Punctuated
+- Form
 
 Only respond with the modified text and nothing else.`
           },
@@ -1556,9 +1395,6 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 - Write in past tense.
 - Most of what you write should be narration, not dialogue.
 - When there is no context, start the scene with exposition to give the reader a better understanding of the plot and characters.
-- Do NOT write any appositive phrases.
-- Do NOT write any redundant descriptive phrases that are not necessary to the scene.
-- Do NOT use asterisks (*) for emphasis or to indicate actions. Use proper narrative descriptions instead.
 
 # Core Requirements
     - Write from first-person narrator perspective only
@@ -1575,7 +1411,11 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     - Balance action with reflection
 
     # Writing Style
-    - Use concise language
+    - DO NOT write flowery language, use casual and simple vocabulary.
+    - Do NOT write any appositive phrases.
+    - Do NOT write any redundant descriptive phrases that are not necessary to the scene.
+    - Do NOT use asterisks (*) for emphasis or to indicate actions. Use proper narrative descriptions instead.
+    - ONLY provide descriptions about the scene if it furthers the plot or character development, DO NOT write redundant descriptions that provide no useful information about the scene.
     - Vary sentence length based on tension:
         * Shorter sentences for action/tension
         * Longer sentences for introspection

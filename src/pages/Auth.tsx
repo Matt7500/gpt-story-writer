@@ -24,11 +24,21 @@ export default function Auth() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        console.log("Attempting to sign up with email:", email);
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: window.location.origin
+          }
         });
-        if (error) throw error;
+        
+        if (error) {
+          console.error("Signup error:", error);
+          throw error;
+        }
+        
+        console.log("Signup successful:", data);
         toast({
           title: "Success!",
           description: "Please check your email to confirm your account.",
@@ -42,9 +52,10 @@ export default function Auth() {
         navigate("/");
       }
     } catch (error: any) {
+      console.error("Auth error:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
