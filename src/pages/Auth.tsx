@@ -25,11 +25,16 @@ export default function Auth() {
     try {
       if (isSignUp) {
         console.log("Attempting to sign up with email:", email);
+        
+        // Use window.location.origin instead of hardcoded URL
+        const redirectTo = window.location.origin;
+        console.log("Using redirect URL:", redirectTo);
+        
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin
+            emailRedirectTo: redirectTo
           }
         });
         
