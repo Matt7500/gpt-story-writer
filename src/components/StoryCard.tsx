@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Book, Trash2, Download, GitBranch, ArrowRight, BookCopy, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Book, Trash2, Download, GitBranch, ArrowRight, BookCopy, ChevronDown, ChevronUp, Copy, MoreHorizontal, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useSeriesService } from "@/hooks/use-series-service";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { storyService } from "@/services/StoryService";
 
 interface StoryCardProps {
   story: Story;
@@ -27,6 +37,8 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
   const [firstStoryTitle, setFirstStoryTitle] = useState<string>("");
   const [seriesInfo, setSeriesInfo] = useState<Series | null>(null);
   const [hasSequel, setHasSequel] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState(story.title);
 
   // Helper function to check if a story is a series
   const isSeries = (story: Story) => {
@@ -303,6 +315,31 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
     };
   };
 
+  const handleRenameStory = async () => {
+    try {
+      // Update the story title in the database
+      await storyService.updateStory(story.id, { title: newTitle });
+      
+      // Close the dialog
+      setIsRenameDialogOpen(false);
+      
+      // Show success toast
+      toast({
+        title: "Story renamed",
+        description: "Your story has been renamed successfully.",
+      });
+      
+      // Force a refresh of the page to show the updated title
+      window.location.reload();
+    } catch (error: any) {
+      toast({
+        title: "Error renaming story",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="p-6 rounded-lg bg-muted hover:bg-accent/50 transition-colors group">
       {isSeries(story) ? (
@@ -337,19 +374,42 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(story);
-                      }}
-                      title="Delete Series"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity [&:has([data-state=open])]:opacity-100">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="data-[state=open]:bg-accent/50 data-[state=open]:opacity-100 focus:ring-0 focus:ring-offset-0 hover:ring-0 hover:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent 
+                        align="start" 
+                        side="right"
+                        sideOffset={5}
+                        className="border-none cursor-pointer" 
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <DropdownMenuItem 
+                          className="cursor-pointer" 
+                          onClick={() => setIsRenameDialogOpen(true)}
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="text-red-600 focus:text-red-600 cursor-pointer" 
+                          onClick={() => onDelete(story)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Series
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   {isSeriesOpen ? (
                     <ChevronUp className="h-5 w-5 text-muted-foreground" />
@@ -437,54 +497,76 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              {onCreateSequel && !isSeries(story) && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 ${hasSequel ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!hasSequel && onCreateSequel) {
-                      onCreateSequel(story);
-                    }
-                  }}
-                  title={hasSequel ? "This story already has a sequel" : "Create Sequel"}
-                  disabled={hasSequel}
+            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity [&:has([data-state=open])]:opacity-100">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="data-[state=open]:bg-accent/50 data-[state=open]:opacity-100 focus:ring-0 focus:ring-offset-0 hover:ring-0 hover:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent 
+                  align="start" 
+                  side="right"
+                  sideOffset={5}
+                  className="border-none cursor-pointer" 
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <GitBranch className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-primary"
-                onClick={handleCopy}
-                title="Copy Story to Clipboard"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-primary"
-                onClick={handleDownload}
-                title="Download Story"
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-red-600 hover:text-red-700 hover:bg-red-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(story);
-                }}
-                title="Delete Story"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+                  <DropdownMenuItem 
+                    className="cursor-pointer" 
+                    onClick={() => setIsRenameDialogOpen(true)}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Rename
+                  </DropdownMenuItem>
+                  
+                  {onCreateSequel && !isSeries(story) && (
+                    <DropdownMenuItem 
+                      disabled={hasSequel}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (!hasSequel && onCreateSequel) {
+                          onCreateSequel(story);
+                        }
+                      }}
+                    >
+                      <GitBranch className="h-4 w-4 mr-2" />
+                      Create Sequel
+                      {hasSequel && <span className="ml-2 text-xs text-muted-foreground">(Already exists)</span>}
+                    </DropdownMenuItem>
+                  )}
+                  
+                  <DropdownMenuItem 
+                    className="cursor-pointer"
+                    onClick={handleCopy}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy to Clipboard
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem 
+                    className="cursor-pointer"
+                    onClick={handleDownload}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuSeparator />
+                  
+                  <DropdownMenuItem 
+                    className="text-red-600 focus:text-red-600 cursor-pointer" 
+                    onClick={() => onDelete(story)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           <p className="text-sm text-muted-foreground line-clamp-2 pl-9">
@@ -492,6 +574,32 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
           </p>
         </div>
       )}
+
+      {/* Rename Dialog */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Rename Story</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Input
+              id="title"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Enter new title"
+              className="col-span-3"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameStory} disabled={!newTitle.trim() || newTitle === story.title}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

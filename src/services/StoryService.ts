@@ -729,7 +729,7 @@ You will be given a section of text and you MUST perform the following to it:
 -Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the scene.
 -Eliminate all sentences that hinder the pacing of the scene by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
 -Eliminate all phrases that mention the character's heart pounding or heart in their throat.
-If a paragraph doesn’t need to be changed, leave it as is in the returned text.
+If a paragraph doesn't need to be changed, leave it as is in the returned text.
 -Eliminate all sentences and phrases that mention light casting long shadows.
 - Re-word any sentences or phrases that have "I frowned" in them or similar wording.
 
@@ -1635,6 +1635,57 @@ Write only the transition paragraph(s). Do not include any meta-commentary, expl
       }
       console.error('Error generating transition:', err);
       throw new Error('Failed to generate transition. Please try again.');
+    }
+  }
+
+  // Generate a summary of a story idea
+  public async generateStoryIdeaSummary(storyIdea: string, signal?: AbortSignal): Promise<string> {
+    try {
+      if (!this.userSettings) {
+        await this.loadUserSettings();
+      }
+      
+      // Get the appropriate client based on user settings
+      const client = this.getClient();
+      
+      // Use the reasoning model for summarization
+      const model = this.userSettings.use_openai_for_story_gen 
+        ? this.userSettings.reasoning_model || 'gpt-4o'
+        : this.userSettings.reasoning_model || 'anthropic/claude-3.7-sonnet:thinking';
+      
+      console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for story idea summarization`);
+      
+      const summaryPrompt = `
+Create a concise summary of the following story idea. The summary should:
+- Be approximately 100-150 words
+- Capture the core concept and main plot points
+- Highlight the most interesting elements
+- Avoid revealing any major twists or endings
+- Be written in an engaging style that makes the reader want to know more
+
+Story Idea:
+${storyIdea}
+
+Please provide only the summary without any additional comments or explanations.
+`;
+      
+      const summaryResponse = await client.chat.completions.create({
+        model: model,
+        messages: [
+          { 
+            role: "user", 
+            content: summaryPrompt 
+          }
+        ],
+        temperature: 0.7
+      }, {
+        signal: signal
+      });
+
+      return summaryResponse.choices[0].message.content.trim() || 'Summary not available';
+    } catch (error) {
+      console.error('Error generating story idea summary:', error);
+      return 'Unable to generate summary at this time.';
     }
   }
 }
