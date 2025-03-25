@@ -91,6 +91,7 @@ export class StoryService {
   private userSettings: any = null;
   private openaiClient: any = null;
   private openrouterClient: any = null;
+  private settingsLoaded: boolean = false;
 
   private constructor() {}
 
@@ -109,10 +110,17 @@ export class StoryService {
     if (!this.userId) {
       throw new Error('User ID not set');
     }
+
+    // If settings are already loaded and clients exist, return them
+    if (this.settingsLoaded && this.userSettings && (this.openaiClient || this.openrouterClient)) {
+      return this.userSettings;
+    }
+
+    // Load settings from the service
     this.userSettings = await userSettingsService.getSettings(this.userId);
     
-    // Initialize OpenAI client with API key from user settings
-    if (this.userSettings.openai_key && isValidApiKey(this.userSettings.openai_key)) {
+    // Initialize clients only if we have valid API keys and clients don't exist
+    if (this.userSettings.openai_key && isValidApiKey(this.userSettings.openai_key) && !this.openaiClient) {
       try {
         this.openaiClient = createOpenAIClient(this.userSettings.openai_key);
       } catch (error) {
@@ -121,8 +129,7 @@ export class StoryService {
       }
     }
     
-    // Initialize OpenRouter client with API key from user settings
-    if (this.userSettings.openrouter_key && isValidApiKey(this.userSettings.openrouter_key)) {
+    if (this.userSettings.openrouter_key && isValidApiKey(this.userSettings.openrouter_key) && !this.openrouterClient) {
       try {
         this.openrouterClient = createOpenRouterClient(this.userSettings.openrouter_key);
       } catch (error) {
@@ -131,7 +138,14 @@ export class StoryService {
       }
     }
     
+    this.settingsLoaded = true;
     return this.userSettings;
+  }
+
+  private async ensureSettingsLoaded() {
+    if (!this.settingsLoaded) {
+      await this.loadUserSettings();
+    }
   }
 
   private getOpenAIClient() {
@@ -147,7 +161,6 @@ export class StoryService {
   private getOpenRouterClient() {
     if (!this.openrouterClient) {
       if (!this.userSettings || !this.userSettings.openrouter_key) {
-        console.error('OpenRouter API key not set in user settings');
         throw new Error('OpenRouter API key not set in user settings');
       }
       this.openrouterClient = createOpenRouterClient(this.userSettings.openrouter_key);
@@ -156,7 +169,8 @@ export class StoryService {
   }
 
   // Get the appropriate client based on user settings
-  private getClient() {
+  private async getClient() {
+    await this.ensureSettingsLoaded();
     console.log('getClient called, use_openai_for_story_gen:', this.userSettings.use_openai_for_story_gen);
     if (this.userSettings.use_openai_for_story_gen) {
       console.log('Using OpenAI client');
@@ -215,9 +229,7 @@ export class StoryService {
   // Generate story ideas from Reddit posts or fine-tuned model
   public async generateStoryIdea(signal?: AbortSignal, source: 'reddit' | 'fine-tune' = 'reddit'): Promise<string> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
 
       // If source is fine-tune, use the fine-tuned model directly
       if (source === 'fine-tune') {
@@ -265,7 +277,7 @@ Please provide a detailed summary in 400-600 words.
 `;
 
       // Get the appropriate client based on user settings
-      const client = this.getClient();
+      const client = await this.getClient();
       
       // Use the appropriate model for Reddit post summarization
       const model = this.userSettings.use_openai_for_story_gen
@@ -301,9 +313,7 @@ Please provide a detailed summary in 400-600 words.
   // Generate story idea from fine-tuned model
   private async generateStoryIdeaFromFineTune(signal?: AbortSignal): Promise<string> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
 
       const allProfiles = settings.load_story_profiles();
       const profile = allProfiles[settings.STORY_PROFILE];
@@ -317,7 +327,7 @@ Please provide a detailed summary in 400-600 words.
       console.log('Using prompt:', prompt);
 
       // Get the appropriate client based on user settings
-      const client = this.getOpenAIClient();
+      const client = await this.getOpenAIClient();
       
       // Use the story_idea_model for story idea generation if available, otherwise fall back to appropriate defaults
       const model = this.userSettings.story_idea_model || this.userSettings.story_generation_model
@@ -351,9 +361,7 @@ Please provide a detailed summary in 400-600 words.
   // Create a story from a custom idea
   public async createStoryFromCustomIdea(customIdea: string, signal?: AbortSignal): Promise<string> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
 
       // Step 1: Create title from custom story idea
       const title = await this.createTitle(customIdea, signal);
@@ -710,9 +718,7 @@ Please provide a detailed summary in 400-600 words.
   // Create outline from story idea
   public async createOutline(idea: string, signal?: AbortSignal): Promise<string[] | null> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
 
       const allProfiles = settings.load_story_profiles();
       const profile = allProfiles[settings.STORY_PROFILE];
@@ -771,7 +777,7 @@ Please provide a detailed summary in 400-600 words.
 ${idea}`;
 
           // Get the appropriate client based on user settings
-          const client = this.getClient();
+          const client = await this.getClient();
           
           // Use the story_generation_model for outline creation
           const model = this.userSettings.use_openai_for_story_gen 
@@ -842,9 +848,7 @@ ${idea}`;
     let retries = 0;
     while (retries < 10) {
       try {
-        if (!this.userSettings) {
-          await this.loadUserSettings();
-        }
+        await this.ensureSettingsLoaded();
 
         const prompt = `
 ## Instructions
@@ -863,7 +867,7 @@ ${outline.join('\n')}
         `;
         
         // Get the appropriate client based on user settings
-        const client = this.getClient();
+        const client = await this.getClient();
         
         // Use the story_generation_model for character generation
         const model = this.userSettings.use_openai_for_story_gen 
@@ -896,11 +900,9 @@ ${outline.join('\n')}
     signal?: AbortSignal
   ): Promise<string> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
 
-      const client = this.getOpenRouterClient();
+      const client = await this.getOpenRouterClient();
       const model = this.userSettings.story_generation_model;
 
       console.log('Starting chapter rewrite with model:', model);
@@ -991,15 +993,13 @@ Only respond with the modified text and nothing else. You MUST respond with the 
 
   // Create a title for the story
   public async createTitle(storyText: string, signal?: AbortSignal): Promise<string> {
-    if (!this.userSettings) {
-      await this.loadUserSettings();
-    }
+    await this.ensureSettingsLoaded();
 
     const maxRetries = 5;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         // Get the appropriate client based on user settings
-        const client = this.getOpenAIClient();
+        const client = await this.getOpenAIClient();
         
         // Use the title_fine_tune_model for title generation if available, otherwise fall back to appropriate defaults
         const model = this.userSettings.title_fine_tune_model
@@ -1257,7 +1257,7 @@ Only respond with the modified text and nothing else. You MUST respond with the 
       }
       
       // Get the appropriate client based on user settings
-      const client = this.getClient();
+      const client = await this.getClient();
       
       // Use the story generation model for sequel ideas
       const model = this.userSettings.use_openai_for_story_gen 
@@ -1365,7 +1365,7 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
       }
 
       console.log('Getting client...');
-      const client = this.getClient();
+      const client = await this.getClient();
       console.log('Client obtained:', !!client);
       
       // Validate the model
@@ -1575,11 +1575,9 @@ ${sceneBeat}
     signal?: AbortSignal
   ): Promise<string> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
 
-      const client = this.getClient();
+      const client = await this.getOpenRouterClient();
       
       const userMessage = `## Instructions
 Revise the given scene based on the feedback provided.
@@ -1775,9 +1773,7 @@ Write only the revised scene content, formatted as a polished narrative. Do not 
     signal?: AbortSignal
   ): Promise<string> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
 
       // Extract the last 4 paragraphs from the previous chapter
       const previousParagraphs = previousChapterContent
@@ -1796,7 +1792,7 @@ Write only the revised scene content, formatted as a polished narrative. Do not 
         throw new Error('Not enough content in chapters to create a transition');
       }
 
-      const client = this.getOpenRouterClient();
+      const client = await this.getOpenRouterClient();
       
       const prompt = `
 ## TRANSITION WRITING TASK
@@ -1867,17 +1863,15 @@ Write only the transition paragraph(s). Do not include any meta-commentary, expl
   // Generate a summary of a story idea
   public async generateStoryIdeaSummary(storyIdea: string, signal?: AbortSignal): Promise<string> {
     try {
-      if (!this.userSettings) {
-        await this.loadUserSettings();
-      }
+      await this.ensureSettingsLoaded();
       
       // Get the appropriate client based on user settings
-      const client = this.getOpenRouterClient();
+      const client = await this.getOpenRouterClient();
       
       // Use the reasoning model for summarization
-      const model = 'anthropic/claude-3.7-sonnet:beta';
+      const model = 'anthropic/claude-3.7-sonnet';
       
-      console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for story idea summarization`);
+      console.log(`Using OpenRouter with model: ${model} for story idea summarization`);
       
       const summaryPrompt = `
 Create a concise summary of the following story idea. The summary should:
@@ -1906,7 +1900,12 @@ Please provide only the summary without any additional comments or explanations,
         signal: signal
       });
 
-      return summaryResponse.choices[0].message.content.trim() || 'Summary not available';
+      if (summaryResponse.choices && summaryResponse.choices.length > 0 && summaryResponse.choices[0].message && summaryResponse.choices[0].message.content) {
+        return summaryResponse.choices[0].message.content.trim() || 'Summary not available';
+      } else {
+        console.error('Invalid response structure:', summaryResponse);
+        throw new Error('Invalid response structure');
+      }
     } catch (error) {
       console.error('Error generating story idea summary:', error);
       return 'Unable to generate summary at this time.';
