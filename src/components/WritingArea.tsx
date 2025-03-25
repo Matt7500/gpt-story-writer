@@ -123,6 +123,13 @@ export function WritingArea({
         .map(c => c.content)
         .filter(Boolean);
 
+      // Get future scenes for context
+      const currentChapterIndex = chapters.findIndex(c => c.title === chapter.title);
+      const futureSceneBeats = chapters
+        .slice(currentChapterIndex + 1)
+        .map(c => c.sceneBeat)
+        .filter(Boolean);
+
       // Clear existing content if any
       setContent('');
       
@@ -169,7 +176,9 @@ export function WritingArea({
               } else {
                 console.log('Client ID mismatch in chunk callback, ignoring chunk');
               }
-            }
+            },
+            undefined, // Signal parameter
+            futureSceneBeats // Pass future scene beats
           );
           
           console.log('Scene generation complete, length:', generatedScene?.length || 0);

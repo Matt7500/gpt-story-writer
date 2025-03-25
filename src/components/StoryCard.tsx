@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Book, Trash2, Download, GitBranch, ArrowRight, BookCopy, ChevronDown, ChevronUp, Copy, MoreHorizontal, Pencil } from "lucide-react";
+import { Book, Trash2, Download, GitBranch, ArrowRight, BookCopy, ChevronDown, ChevronUp, Copy, MoreHorizontal, Pencil, Info, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
@@ -34,6 +34,7 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
   const [relatedStoriesCount, setRelatedStoriesCount] = useState<number>(0);
   const [relatedStories, setRelatedStories] = useState<Story[]>([]);
   const [isSeriesOpen, setIsSeriesOpen] = useState(false);
+  const [isStoryIdeaOpen, setIsStoryIdeaOpen] = useState(false);
   const [firstStoryTitle, setFirstStoryTitle] = useState<string>("");
   const [seriesInfo, setSeriesInfo] = useState<Series | null>(null);
   const [hasSequel, setHasSequel] = useState(false);
@@ -340,6 +341,12 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
     }
   };
 
+  // Prevent navigation when clicking on the story idea dropdown
+  const handleStoryIdeaToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsStoryIdeaOpen(!isStoryIdeaOpen);
+  };
+
   return (
     <div className="p-6 rounded-lg bg-muted hover:bg-accent/50 transition-colors group">
       {isSeries(story) ? (
@@ -419,9 +426,26 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
                 </div>
               </div>
               <div className="pl-9">
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {story.story_idea}
-                </p>
+                <div 
+                  className={`relative group/idea rounded-md hover:bg-accent transition-all ${isStoryIdeaOpen ? "bg-accent/70" : ""}`}
+                  onClick={handleStoryIdeaToggle}
+                >
+                  <div 
+                    className={`overflow-hidden transition-all duration-300 ease-in-out ${isStoryIdeaOpen ? "max-h-[1000px]" : "max-h-[3.5rem]"}`}
+                    style={{ minHeight: isStoryIdeaOpen ? "auto" : "" }}
+                  >
+                    <p className="text-sm text-muted-foreground p-2 cursor-pointer hover:text-foreground transition-all whitespace-normal break-words">
+                      {story.story_idea}
+                    </p>
+                    {!isStoryIdeaOpen && (
+                      <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-muted to-transparent pointer-events-none"></div>
+                    )}
+                  </div>
+                  <div className="absolute right-2 top-2 opacity-0 group-hover/idea:opacity-100 transition-opacity flex items-center gap-1 text-xs bg-background/80 px-1.5 py-0.5 rounded text-muted-foreground">
+                    <span>{isStoryIdeaOpen ? "Collapse" : "Expand"}</span>
+                    {isStoryIdeaOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </div>
+                </div>
                 {firstStoryTitle && (
                   <div className="mt-2 text-xs text-purple-700">
                     Begins with "{firstStoryTitle}"
@@ -569,9 +593,28 @@ export function StoryCard({ story, onDelete, onCreateSequel }: StoryCardProps) {
               </DropdownMenu>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground line-clamp-2 pl-9">
-            {story.story_idea}
-          </p>
+          <div className="pl-9">
+            <div 
+              className={`relative group/idea rounded-md hover:bg-accent transition-all ${isStoryIdeaOpen ? "bg-accent/70" : ""}`}
+              onClick={handleStoryIdeaToggle}
+            >
+              <div 
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${isStoryIdeaOpen ? "max-h-[1000px]" : "max-h-[3.5rem]"}`}
+                style={{ minHeight: isStoryIdeaOpen ? "auto" : "" }}
+              >
+                <p className="text-sm text-muted-foreground p-2 cursor-pointer hover:text-foreground transition-all whitespace-normal break-words">
+                  {story.story_idea}
+                </p>
+                {!isStoryIdeaOpen && (
+                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-muted to-transparent pointer-events-none"></div>
+                )}
+              </div>
+              <div className="absolute right-2 top-2 opacity-0 group-hover/idea:opacity-100 transition-opacity flex items-center gap-1 text-xs bg-background/80 px-1.5 py-0.5 rounded text-muted-foreground">
+                <span>{isStoryIdeaOpen ? "Collapse" : "Expand"}</span>
+                {isStoryIdeaOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

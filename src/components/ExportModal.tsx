@@ -123,50 +123,75 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
         throw new Error('Story generation model not configured. Please configure it in settings.');
       }
 
-      // Process each chapter through rewriteInChunks
-      const processedChapters = [];
-      for (let i = 0; i < chapters.length; i++) {
-        // Check if export was cancelled
-        if (newController.signal.aborted) {
-          throw new Error('Export cancelled');
-        }
+      // Track overall progress across all chapters
+      const totalChapters = chapters.length;
+      let completedChapters = 0;
+      const chapterProgresses = new Array(totalChapters).fill(0);
+      const progressPerChapter = 100 / totalChapters;
+      
+      // Create a ref to store the current chapter being processed
+      let currentChapterTitle = "Processing multiple chapters...";
+      setCurrentChapter(currentChapterTitle);
 
-        const chapter = chapters[i];
-        setCurrentChapter(chapter.title);
-        
-        // Calculate base progress for this chapter (each chapter is worth 100/total chapters)
-        const baseProgress = (i / chapters.length) * 100;
-        const progressPerChapter = 100 / chapters.length;
+      // Function to update the progress based on all chapter progresses
+      const updateOverallProgress = () => {
+        const overallProgress = chapterProgresses.reduce((sum, progress) => sum + progress, 0);
+        setProgress(overallProgress);
+      };
 
-        try {
-          // Track streaming progress for current chapter
-          let chapterStreamProgress = 0;
-          const streamCallback = (chunk: string) => {
-            // Update progress to include both chapter progress and streaming progress
-            // Each chapter's streaming progress is worth its portion of the total progress
-            chapterStreamProgress += chunk.length / chapter.content.length;
-            const streamingProgress = Math.min(chapterStreamProgress * progressPerChapter, progressPerChapter);
-            setProgress(baseProgress + streamingProgress);
-          };
-
-          // Use StoryService's rewriteInChunks
-          const rewrittenContent = await storyService.rewriteInChunks(
-            chapter.content,
-            streamCallback,
-            newController.signal
-          );
-
-          processedChapters.push(rewrittenContent);
-        } catch (error) {
-          if (error.name === 'AbortError') {
-            throw new Error('Export cancelled');
+      // Create promises for each chapter
+      const chapterPromises = chapters.map((chapter, index) => {
+        return new Promise<string>(async (resolve) => {
+          // Check if export was cancelled at the start
+          if (newController.signal.aborted) {
+            resolve(chapter.content); // Return original content if cancelled
+            return;
           }
-          console.error("Error processing chapter:", error);
-          processedChapters.push(chapter.content);
-        }
-      }
 
-      // Check one final time if export was cancelled
+          try {
+            // Track streaming progress for current chapter
+            let chapterStreamProgress = 0;
+            const streamCallback = (chunk: string) => {
+              // Update progress for this specific chapter
+              chapterStreamProgress += chunk.length / chapter.content.length;
+              chapterProgresses[index] = Math.min(chapterStreamProgress * progressPerChapter, progressPerChapter);
+              
+              // Update current chapter title when this chapter gets focus
+              currentChapterTitle = `Processing ${chapter.title} and others...`;
+              setCurrentChapter(currentChapterTitle);
+              
+              // Update overall progress
+              updateOverallProgress();
+            };
+
+            // Use StoryService's rewriteInChunks
+            const rewrittenContent = await storyService.rewriteInChunks(
+              chapter.content,
+              streamCallback,
+              newController.signal
+            );
+
+            // Mark chapter as fully completed
+            chapterProgresses[index] = progressPerChapter;
+            completedChapters++;
+            updateOverallProgress();
+            
+            resolve(rewrittenContent);
+          } catch (error) {
+            if (error.name === 'AbortError') {
+              resolve(chapter.content); // Return original content if cancelled
+            } else {
+              console.error(`Error processing chapter ${chapter.title}:`, error);
+              resolve(chapter.content); // Return original content on error
+            }
+          }
+        });
+      });
+
+      // Wait for all chapters to be processed
+      const processedChapters = await Promise.all(chapterPromises);
+
+      // Check if export was cancelled
       if (newController.signal.aborted) {
         throw new Error('Export cancelled');
       }

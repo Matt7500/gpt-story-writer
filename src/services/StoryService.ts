@@ -253,7 +253,10 @@ Create a comprehensive summary about the story with as much detail as possible, 
 The summary should be completely new and different from the given story to avoid copyright issues.
 You MUST change the characters, locations, and events to create a new story that is based on the original story but is not a direct copy.
 Focus on the core narrative, key events, and the horror elements that make this story effective when writing the new story summary.
+Write unique character names, do NOT use common names from your training data.
+All locations should be real locations not fictional locations.
 DO NOT write any comments, only write the summary.
+Do NOT write names with "Black" in them, use unique names.
 
 Story Content:
 ${randomPost.selftext}
@@ -278,8 +281,7 @@ Please provide a detailed summary in 400-600 words.
             role: "user", 
             content: summaryPrompt 
           }
-        ],
-        temperature: 0.7
+        ]
       });
 
       const summary = summaryResponse.choices[0].message.content || '';
@@ -334,7 +336,7 @@ Please provide a detailed summary in 400-600 words.
             content: prompt 
           }
         ],
-        temperature: 0.5
+        temperature: 0.7
       }, {
         signal: signal
       });
@@ -726,7 +728,7 @@ Please provide a detailed summary in 400-600 words.
       while (retries < 5) {
         try {
           const userMessage = `## OUTLINE REQUIREMENTS
-- The plot outline must contain between 6 and 8 chapters, these are STRICT requirements.
+- The plot outline must contain between 5 and 8 chapters, these are STRICT requirements.
 - DO NOT create more than 8 chapters under any circumstances.
 - If there are plot holes in the story idea, you MUST fix them in the plot outline.
 
@@ -926,14 +928,14 @@ If a paragraph doesn't need to be changed, leave it as is in the returned text.
 ---
 
 ##WHAT TO REWRITE
-- Re-word any sentences or phrases that have "I frowned" in them or similar wording.
-- Re-word any sentences mentioning the air being stale and/or heavy.
+- Re-write any sentences or phrases that have "I frowned" in them or similar wording.
+- Re-write any sentences mentioning the air being stale and/or heavy.
 - Re-write ALL flowery language to use casual and simple vocabulary
 
 ---
 
 ##WORDS TO REPLACE
-#Replace the following words with synonyms that are casual and simple.
+#Re-write sentences with the following words with synonyms that are casual and simple.
 
 #Words:
 - Loomed
@@ -945,8 +947,11 @@ If a paragraph doesn't need to be changed, leave it as is in the returned text.
 - Gaze
 - Punctuated
 - Form
+- Monotonous
+- Frowned
+- Hum/Humming/Hummed
 
-Only respond with the modified text and nothing else.`
+Only respond with the modified text and nothing else. You MUST respond with the FULL text.`
           },
           {
             role: "user",
@@ -1322,11 +1327,13 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     characters: string,
     previousScenes: string[],
     onProgress?: (chunk: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    futureScenes?: string[]
   ): Promise<string> {
     console.log('writeScene called with sceneBeat:', sceneBeat ? sceneBeat.substring(0, 50) + '...' : 'undefined or empty');
     console.log('Characters provided:', characters ? 'Yes (length: ' + characters.length + ')' : 'No');
     console.log('Previous scenes count:', previousScenes.length);
+    console.log('Future scenes provided:', futureScenes ? 'Yes (count: ' + futureScenes.length + ')' : 'No');
     
     if (!sceneBeat || sceneBeat.trim() === '') {
       console.error('Scene beat is empty or undefined');
@@ -1337,6 +1344,11 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
       ? previousScenes.slice(-4)
       : ["No previous context. This is the first scene of the story."];
     const context = recentContext.join('\n\n');
+
+    // Format future scenes if provided
+    const formattedFutureScenes = futureScenes && futureScenes.length 
+      ? futureScenes.map((scene, index) => `Future Scene ${index + 1}:\n${scene}`).join('\n\n')
+      : "No future scenes provided.";
 
     try {
       // Force reload user settings to ensure we have the latest
@@ -1393,7 +1405,7 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 - You are an expert fiction writer. Write a full scene WITHOUT overwriting, that is based on the scene beat EXACTLY.
 - Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
 - Write in past tense.
-- Most of what you write should be narration, not dialogue.
+- Write narration as much as possible to give the reader more information about the scene.
 - When there is no context, start the scene with exposition to give the reader a better understanding of the plot and characters.
 
 # Core Requirements
@@ -1435,6 +1447,18 @@ ${characters}
 <context>
   ${context}
 </context>
+
+# Future Scene Beats
+<future_scenes>
+  ${formattedFutureScenes}
+</future_scenes>
+
+## Future Context Guidelines
+- DO NOT directly reference future events in your current scene
+- DO plant subtle foundations or foreshadowing that will support future scenes
+- AVOID creating details that would contradict or make future scenes impossible
+- ENSURE character decisions and development align with their future trajectory
+- BE AWARE of future plot points, but maintain suspense and discovery in the current scene
 
 # Scene Beat to Write
 ${sceneBeat}
@@ -1772,7 +1796,7 @@ Write only the revised scene content, formatted as a polished narrative. Do not 
         throw new Error('Not enough content in chapters to create a transition');
       }
 
-      const client = this.getClient();
+      const client = this.getOpenRouterClient();
       
       const prompt = `
 ## TRANSITION WRITING TASK
@@ -1796,17 +1820,18 @@ ${sceneBeat}
 - Write in the same style as the existing content.
 - Write using concise words and casual language, DO NOT write in flowery language.
 - Write short sentences and paragraphs to keep it concise.
+- Write tight, focused paragraphs
 
 ## Output:
 Write only the transition paragraph(s). Do not include any meta-commentary, explanations, or notes.
 `;
 
       const stream = await client.chat.completions.create({
-        model: this.userSettings?.model || 'gpt-4o',
+        model: this.userSettings.reasoning_model,
         messages: [
           { role: "user", content: prompt }
         ],
-        temperature: 0.5,
+        temperature: 0.7,
         max_tokens: 500,
         stream: true,
         signal
