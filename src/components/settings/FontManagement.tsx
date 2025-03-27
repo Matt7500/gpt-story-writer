@@ -264,7 +264,7 @@ export function FontManagement({ userId }: FontManagementProps) {
           <DialogHeader>
             <DialogTitle>Upload Font</DialogTitle>
             <DialogDescription>
-              Upload a custom font file (.ttf or .otf) to use in your video thumbnails.
+              Upload a custom font file (.ttf or .otf) to use in your documents.
             </DialogDescription>
           </DialogHeader>
 

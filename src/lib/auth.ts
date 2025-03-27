@@ -24,10 +24,16 @@ supabase.auth.onAuthStateChange((_event, session) => {
 // Helper function to create a new user
 export const createUser = async (email: string, password: string) => {
   try {
-    // Basic signup with no additional options
+    // Sign up with email verification disabled
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: undefined,
+        data: {
+          email_confirmed: true
+        }
+      }
     });
     
     if (error) throw error;

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut, Settings, Image } from "lucide-react";
+import { Plus, LogOut, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface StoriesHeaderProps {
@@ -21,14 +21,6 @@ export function StoriesHeader({ onCreateStory, onSignOut }: StoriesHeaderProps) 
           >
             <Plus className="h-4 w-4" />
             New Story
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => navigate('/image-editor')}
-            className="gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
-          >
-            <Image className="h-4 w-4" />
-            Thumbnail Editor
           </Button>
           <Button
             variant="outline"

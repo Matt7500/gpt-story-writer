@@ -33,7 +33,7 @@ export default function Auth() {
         
         toast({
           title: "Account created",
-          description: "Please check your email to confirm your account.",
+          description: "Your account has been created successfully. You can now sign in.",
         });
       } else {
         // Use the helper function for signin

@@ -737,6 +737,7 @@ Please provide a detailed summary in 400-600 words.
 - The plot outline must contain between 5 and 8 chapters, these are STRICT requirements.
 - DO NOT create more than 8 chapters under any circumstances.
 - If there are plot holes in the story idea, you MUST fix them in the plot outline.
+- DO NOT write an epilogue as the final chapter, the final chapter must be the resolution of the story or provide an opening for a sequel IF there can be one.
 
 ## Instructions
 - Write a full plot outline for the given story idea.
@@ -952,6 +953,7 @@ If a paragraph doesn't need to be changed, leave it as is in the returned text.
 - Monotonous
 - Frowned
 - Hum/Humming/Hummed
+- rough-hewn
 
 Only respond with the modified text and nothing else. You MUST respond with the FULL text.`
           },

@@ -7,13 +7,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
-import { Download, Video, AlertTriangle, Loader2, Music } from "lucide-react";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { Download, Video, AlertTriangle, Loader2, Music, Upload } from "lucide-react";
+import { useState, useRef } from "react";
 import { Progress } from "./ui/progress";
-import { userSettingsService } from "@/services/UserSettingsService";
 import { toast } from "@/components/ui/use-toast";
-import { storyService } from "@/services/StoryService";
+import { textExportService } from "@/services/TextExportService";
+import { audioExportService } from "@/services/AudioExportService";
+import { videoExportService } from "@/services/VideoExportService";
 
 interface Chapter {
   title: string;
@@ -67,7 +67,12 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
   const [currentChapter, setCurrentChapter] = useState("");
   const [controller, setController] = useState<AbortController | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [videoProgress, setVideoProgress] = useState<string | null>(null);
+  const [videoProgress, setVideoProgress] = useState<{
+    progress: number;
+    stage: 'text' | 'audio' | 'image' | 'video';
+    message: string | null;
+    requiresUserInput?: boolean;
+  } | null>(null);
   const [audioProgress, setAudioProgress] = useState<string | null>(null);
   const [audioGenerationDetails, setAudioGenerationDetails] = useState<{
     currentChapter: number;
@@ -75,6 +80,9 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     currentSection: number;
     totalSections: number;
   } | null>(null);
+  
+  // File input ref for image upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle modal close
   const handleClose = () => {
@@ -110,111 +118,24 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       const newController = new AbortController();
       setController(newController);
 
-      // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      // Clear cache and get fresh settings
-      userSettingsService.clearCache(session.user.id);
-      const settings = await userSettingsService.getSettings(session.user.id);
-      if (!settings.story_generation_model) {
-        throw new Error('Story generation model not configured. Please configure it in settings.');
-      }
-
-      // Track overall progress across all chapters
-      const totalChapters = chapters.length;
-      let completedChapters = 0;
-      const chapterProgresses = new Array(totalChapters).fill(0);
-      const progressPerChapter = 100 / totalChapters;
-      
-      // Create a ref to store the current chapter being processed
-      let currentChapterTitle = "Processing multiple chapters...";
-      setCurrentChapter(currentChapterTitle);
-
-      // Function to update the progress based on all chapter progresses
-      const updateOverallProgress = () => {
-        const overallProgress = chapterProgresses.reduce((sum, progress) => sum + progress, 0);
-        setProgress(overallProgress);
-      };
-
-      // Create promises for each chapter
-      const chapterPromises = chapters.map((chapter, index) => {
-        return new Promise<string>(async (resolve) => {
-          // Check if export was cancelled at the start
-          if (newController.signal.aborted) {
-            resolve(chapter.content); // Return original content if cancelled
-            return;
-          }
-
-          try {
-            // Track streaming progress for current chapter
-            let chapterStreamProgress = 0;
-            const streamCallback = (chunk: string) => {
-              // Update progress for this specific chapter
-              chapterStreamProgress += chunk.length / chapter.content.length;
-              chapterProgresses[index] = Math.min(chapterStreamProgress * progressPerChapter, progressPerChapter);
-              
-              // Update current chapter title when this chapter gets focus
-              currentChapterTitle = `Processing ${chapter.title} and others...`;
-              setCurrentChapter(currentChapterTitle);
-              
-              // Update overall progress
-              updateOverallProgress();
-            };
-
-            // Use StoryService's rewriteInChunks
-            const rewrittenContent = await storyService.rewriteInChunks(
-              chapter.content,
-              streamCallback,
-              newController.signal
-            );
-
-            // Mark chapter as fully completed
-            chapterProgresses[index] = progressPerChapter;
-            completedChapters++;
-            updateOverallProgress();
-            
-            resolve(rewrittenContent);
-          } catch (error) {
-            if (error.name === 'AbortError') {
-              resolve(chapter.content); // Return original content if cancelled
-            } else {
-              console.error(`Error processing chapter ${chapter.title}:`, error);
-              resolve(chapter.content); // Return original content on error
-            }
-          }
-        });
-      });
-
-      // Wait for all chapters to be processed
-      const processedChapters = await Promise.all(chapterPromises);
+      // Use TextExportService to generate the text content
+      const storyContent = await textExportService.exportAsText(
+        chapters,
+        title,
+        (progressData) => {
+          setProgress(progressData.progress);
+          setCurrentChapter(progressData.currentChapter);
+        },
+        newController.signal
+      );
 
       // Check if export was cancelled
       if (newController.signal.aborted) {
         throw new Error('Export cancelled');
       }
 
-      // Set progress to 100% when processing is complete
-      setProgress(100);
-      setCurrentChapter("Finalizing...");
-
-      // Create the story text content with just processed content and 4 newlines between chapters
-      const storyContent = processedChapters.join('\n\n\n\n');
-
-      // Create and download the file with a meaningful name
-      const blob = new Blob([storyContent], { type: "text/plain" });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      // Use the story title for the filename, sanitize it for valid filename
-      const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      a.download = `${sanitizedTitle}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Download the file
+      textExportService.downloadTextFile(storyContent, title);
 
       setIsExporting(false);
       setProgress(0);
@@ -245,71 +166,67 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
   const handleGenerateVideo = async () => {
     try {
       setIsGeneratingVideo(true);
-      
-      // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      // Start video generation
-      const response = await fetch("http://localhost:3001/api/video/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ 
-          title,
-          chapters
-        })
+      setVideoProgress({
+        progress: 0,
+        stage: 'text',
+        message: 'Starting video project...',
+        requiresUserInput: false
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to start video generation');
-      }
-
-      const { videoId } = await response.json();
-
-      // Start polling for status
-      const statusInterval = setInterval(async () => {
-        const statusResponse = await fetch(`http://localhost:3001/api/video/status/${videoId}`, {
-          headers: {
-            "Authorization": `Bearer ${session.access_token}`
-          }
-        });
-        
-        if (statusResponse.ok) {
-          const status = await statusResponse.json();
-          setVideoProgress(status.message);
+      // Use VideoExportService to generate the video with the new flow
+      await videoExportService.generateVideo(
+        chapters,
+        title,
+        (progressData) => {
+          setVideoProgress(progressData);
           
-          if (status.status === 'completed' || status.status === 'failed') {
-            clearInterval(statusInterval);
-            setIsGeneratingVideo(false);
-            setVideoProgress(null);
-            
-            if (status.status === 'completed') {
-              // Handle completion (e.g., show download link)
-              toast({
-                title: "Video Generated",
-                description: "Your video has been generated successfully.",
-              });
-            } else {
-              toast({
-                title: "Video Generation Failed",
-                description: status.error || "Failed to generate video",
-                variant: "destructive",
-              });
+          // If we need the user to upload an image, show the file upload dialog
+          if (progressData.requiresUserInput && progressData.stage === 'image') {
+            // This will trigger the file input to open
+            setTimeout(() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.click();
+              }
+            }, 500);
+          }
+        },
+        (imageCallback) => {
+          // This function is called when the service needs an image
+          // We'll use the fileInputRef to handle the file selection
+          const handleFileChange = (event: Event) => {
+            const target = event.target as HTMLInputElement;
+            if (target.files && target.files.length > 0) {
+              const file = target.files[0];
+              // Call the callback with the selected file
+              imageCallback(file);
+              
+              // Remove the event listener after file selection
+              if (fileInputRef.current) {
+                fileInputRef.current.removeEventListener('change', handleFileChange);
+              }
             }
+          };
+          
+          // Add event listener to the file input
+          if (fileInputRef.current) {
+            fileInputRef.current.addEventListener('change', handleFileChange);
           }
         }
-      }, 5000);
+      );
 
-      return () => clearInterval(statusInterval);
+      // Video generation completed successfully
+      setIsGeneratingVideo(false);
+      setVideoProgress(null);
+      
+      toast({
+        title: "Video Project Created",
+        description: "Your video project has been prepared successfully. Full video generation coming soon!",
+      });
     } catch (error: any) {
       console.error('Error generating video:', error);
       setIsGeneratingVideo(false);
       setVideoProgress(null);
+      
       toast({
         title: "Error",
         description: error.message || "Failed to generate video",
@@ -318,344 +235,37 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     }
   };
 
-  // Function to split text into chunks of approximately 5 paragraphs
-  const splitTextIntoChunks = (text: string): string[] => {
-    const paragraphs = text.split(/\n+/);
-    const chunks: string[] = [];
-    let currentChunk: string[] = [];
-    
-    for (const paragraph of paragraphs) {
-      if (paragraph.trim() === '') continue;
-      
-      currentChunk.push(paragraph);
-      
-      if (currentChunk.length >= 5) {
-        chunks.push(currentChunk.join('\n\n'));
-        currentChunk = [];
-      }
-    }
-    
-    // Add any remaining paragraphs
-    if (currentChunk.length > 0) {
-      chunks.push(currentChunk.join('\n\n'));
-    }
-    
-    return chunks;
-  };
-
-  // Function to generate audio for a text chunk
-  const generateAudioForChunk = async (
-    text: string, 
-    elevenlabsKey: string, 
-    voiceId: string, 
-    model: string,
-    stability: number,
-    similarityBoost: number,
-    style?: number,
-    speakerBoost?: boolean
-  ): Promise<ArrayBuffer> => {
-    const requestBody: any = {
-      text,
-      model_id: model,
-      voice_settings: {
-        stability,
-        similarity_boost: similarityBoost
-      }
-    };
-
-    // Add style parameter if provided and using multilingual_v2 model
-    if (model === "eleven_multilingual_v2") {
-      if (style !== undefined) {
-        requestBody.style = style;
-      }
-      if (speakerBoost !== undefined) {
-        requestBody.speaker_boost = speakerBoost;
-      }
-    }
-
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'audio/mpeg',
-        'Content-Type': 'application/json',
-        'xi-api-key': elevenlabsKey
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      
-      // Provide more specific error messages for common issues
-      if (errorData.detail?.status === 'invalid_uid') {
-        throw new Error(`Invalid ElevenLabs voice ID: "${voiceId}". Please go to Settings and select a valid voice ID from your ElevenLabs account.`);
-      } else if (response.status === 401) {
-        throw new Error('ElevenLabs API authentication failed. Please check your API key in Settings.');
-      } else {
-        throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText} ${JSON.stringify(errorData)}`);
-      }
-    }
-
-    return await response.arrayBuffer();
-  };
-
-  // Function to combine audio buffers with a silence gap
-  const combineAudioBuffers = async (audioBuffers: ArrayBuffer[]): Promise<Blob> => {
-    try {
-      // Create a silent gap (0.4 seconds)
-      const sampleRate = 44100; // Standard sample rate
-      const silenceDuration = 0.4; // seconds
-      const silenceLength = Math.floor(sampleRate * silenceDuration) * 4; // 4 bytes per sample (16-bit stereo)
-      const silenceBuffer = new ArrayBuffer(silenceLength);
-      const silenceView = new Uint8Array(silenceBuffer);
-      silenceView.fill(0); // Fill with zeros for silence
-      
-      // Use a more reliable method for combining audio
-      // First, create a single large buffer with all content
-      const totalLength = audioBuffers.reduce((acc, buffer) => acc + buffer.byteLength, 0) + 
-                          (silenceBuffer.byteLength * (audioBuffers.length - 1));
-      const combinedBuffer = new Uint8Array(totalLength);
-      
-      let offset = 0;
-      for (let i = 0; i < audioBuffers.length; i++) {
-        // Add the audio buffer
-        combinedBuffer.set(new Uint8Array(audioBuffers[i]), offset);
-        offset += audioBuffers[i].byteLength;
-        
-        // Add silence between chapters (but not after the last one)
-        if (i < audioBuffers.length - 1) {
-          combinedBuffer.set(new Uint8Array(silenceBuffer), offset);
-          offset += silenceBuffer.byteLength;
-        }
-      }
-      
-      // Create a more compatible audio format
-      // Use WAV format which is more reliable for editing software
-      const wavHeader = createWavHeader(totalLength, sampleRate);
-      const finalBuffer = new Uint8Array(wavHeader.length + combinedBuffer.length);
-      finalBuffer.set(wavHeader, 0);
-      finalBuffer.set(combinedBuffer, wavHeader.length);
-      
-      // Return as a WAV file which is more compatible with editing software
-      return new Blob([finalBuffer], { type: 'audio/wav' });
-    } catch (error) {
-      console.error("Error combining audio buffers:", error);
-      // Fallback to the original method if the new method fails
-      return fallbackCombineAudioBuffers(audioBuffers);
-    }
-  };
-  
-  // Fallback method using the original approach
-  const fallbackCombineAudioBuffers = (audioBuffers: ArrayBuffer[]): Blob => {
-    // Create a silent gap (0.4 seconds)
-    const sampleRate = 44100; // Standard sample rate
-    const silenceDuration = 0.4; // seconds
-    const silenceLength = Math.floor(sampleRate * silenceDuration) * 4; // 4 bytes per sample (16-bit stereo)
-    const silenceBuffer = new ArrayBuffer(silenceLength);
-    const silenceView = new Uint8Array(silenceBuffer);
-    silenceView.fill(0); // Fill with zeros for silence
-    
-    // Combine all audio buffers with silence gaps
-    const combinedChunks: ArrayBuffer[] = [];
-    
-    for (let i = 0; i < audioBuffers.length; i++) {
-      combinedChunks.push(audioBuffers[i]);
-      if (i < audioBuffers.length - 1) {
-        combinedChunks.push(silenceBuffer);
-      }
-    }
-    
-    // Concatenate all chunks into a single buffer
-    const totalLength = combinedChunks.reduce((acc, buffer) => acc + buffer.byteLength, 0);
-    const result = new Uint8Array(totalLength);
-    
-    let offset = 0;
-    for (const buffer of combinedChunks) {
-      result.set(new Uint8Array(buffer), offset);
-      offset += buffer.byteLength;
-    }
-    
-    return new Blob([result], { type: 'audio/mpeg' });
-  };
-  
-  // Function to create a WAV header
-  const createWavHeader = (dataLength: number, sampleRate: number): Uint8Array => {
-    const numChannels = 2; // Stereo
-    const bytesPerSample = 2; // 16-bit
-    const blockAlign = numChannels * bytesPerSample;
-    const byteRate = sampleRate * blockAlign;
-    const wavHeader = new Uint8Array(44);
-    
-    // "RIFF" chunk descriptor
-    wavHeader.set([0x52, 0x49, 0x46, 0x46]); // "RIFF" in ASCII
-    
-    // Chunk size (file size - 8 bytes)
-    const chunkSize = dataLength + 36;
-    wavHeader[4] = (chunkSize & 0xff);
-    wavHeader[5] = ((chunkSize >> 8) & 0xff);
-    wavHeader[6] = ((chunkSize >> 16) & 0xff);
-    wavHeader[7] = ((chunkSize >> 24) & 0xff);
-    
-    // Format ("WAVE")
-    wavHeader.set([0x57, 0x41, 0x56, 0x45], 8); // "WAVE" in ASCII
-    
-    // "fmt " sub-chunk
-    wavHeader.set([0x66, 0x6d, 0x74, 0x20], 12); // "fmt " in ASCII
-    
-    // Sub-chunk size (16 for PCM)
-    wavHeader.set([16, 0, 0, 0], 16);
-    
-    // Audio format (1 for PCM)
-    wavHeader.set([1, 0], 20);
-    
-    // Number of channels
-    wavHeader.set([numChannels, 0], 22);
-    
-    // Sample rate
-    wavHeader[24] = (sampleRate & 0xff);
-    wavHeader[25] = ((sampleRate >> 8) & 0xff);
-    wavHeader[26] = ((sampleRate >> 16) & 0xff);
-    wavHeader[27] = ((sampleRate >> 24) & 0xff);
-    
-    // Byte rate
-    wavHeader[28] = (byteRate & 0xff);
-    wavHeader[29] = ((byteRate >> 8) & 0xff);
-    wavHeader[30] = ((byteRate >> 16) & 0xff);
-    wavHeader[31] = ((byteRate >> 24) & 0xff);
-    
-    // Block align
-    wavHeader.set([blockAlign, 0], 32);
-    
-    // Bits per sample
-    wavHeader.set([bytesPerSample * 8, 0], 34);
-    
-    // "data" sub-chunk
-    wavHeader.set([0x64, 0x61, 0x74, 0x61], 36); // "data" in ASCII
-    
-    // Sub-chunk size (data length)
-    wavHeader[40] = (dataLength & 0xff);
-    wavHeader[41] = ((dataLength >> 8) & 0xff);
-    wavHeader[42] = ((dataLength >> 16) & 0xff);
-    wavHeader[43] = ((dataLength >> 24) & 0xff);
-    
-    return wavHeader;
-  };
-
   const handleGenerateAudio = async () => {
     try {
       setIsGeneratingAudio(true);
       setProgress(0);
+      setAudioProgress(null);
+      setAudioGenerationDetails(null);
       
       // Create new AbortController for this export
       const newController = new AbortController();
       setController(newController);
       
-      // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
+      // Use AudioExportService to generate the audio
+      const audioBlob = await audioExportService.generateAudio(
+        chapters,
+        title,
+        (progressData) => {
+          setProgress(progressData.progress);
+          setCurrentChapter(progressData.currentChapter);
+          setAudioProgress(progressData.progressMessage);
+          setAudioGenerationDetails(progressData.generationDetails);
+        },
+        newController.signal
+      );
+      
+      // Check if export was cancelled
+      if (newController.signal.aborted) {
+        throw new Error('Audio generation cancelled');
       }
       
-      // Get user settings
-      userSettingsService.clearCache(session.user.id);
-      const settings = await userSettingsService.getSettings(session.user.id);
-      
-      // Validate ElevenLabs settings and get voice parameters
-      const voiceParams = validateElevenLabsSettings(settings);
-      
-      // Set initial progress
-      setAudioProgress('Preparing chapters for audio generation...');
-      
-      // Prepare all chapters and their chunks
-      const chapterProcessingData = chapters.map((chapter, index) => ({
-        index,
-        title: chapter.title,
-        chunks: splitTextIntoChunks(chapter.content)
-      }));
-      
-      // Total number of chunks across all chapters for progress calculation
-      const totalChunks = chapterProcessingData.reduce((sum, chapter) => sum + chapter.chunks.length, 0);
-      let processedChunks = 0;
-      
-      // Process all chapters in parallel
-      const chapterAudioPromises = chapterProcessingData.map(async (chapterData) => {
-        // Check if generation was cancelled
-        if (newController.signal.aborted) {
-          throw new Error('Audio generation cancelled');
-        }
-        
-        const { index, title, chunks } = chapterData;
-        
-        // Process each chunk in sequence for this chapter
-        const chunkAudioBuffers: ArrayBuffer[] = [];
-        
-        for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-          // Check if generation was cancelled
-          if (newController.signal.aborted) {
-            throw new Error('Audio generation cancelled');
-          }
-          
-          // Update progress for this specific chunk
-          setCurrentChapter(title);
-          setAudioGenerationDetails({
-            currentChapter: index + 1,
-            totalChapters: chapters.length,
-            currentSection: chunkIndex + 1,
-            totalSections: chunks.length
-          });
-          
-          setAudioProgress(
-            `Generating audio for Chapter ${index + 1}/${chapters.length}, Section ${chunkIndex + 1}/${chunks.length}`
-          );
-          
-          // Generate audio for this chunk
-          try {
-            const audioBuffer = await generateAudioForChunk(
-              chunks[chunkIndex],
-              voiceParams.key,
-              voiceParams.voiceId,
-              voiceParams.model,
-              voiceParams.stability,
-              voiceParams.similarityBoost,
-              voiceParams.voiceStyle,
-              voiceParams.speakerBoost
-            );
-            
-            chunkAudioBuffers.push(audioBuffer);
-            
-            // Update overall progress
-            processedChunks++;
-            setProgress((processedChunks / totalChunks) * 100);
-            
-          } catch (error) {
-            console.error(`Error generating audio for chunk ${chunkIndex + 1} of chapter ${index + 1}:`, error);
-            throw error;
-          }
-        }
-        
-        // Combine all chunks for this chapter
-        const chapterAudioBuffer = await combineAudioBuffers(chunkAudioBuffers);
-        return chapterAudioBuffer.arrayBuffer();
-      });
-      
-      // Wait for all chapter audio generation to complete
-      setAudioProgress('Finalizing all chapters...');
-      const chapterAudioBuffers = await Promise.all(chapterAudioPromises);
-      
-      // Combine all chapter audio files
-      setAudioProgress('Combining all chapters into final audio file...');
-      const finalAudioBlob = await combineAudioBuffers(chapterAudioBuffers);
-      
-      // Create download link
-      const url = URL.createObjectURL(finalAudioBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      a.download = `${sanitizedTitle}_audio.wav`;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Download the audio file
+      audioExportService.downloadAudioFile(audioBlob, title);
       
       // Reset state
       setIsGeneratingAudio(false);
@@ -719,41 +329,6 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     }
   };
 
-  // Helper function to validate ElevenLabs settings
-  const validateElevenLabsSettings = (settings: any) => {
-    if (!settings.elevenlabs_key) {
-      throw new Error('ElevenLabs API key not configured. Please add it in settings.');
-    }
-    
-    if (!settings.elevenlabs_voice_id) {
-      throw new Error('ElevenLabs voice not selected. Please select a voice in settings.');
-    }
-    
-    // ElevenLabs voice IDs are typically 24-character alphanumeric strings
-    if (settings.elevenlabs_voice_id.includes('@') || 
-        settings.elevenlabs_voice_id.length < 20 || 
-        !/^[a-zA-Z0-9]+$/.test(settings.elevenlabs_voice_id)) {
-      throw new Error(
-        'Invalid ElevenLabs voice ID format. Please go to Settings and select a valid voice ID. ' +
-        'Voice IDs can be found in your ElevenLabs account under "Profile" > "API Key".'
-      );
-    }
-    
-    if (!settings.elevenlabs_model) {
-      throw new Error('ElevenLabs model not selected. Please select a model in settings.');
-    }
-    
-    return {
-      key: settings.elevenlabs_key,
-      voiceId: settings.elevenlabs_voice_id,
-      model: settings.elevenlabs_model,
-      stability: settings.voice_stability ?? 0.75,
-      similarityBoost: settings.voice_similarity_boost ?? 0.75,
-      voiceStyle: settings.voice_style,
-      speakerBoost: settings.voice_speaker_boost
-    };
-  };
-
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -767,16 +342,38 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
           <div className="grid gap-4 py-4">
             {(isExporting || isGeneratingVideo || isGeneratingAudio) && (
               <div className="space-y-2">
-                <Progress value={progress} className="w-full" />
+                <Progress 
+                  value={isGeneratingVideo && videoProgress ? videoProgress.progress : progress} 
+                  className="w-full" 
+                />
                 <p className="text-sm text-muted-foreground text-center">
-                  {isGeneratingVideo 
-                    ? (videoProgress || 'Starting video generation...') 
+                  {isGeneratingVideo && videoProgress
+                    ? (videoProgress.message || 'Starting video generation...') 
                     : isGeneratingAudio
                       ? (audioProgress || 'Starting audio generation...')
                       : (currentChapter 
                           ? `Rewriting ${currentChapter} (${Math.round(progress)}%)` 
                           : 'Starting export...')}
                 </p>
+                {isGeneratingVideo && videoProgress && videoProgress.stage === 'image' && videoProgress.requiresUserInput && (
+                  <div className="flex flex-col items-center gap-2 pt-2">
+                    <p className="text-sm font-medium">Select a background image for your video</p>
+                    <Button
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Choose Image
+                    </Button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                    />
+                  </div>
+                )}
                 {isGeneratingAudio && audioGenerationDetails && (
                   <p className="text-xs text-muted-foreground text-center">
                     Chapter {audioGenerationDetails.currentChapter}/{audioGenerationDetails.totalChapters}, 
