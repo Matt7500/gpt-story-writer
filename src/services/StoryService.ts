@@ -73,13 +73,13 @@ function getOrdinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-// Helper function to generate scene template
+// Helper function to generate chapter template
 function generateSceneTemplate(numScenes: number): string {
   const template = [];
   for (let i = 1; i <= numScenes; i++) {
     template.push({
       scene_number: i,
-      scene_beat: `<Write the ${getOrdinal(i)} scene beat here>`
+      scene_beat: `<Write the ${getOrdinal(i)} chapter beat here>`
     });
   }
   return JSON.stringify(template, null, 2);
@@ -446,15 +446,15 @@ Please provide a detailed summary in 400-600 words.
       } catch (parseError) {
         console.error("JSON parse error:", parseError);
         
-        // If parsing fails, try a more aggressive approach to extract scene data
-        console.log("Attempting to extract scene data manually...");
+        // If parsing fails, try a more aggressive approach to extract chapter data
+        console.log("Attempting to extract chapter data manually...");
         return this.extractScenesManually(inputString);
       }
 
       const formattedScenes: string[] = [];
-      for (const scene of scenesArr) {
-        const sceneNumber = scene.scene_number;
-        const sceneBeat = scene.scene_beat;
+      for (const chapter of scenesArr) {
+        const sceneNumber = chapter.scene_number;
+        const sceneBeat = chapter.scene_beat;
         if (sceneNumber != null && sceneBeat) {
           formattedScenes.push(sceneBeat.trim());
         }
@@ -487,7 +487,7 @@ Please provide a detailed summary in 400-600 words.
       // Try to split by sentences that end with periods followed by spaces
       const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 0);
       
-      // Group sentences into reasonable scene chunks
+      // Group sentences into reasonable chapter chunks
       const sentencesPerScene = Math.max(3, Math.ceil(sentences.length / 8)); // Aim for about 8 scenes max
       
       for (let i = 0; i < sentences.length; i += sentencesPerScene) {
@@ -495,29 +495,29 @@ Please provide a detailed summary in 400-600 words.
         scenes.push(sceneChunk.trim());
       }
     } else {
-      // Check if the text contains scene markers
+      // Check if the text contains chapter markers
       const hasSceneMarkers = text.includes('scene_number') || 
-                             text.includes('Scene ') || 
-                             paragraphs.some(p => /^(Chapter|Scene)\s+\d+/i.test(p));
+                             text.includes('chapter ') || 
+                             paragraphs.some(p => /^(Chapter|chapter)\s+\d+/i.test(p));
       
       if (hasSceneMarkers) {
-        // Try to extract scenes based on scene markers
+        // Try to extract scenes based on chapter markers
         let currentScene = '';
         
         for (const paragraph of paragraphs) {
-          if (/^(Chapter|Scene)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
-            // This paragraph starts a new scene
+          if (/^(Chapter|chapter)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
+            // This paragraph starts a new chapter
             if (currentScene) {
               scenes.push(currentScene.trim());
             }
             currentScene = paragraph;
           } else {
-            // This paragraph is part of the current scene
+            // This paragraph is part of the current chapter
             currentScene += '\n\n' + paragraph;
           }
         }
         
-        // Add the last scene if it exists
+        // Add the last chapter if it exists
         if (currentScene) {
           scenes.push(currentScene.trim());
         }
@@ -533,15 +533,15 @@ Please provide a detailed summary in 400-600 words.
       }
     }
     
-    // If no scenes were extracted, use the entire text as one scene
+    // If no scenes were extracted, use the entire text as one chapter
     if (scenes.length === 0) {
       scenes = [text.trim()];
     }
     
     // Convert scenes to JSON format
-    const jsonScenes = scenes.map((scene, index) => ({
+    const jsonScenes = scenes.map((chapter, index) => ({
       scene_number: index + 1,
-      scene_beat: scene
+      scene_beat: chapter
     }));
     
     console.log(`Converted ${jsonScenes.length} scenes to JSON format`);
@@ -560,7 +560,7 @@ Please provide a detailed summary in 400-600 words.
       // Try to split by sentences that end with periods followed by spaces
       const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 0);
       
-      // Group sentences into reasonable scene chunks (e.g., 3-5 sentences per scene)
+      // Group sentences into reasonable chapter chunks (e.g., 3-5 sentences per chapter)
       const scenes: string[] = [];
       const sentencesPerScene = Math.max(3, Math.ceil(sentences.length / 8)); // Aim for about 8 scenes max
       
@@ -573,36 +573,36 @@ Please provide a detailed summary in 400-600 words.
       return scenes;
     }
     
-    // Check if the text contains scene markers like "scene_number" or similar patterns
+    // Check if the text contains chapter markers like "scene_number" or similar patterns
     const hasSceneMarkers = text.includes('scene_number') || 
-                           text.includes('Scene ') || 
-                           paragraphs.some(p => /^(Chapter|Scene)\s+\d+/i.test(p));
+                           text.includes('chapter ') || 
+                           paragraphs.some(p => /^(Chapter|chapter)\s+\d+/i.test(p));
     
     if (hasSceneMarkers) {
-      // Try to extract scenes based on scene markers
+      // Try to extract scenes based on chapter markers
       const scenes: string[] = [];
       let currentScene = '';
       
       for (const paragraph of paragraphs) {
-        if (/^(Chapter|Scene)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
-          // This paragraph starts a new scene
+        if (/^(Chapter|chapter)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
+          // This paragraph starts a new chapter
           if (currentScene) {
             scenes.push(currentScene.trim());
           }
           currentScene = paragraph;
         } else {
-          // This paragraph is part of the current scene
+          // This paragraph is part of the current chapter
           currentScene += '\n\n' + paragraph;
         }
       }
       
-      // Add the last scene if it exists
+      // Add the last chapter if it exists
       if (currentScene) {
         scenes.push(currentScene.trim());
       }
       
       if (scenes.length > 0) {
-        console.log(`Extracted ${scenes.length} scenes based on scene markers`);
+        console.log(`Extracted ${scenes.length} scenes based on chapter markers`);
         return scenes;
       }
     }
@@ -644,7 +644,7 @@ Please provide a detailed summary in 400-600 words.
   // Fallback method to extract scenes when JSON parsing fails
   private extractScenesManually(text: string): string[] | null {
     try {
-      console.log("Attempting manual scene extraction...");
+      console.log("Attempting manual chapter extraction...");
       
       // Look for scene_beat patterns
       const sceneRegex = /"scene_beat"\s*:\s*"([^"]*)"/g;
@@ -692,10 +692,10 @@ Please provide a detailed summary in 400-600 words.
         return scenes;
       }
       
-      // If all else fails, try to extract any text that looks like a scene description
+      // If all else fails, try to extract any text that looks like a chapter description
       const paragraphs = text.split(/\n\s*\n/);
       for (const paragraph of paragraphs) {
-        // Look for paragraphs that might be scene descriptions
+        // Look for paragraphs that might be chapter descriptions
         // They typically mention the narrator and have substantial content
         if (paragraph.includes('(The Narrator)') && paragraph.length > 100) {
           scenes.push(paragraph.trim());
@@ -710,7 +710,7 @@ Please provide a detailed summary in 400-600 words.
       console.log("Failed to extract scenes manually");
       return null;
     } catch (err) {
-      console.error("Error in manual scene extraction:", err);
+      console.error("Error in manual chapter extraction:", err);
       return null;
     }
   }
@@ -734,8 +734,8 @@ Please provide a detailed summary in 400-600 words.
       while (retries < 5) {
         try {
           const userMessage = `## OUTLINE REQUIREMENTS
-- The plot outline must contain between 5 and 8 chapters, these are STRICT requirements.
-- DO NOT create more than 8 chapters under any circumstances.
+- The plot outline must contain between 5 and 7 chapters, these are STRICT requirements.
+- DO NOT create more than 7 chapters under any circumstances.
 - If there are plot holes in the story idea, you MUST fix them in the plot outline.
 - DO NOT write an epilogue as the final chapter, the final chapter must be the resolution of the story or provide an opening for a sequel IF there can be one.
 
@@ -766,11 +766,11 @@ Please provide a detailed summary in 400-600 words.
 [
   {
     "scene_number": 1,
-    "scene_beat": "Scene 1 content"
+    "scene_beat": "chapter 1 content"
   },
   {
     "scene_number": 2,
-    "scene_beat": "Scene 2 content"
+    "scene_beat": "chapter 2 content"
   },
 ]
 
@@ -806,9 +806,9 @@ ${idea}`;
             if (Array.isArray(parsedJson)) {
               // If it's already a valid JSON array, format it directly
               outline = [];
-              for (const scene of parsedJson) {
-                if (scene.scene_number != null && scene.scene_beat) {
-                  outline.push(scene.scene_beat.trim());
+              for (const chapter of parsedJson) {
+                if (chapter.scene_number != null && chapter.scene_beat) {
+                  outline.push(chapter.scene_beat.trim());
                 }
               }
               
@@ -922,8 +922,8 @@ You will be given a section of text and you MUST perform the following to it:
 -Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
 -Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
 -Eliminate all metaphors in the text.
--Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the scene.
--Eliminate all sentences that hinder the pacing of the scene by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
+-Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the chapter.
+-Eliminate all sentences that hinder the pacing of the chapter by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
 -Eliminate all phrases that mention the character's heart pounding or heart in their throat.
 If a paragraph doesn't need to be changed, leave it as is in the returned text.
 -Eliminate all sentences and phrases that mention light casting long shadows.
@@ -954,6 +954,8 @@ If a paragraph doesn't need to be changed, leave it as is in the returned text.
 - Frowned
 - Hum/Humming/Hummed
 - rough-hewn
+- camaraderie
+- echoed
 
 Only respond with the modified text and nothing else. You MUST respond with the FULL text.`
           },
@@ -1323,7 +1325,7 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     }
   }
 
-  // Write a scene based on the scene beat, characters, and previous scenes
+  // Write a chapter based on the chapter beat, characters, and previous scenes
   public async writeScene(
     sceneBeat: string,
     characters: string,
@@ -1338,18 +1340,18 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     console.log('Future scenes provided:', futureScenes ? 'Yes (count: ' + futureScenes.length + ')' : 'No');
     
     if (!sceneBeat || sceneBeat.trim() === '') {
-      console.error('Scene beat is empty or undefined');
-      throw new Error('Scene beat is required to generate a scene. Please provide a scene beat.');
+      console.error('chapter beat is empty or undefined');
+      throw new Error('chapter beat is required to generate a chapter. Please provide a chapter beat.');
     }
     
     const recentContext = previousScenes && previousScenes.length
       ? previousScenes.slice(-4)
-      : ["No previous context. This is the first scene of the story."];
+      : ["No previous context. This is the first chapter of the story."];
     const context = recentContext.join('\n\n');
 
     // Format future scenes if provided
     const formattedFutureScenes = futureScenes && futureScenes.length 
-      ? futureScenes.map((scene, index) => `Future Scene ${index + 1}:\n${scene}`).join('\n\n')
+      ? futureScenes.map((chapter, index) => `Future chapter ${index + 1}:\n${chapter}`).join('\n\n')
       : "No future scenes provided.";
 
     try {
@@ -1392,8 +1394,8 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
       // Prepare context from previous scenes
       let previousScenesContext = "";
       if (previousScenes && previousScenes.length > 0) {
-        previousScenesContext = "Previous scenes:\n\n" + previousScenes.map((scene, index) => 
-          `Scene ${index + 1}:\n${scene}`
+        previousScenesContext = "Previous scenes:\n\n" + previousScenes.map((chapter, index) => 
+          `chapter ${index + 1}:\n${chapter}`
         ).join("\n\n");
       }
 
@@ -1404,18 +1406,25 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 
       const prompt = `
 ## WRITING INSTRUCTIONS
-- You are an expert fiction writer. Write a full scene WITHOUT overwriting, that is based on the scene beat EXACTLY.
-- Address the passage of time mentioned at the beginning of the scene beat by creating a connection to the previous scene's ending.
+- You are an expert fiction writer. Write a full chapter WITHOUT overwriting, that is based on the chapter beat EXACTLY.
+- Address the passage of time mentioned at the beginning of the chapter beat by creating a connection to the previous chapter's ending.
 - Write in past tense.
-- Write narration as much as possible to give the reader more information about the scene.
-- When there is no context, start the scene with exposition to give the reader a better understanding of the plot and characters.
+- Write narration as much as possible to give the reader more information about the chapter.
+- When there is no context, start the chapter with exposition to give the reader a better understanding of the plot and characters.
+
+##chapter Transition Guidelines
+- When writing a chapter, make sure to include a transition from the previous chapter to the new chapter.
+- The transition should be a short paragraph that is not too long and not too short.
+- The transition should be a natural continuation of the previous chapter and the new chapter.
+- DO NOT repeat a short summary of what happened in the previous chapter, instead write a transition that naturally leads into the new chapter.
+
 
 # Core Requirements
     - Write from first-person narrator perspective only
-    - Begin with a clear connection to the previous scene's ending
+    - Begin with a clear connection to the previous chapter's ending
     - Write the dialogue in their own paragraphs, do not include the dialogue in the same paragraph as the narration.
-    - Write everything that the narrator sees, hears, and everything that happens in the scene.
-    - Write the entire scene and include everything in the scene beat given, do not leave anything out.
+    - Write everything that the narrator sees, hears, and everything that happens in the chapter.
+    - Write the entire chapter and include everything in the chapter beat given, do not leave anything out.
     - Use the character's pronouns if you don't write the character's name. Avoid using they/them pronouns, use the character's pronouns instead.
     
     # Pacing and Suspense
@@ -1427,42 +1436,42 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
     # Writing Style
     - DO NOT write flowery language, use casual and simple vocabulary.
     - Do NOT write any appositive phrases.
-    - Do NOT write any redundant descriptive phrases that are not necessary to the scene.
+    - Do NOT write any redundant descriptive phrases that are not necessary to the chapter.
     - Do NOT use asterisks (*) for emphasis or to indicate actions. Use proper narrative descriptions instead.
-    - ONLY provide descriptions about the scene if it furthers the plot or character development, DO NOT write redundant descriptions that provide no useful information about the scene.
+    - ONLY provide descriptions about the chapter if it furthers the plot or character development, DO NOT write redundant descriptions that provide no useful information about the chapter.
     - Vary sentence length based on tension:
         * Shorter sentences for action/tension
         * Longer sentences for introspection
     - Show emotions through implications rather than stating them
     
-    # Scene Structure
+    # chapter Structure
     - Write tight, focused paragraphs
     - Break up dialogue with introspection and description
     - Allow for natural processing of events
 
-## SCENE CONTEXT AND CONTINUITY
+## chapter CONTEXT AND CONTINUITY
 # Characters
 ${characters}
 
-# Use the provided STORY CONTEXT to remember details and events from the previous scenes in order to maintain consistency in the new scene you are writing.
+# Use the provided STORY CONTEXT to remember details and events from the previous scenes in order to maintain consistency in the new chapter you are writing.
 ## STORY CONTEXT
 <context>
   ${context}
 </context>
 
-# Future Scene Beats
+# Future chapter Beats
 <future_scenes>
   ${formattedFutureScenes}
 </future_scenes>
 
 ## Future Context Guidelines
-- DO NOT directly reference future events in your current scene
+- DO NOT directly reference future events in your current chapter
 - DO plant subtle foundations or foreshadowing that will support future scenes
 - AVOID creating details that would contradict or make future scenes impossible
 - ENSURE character decisions and development align with their future trajectory
-- BE AWARE of future plot points, but maintain suspense and discovery in the current scene
+- BE AWARE of future plot points, but maintain suspense and discovery in the current chapter
 
-# Scene Beat to Write
+# chapter Beat to Write
 ${sceneBeat}
 `;
 
@@ -1526,12 +1535,12 @@ ${sceneBeat}
         fullContent = fullContent.replace(/\*/g, '');
         
         console.log('Stream processing complete, content length:', fullContent.length, 'chunks:', chunkCount);
-        return fullContent || 'Failed to generate scene content';
+        return fullContent || 'Failed to generate chapter content';
       } catch (streamError: any) {
         console.error('Error creating or processing stream:', streamError);
         
         // Provide more detailed error information
-        let errorMessage = 'Failed to generate scene. ';
+        let errorMessage = 'Failed to generate chapter. ';
         
         if (streamError.status) {
           errorMessage += `Status: ${streamError.status}. `;
@@ -1559,15 +1568,15 @@ ${sceneBeat}
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        console.log('Scene generation aborted');
+        console.log('chapter generation aborted');
         throw err;
       }
-      console.error('Error generating scene:', err);
-      throw new Error(err.message || 'Failed to generate scene. Please try again.');
+      console.error('Error generating chapter:', err);
+      throw new Error(err.message || 'Failed to generate chapter. Please try again.');
     }
   }
 
-  // Revise a scene based on feedback
+  // Revise a chapter based on feedback
   public async reviseScene(
     currentContent: string,
     feedback: string,
@@ -1582,25 +1591,25 @@ ${sceneBeat}
       const client = await this.getOpenRouterClient();
       
       const userMessage = `## Instructions
-Revise the given scene based on the feedback provided.
-Maintain the same narrative style, perspective, and tone of the original scene.
-Ensure the revised scene still aligns with the scene beat and character descriptions.
-Make specific changes requested in the feedback while preserving the overall structure and purpose of the scene.
+Revise the given chapter based on the feedback provided.
+Maintain the same narrative style, perspective, and tone of the original chapter.
+Ensure the revised chapter still aligns with the chapter beat and character descriptions.
+Make specific changes requested in the feedback while preserving the overall structure and purpose of the chapter.
 
-## Original Scene
+## Original chapter
 ${currentContent}
 
 ## Feedback
 ${feedback}
 
-## Scene Beat
+## chapter Beat
 ${sceneBeat}
 
 ## Characters
 ${characters}
 
 ## Output
-Write only the revised scene content, formatted as a polished narrative. Do not include any meta-commentary, explanations, or notes about the changes made.`;
+Write only the revised chapter content, formatted as a polished narrative. Do not include any meta-commentary, explanations, or notes about the changes made.`;
 
       const stream = await client.chat.completions.create({
         model: this.userSettings?.model || 'gpt-4o',
@@ -1628,14 +1637,14 @@ Write only the revised scene content, formatted as a polished narrative. Do not 
         }
       }
       
-      return fullContent || 'Failed to revise scene content';
+      return fullContent || 'Failed to revise chapter content';
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        console.log('Scene revision aborted');
+        console.log('chapter revision aborted');
         throw err;
       }
-      console.error('Error revising scene:', err);
-      throw new Error('Failed to revise scene. Please try again.');
+      console.error('Error revising chapter:', err);
+      throw new Error('Failed to revise chapter. Please try again.');
     }
   }
 
@@ -1806,7 +1815,7 @@ ${previousParagraphs.join('\n\n')}
 # Current Chapter (beginning):
 ${currentParagraphs.join('\n\n')}
 
-# Scene Beat for Current Chapter:
+# chapter Beat for Current Chapter:
 ${sceneBeat}
 
 ## Instructions:
