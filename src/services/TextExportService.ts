@@ -1,6 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { userSettingsService } from "@/services/UserSettingsService";
-import { storyService } from "@/services/StoryService";
 
 interface ExportProgress {
   progress: number;
@@ -16,6 +14,7 @@ interface Chapter {
 
 export class TextExportService {
   private static instance: TextExportService;
+  private eventSource: EventSource | null = null;
 
   private constructor() {}
 
@@ -26,6 +25,14 @@ export class TextExportService {
     return TextExportService.instance;
   }
 
+  private async getAuthToken(): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('No active session');
+    }
+    return session.access_token;
+  }
+
   public async exportAsText(
     chapters: Chapter[], 
     title: string, 
@@ -33,140 +40,78 @@ export class TextExportService {
     signal?: AbortSignal
   ): Promise<string> {
     try {
-      // Set initial progress
-      if (onProgress) {
-        onProgress({
-          progress: 0,
-          currentChapter: "Processing multiple chapters..."
-        });
-      }
+      const token = await this.getAuthToken();
 
-      // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      // Clear cache and get fresh settings
-      userSettingsService.clearCache(session.user.id);
-      const settings = await userSettingsService.getSettings(session.user.id);
-      if (!settings.story_generation_model) {
-        throw new Error('Story generation model not configured. Please configure it in settings.');
-      }
-
-      // Track overall progress across all chapters
-      const totalChapters = chapters.length;
-      let completedChapters = 0;
-      const chapterProgresses = new Array(totalChapters).fill(0);
-      const progressPerChapter = 100 / totalChapters;
-      
-      // Create a ref to store the current chapter being processed
-      let currentChapterTitle = "Processing multiple chapters...";
-      
-      // Update progress
-      if (onProgress) {
-        onProgress({
-          progress: 0,
-          currentChapter: currentChapterTitle
-        });
-      }
-
-      // Function to update the progress based on all chapter progresses
-      const updateOverallProgress = () => {
-        const overallProgress = chapterProgresses.reduce((sum, progress) => sum + progress, 0);
-        if (onProgress) {
-          onProgress({
-            progress: overallProgress,
-            currentChapter: currentChapterTitle
-          });
-        }
-      };
-
-      // Create promises for each chapter
-      const chapterPromises = chapters.map((chapter, index) => {
-        return new Promise<string>(async (resolve) => {
-          // Check if export was cancelled at the start
-          if (signal?.aborted) {
-            resolve(chapter.content); // Return original content if cancelled
-            return;
-          }
-
-          try {
-            // Track streaming progress for current chapter
-            let chapterStreamProgress = 0;
-            const streamCallback = (chunk: string) => {
-              // Update progress for this specific chapter
-              chapterStreamProgress += chunk.length / chapter.content.length;
-              chapterProgresses[index] = Math.min(chapterStreamProgress * progressPerChapter, progressPerChapter);
-              
-              // Update current chapter title when this chapter gets focus
-              currentChapterTitle = `Processing ${chapter.title} and others...`;
-              
-              // Update overall progress
-              updateOverallProgress();
-            };
-
-            // Use StoryService's rewriteInChunks
-            const rewrittenContent = await storyService.rewriteInChunks(
-              chapter.content,
-              streamCallback,
-              signal
-            );
-
-            // Mark chapter as fully completed
-            chapterProgresses[index] = progressPerChapter;
-            completedChapters++;
-            updateOverallProgress();
-            
-            resolve(rewrittenContent);
-          } catch (error) {
-            if (error.name === 'AbortError') {
-              resolve(chapter.content); // Return original content if cancelled
-            } else {
-              console.error(`Error processing chapter ${chapter.title}:`, error);
-              resolve(chapter.content); // Return original content on error
-            }
-          }
-        });
+      // Start the export process
+      const response = await fetch('http://localhost:3001/api/export/text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ chapters, title }),
+        signal
       });
 
-      // Wait for all chapters to be processed
-      const processedChapters = await Promise.all(chapterPromises);
-
-      // Check if export was cancelled
-      if (signal?.aborted) {
-        throw new Error('Export cancelled');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || 'Export failed');
       }
 
-      // Set progress to 100% when processing is complete
+      const { sessionId, content } = await response.json();
+
+      // Set up SSE for progress updates
       if (onProgress) {
-        onProgress({
-          progress: 100,
-          currentChapter: "Finalizing..."
-        });
+        this.eventSource = new EventSource(
+          `http://localhost:3001/api/export/text/progress/${sessionId}`,
+          { withCredentials: true }
+        );
+
+        this.eventSource.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type !== 'connected') {
+            onProgress({
+              progress: data.progress,
+              currentChapter: data.currentChapter || 'Processing...'
+            });
+          }
+        };
+
+        this.eventSource.onerror = () => {
+          this.eventSource?.close();
+          this.eventSource = null;
+        };
+
+        // Handle abort signal
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            this.eventSource?.close();
+            this.eventSource = null;
+          });
+        }
       }
 
-      // Create the story text content with just processed content and 4 newlines between chapters
-      const storyContent = processedChapters.join('\n\n\n\n');
-
-      return storyContent;
+      return content;
     } catch (error: any) {
       console.error("Text export process ended:", {
-        type: error.message === 'Export cancelled' ? 'Cancellation' : 'Error',
+        type: error.name === 'AbortError' ? 'Cancellation' : 'Error',
         message: error.message,
         details: error.stack
       });
       throw error;
+    } finally {
+      if (this.eventSource) {
+        this.eventSource.close();
+        this.eventSource = null;
+      }
     }
   }
 
   public downloadTextFile(content: string, title: string): void {
-    // Create and download the file with a meaningful name
     const blob = new Blob([content], { type: "text/plain" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    // Use the story title for the filename, sanitize it for valid filename
     const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     a.download = `${sanitizedTitle}.txt`;
     document.body.appendChild(a);
@@ -176,5 +121,4 @@ export class TextExportService {
   }
 }
 
-// Export a singleton instance
 export const textExportService = TextExportService.getInstance(); 

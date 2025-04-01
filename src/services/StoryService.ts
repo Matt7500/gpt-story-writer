@@ -765,12 +765,12 @@ Please provide a detailed summary in 400-600 words.
 ## You must STRICLY use following JSON format for the plot outline exactly without deviation, DO NOT write in markdown format:
 [
   {
-    "scene_number": 1,
-    "scene_beat": "chapter 1 content"
+    "chapter_number": 1,
+    "chapter_beat": "chapter 1 content"
   },
   {
-    "scene_number": 2,
-    "scene_beat": "chapter 2 content"
+    "chapter_number": 2,
+    "chapter_beat": "chapter 2 content"
   },
 ]
 
