@@ -646,6 +646,14 @@ Please provide a detailed summary in 400-600 words.
     try {
       await this.ensureSettingsLoaded();
 
+      // Get user-defined chapter range or use defaults
+      const minChapters = this.userSettings?.min_chapters || 5;
+      const maxChapters = this.userSettings?.max_chapters || 7;
+      // Ensure min is not greater than max
+      const effectiveMinChapters = Math.min(minChapters, maxChapters);
+      const effectiveMaxChapters = Math.max(minChapters, maxChapters);
+      console.log(`Target chapter range: ${effectiveMinChapters}-${effectiveMaxChapters}`);
+
       const allProfiles = settings.load_story_profiles();
       const profile = allProfiles[settings.STORY_PROFILE];
       
@@ -654,10 +662,9 @@ Please provide a detailed summary in 400-600 words.
         return null;
       }
 
-      const numScenes = profile.num_scenes || settings.NUM_SCENES;
       let retries = 0;
 
-      // Define the JSON Schema for the expected output
+      // Define the JSON Schema using the effective chapter range
       const outlineSchema = {
         type: "array",
         items: {
@@ -669,22 +676,21 @@ Please provide a detailed summary in 400-600 words.
             },
             chapter_beat: {
               type: "string",
-              description: "A detailed summary of the events in this chapter (approx 250 words)."
+              description: `A detailed summary of the events in this chapter (approx 250 words).`
             }
           },
           required: ["chapter_number", "chapter_beat"],
           additionalProperties: false
         },
-        minItems: 5, // Corresponds to prompt requirement
-        maxItems: 7  // Corresponds to prompt requirement
+        minItems: effectiveMinChapters,
+        maxItems: effectiveMaxChapters
       };
       
       while (retries < 5) {
         try {
-          // The user message no longer needs to specify JSON format instructions, 
-          // as structured output handles it. We keep the content requirements.
+          // Update prompt to use the dynamic chapter range
           const userMessage = `## OUTLINE REQUIREMENTS
-- The plot outline must contain between 5 and 7 chapters. These are STRICT requirements.
+- The plot outline must contain between ${effectiveMinChapters} and ${effectiveMaxChapters} chapters. These are STRICT requirements.
 - If there are plot holes in the story idea, you MUST fix them in the plot outline.
 - DO NOT write an epilogue as the final chapter. The final chapter must be the resolution or provide an opening for a potential sequel.
 
@@ -715,12 +721,12 @@ Please provide a detailed summary in 400-600 words.
 [
   {
     "chapter_number": 1,
-    "chapter_beat": "chapter 1 content"
+    "chapter_beat": "chapter 1 content..."
   },
   {
     "chapter_number": 2,
-    "chapter_beat": "chapter 2 content"
-  },
+    "chapter_beat": "chapter 2 content..."
+  }
 ]
 
 ## Story Idea:
@@ -734,12 +740,27 @@ ${idea}`;
           
           console.log(`Using ${useOpenAI ? 'OpenAI' : 'OpenRouter'} with model: ${model} for outline creation`);
 
-          // Construct API request parameters
           const requestParams: any = {
               model: model,
               temperature: 0.8,
               messages: [{ role: "user", content: userMessage }],
           };
+          
+          // Add structured output only if NOT using OpenAI (and assuming model compatibility)
+          if (!useOpenAI) { 
+              console.log("Attempting to use OpenRouter structured output (json_schema)");
+              requestParams.response_format = {
+                  type: "json_schema",
+                  json_schema: {
+                      name: "story_outline",
+                      strict: true, 
+                      description: `A plot outline with ${effectiveMinChapters}-${effectiveMaxChapters} chapters detailing story events.`, // Dynamic description
+                      schema: outlineSchema
+                  }
+              };
+          } else {
+              console.log("Using standard output for OpenAI, relying on prompt for JSON format.");
+          }
           
           const response = await client.chat.completions.create(requestParams, { signal });
           const responseContent = response.choices[0].message.content || '';
@@ -748,21 +769,19 @@ ${idea}`;
 
           let parsedOutline: any[];
           try {
-              // Attempt to parse the response content directly
               parsedOutline = JSON.parse(responseContent);
               if (!Array.isArray(parsedOutline)) {
                   throw new Error("Parsed response is not an array.");
               }
           } catch (parseError: any) {
               console.error(`Attempt ${retries + 1}: Failed to parse response as JSON: ${parseError.message}`);
-              // If parsing fails even with structured output (or for OpenAI), try formatScenes as a fallback
               console.log("Falling back to formatScenes parser...");
               const fallbackOutline = this.formatScenes(responseContent);
-              if (fallbackOutline && fallbackOutline.length > 0) {
+              if (fallbackOutline && fallbackOutline.length >= effectiveMinChapters && fallbackOutline.length <= effectiveMaxChapters) {
                  console.log(`Outline successfully parsed via fallback formatScenes with ${fallbackOutline.length} scenes.`);
                  return fallbackOutline;
               } else {
-                 console.warn(`Attempt ${retries + 1}: JSON parsing and formatScenes fallback failed. Retrying...`);
+                 console.warn(`Attempt ${retries + 1}: JSON parsing/fallback failed or chapter count (${fallbackOutline?.length}) outside range ${effectiveMinChapters}-${effectiveMaxChapters}. Retrying...`);
                  retries += 1;
                  if(retries >= 5) throw new Error("Failed to generate or parse a valid outline after multiple retries.");
                  await new Promise(resolve => setTimeout(resolve, 1000));
@@ -778,13 +797,14 @@ ${idea}`;
                   return (item.chapter_beat || item.scene_beat).trim();
               }
               console.warn("Invalid item found in parsed outline array:", item);
-              return null; // Mark invalid items
-          }).filter((beat): beat is string => beat !== null && beat.length > 0); // Filter out nulls and empty strings
+              return null;
+          }).filter((beat): beat is string => beat !== null && beat.length > 0);
           
-          if (outlineBeats.length < 5 || outlineBeats.length > 7) {
-               console.warn(`Attempt ${retries + 1}: Outline length (${outlineBeats.length}) outside required 5-7 range. Retrying...`);
+          // Validate against dynamic chapter range
+          if (outlineBeats.length < effectiveMinChapters || outlineBeats.length > effectiveMaxChapters) {
+               console.warn(`Attempt ${retries + 1}: Outline length (${outlineBeats.length}) outside required ${effectiveMinChapters}-${effectiveMaxChapters} range. Retrying...`);
                retries += 1;
-               if(retries >= 5) throw new Error(`Failed to generate an outline with the required number of chapters (5-7) after ${retries} attempts. Last count: ${outlineBeats.length}`);
+               if(retries >= 5) throw new Error(`Failed to generate an outline with the required number of chapters (${effectiveMinChapters}-${effectiveMaxChapters}) after ${retries} attempts. Last count: ${outlineBeats.length}`);
                await new Promise(resolve => setTimeout(resolve, 1000));
                continue;
           }
@@ -801,7 +821,7 @@ ${idea}`;
         }
     } // End while loop
     
-    console.error("Failed to create outline after 5 attempts.");
+    console.error(`Failed to create outline after ${retries} attempts.`); // Updated log
     return null; 
     
   } catch (err: any) { 
