@@ -404,318 +404,244 @@ Please provide a detailed summary in 400-600 words.
     }
   }
 
-  // Format scenes from JSON string
+  // Format scenes from JSON string or JSON-like text
   public formatScenes(inputString: string): string[] | null {
-    try {
-      console.log("Raw input to formatScenes:", inputString.substring(0, 100) + "...");
-      
-      // First, check if this is plain text narrative content rather than JSON
-      if (!inputString.trim().startsWith('[') && !inputString.trim().startsWith('{')) {
-        console.log("Input appears to be plain text narrative rather than JSON");
-        // Convert plain text to JSON format first
-        inputString = this.convertPlainTextToJson(inputString);
-      }
-      
-      // Clean code blocks
-      inputString = inputString.replace(/```json\s*|\s*```/g, '').trim();
-      
-      // Find the first occurrence of '[' to get the start of the JSON array
-      const jsonStartIndex = inputString.indexOf('[');
-      if (jsonStartIndex !== -1) {
-        // Remove any text before the JSON array
-        inputString = inputString.substring(jsonStartIndex);
-      }
+    console.log("Raw input to formatScenes:", inputString.substring(0, 200) + "...");
+    let textToParse = inputString.trim();
 
-      // Find the last occurrence of ']' to get the end of the JSON array
-      const jsonEndIndex = inputString.lastIndexOf(']');
-      if (jsonEndIndex !== -1 && jsonEndIndex < inputString.length - 1) {
-        // Remove any text after the JSON array
-        inputString = inputString.substring(0, jsonEndIndex + 1);
-      }
-      
-      // Additional sanitization to fix common JSON issues
-      // Replace any unescaped quotes within string values
-      inputString = this.sanitizeJsonString(inputString);
-      
-      console.log("Sanitized JSON:", inputString.substring(0, 100) + "...");
-      
-      let scenesArr;
-      try {
-        // Try to parse the JSON
-        scenesArr = JSON.parse(inputString);
-      } catch (parseError) {
-        console.error("JSON parse error:", parseError);
-        
-        // If parsing fails, try a more aggressive approach to extract chapter data
-        console.log("Attempting to extract chapter data manually...");
-        return this.extractScenesManually(inputString);
-      }
+    // Remove markdown code blocks if present
+    textToParse = textToParse.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
+    console.log("After removing markdown:", textToParse.substring(0, 200) + "...");
 
-      const formattedScenes: string[] = [];
-      for (const chapter of scenesArr) {
-        const sceneNumber = chapter.scene_number;
-        const sceneBeat = chapter.scene_beat;
-        if (sceneNumber != null && sceneBeat) {
-          formattedScenes.push(sceneBeat.trim());
-        }
-      }
-      
-      if (!formattedScenes.length) {
-        console.log("Warning: No scenes were parsed from JSON");
-        return null;
-      }
-      
-      console.log(`Successfully parsed ${formattedScenes.length} scenes`);
-      return formattedScenes;
-    } catch (err) {
-      console.log("Warning: Failed to parse JSON in formatScenes:", err);
-      return null;
+    // Find the first likely start of JSON (either { or [)
+    const jsonStartIndex = textToParse.search(/[{\[]/);
+    if (jsonStartIndex === -1) {
+        console.log("No JSON start found. Trying plain text extraction.");
+        return this.extractScenesFromPlainText(inputString);
     }
-  }
-  
-  // New method to convert plain text to JSON format
-  private convertPlainTextToJson(text: string): string {
-    console.log("Converting plain text to JSON format");
-    
-    // Split the text into paragraphs or chunks
-    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-    
-    // If we have very few paragraphs, we might need to split by sentences
-    let scenes: string[] = [];
-    
-    if (paragraphs.length <= 2) {
-      // Try to split by sentences that end with periods followed by spaces
-      const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 0);
-      
-      // Group sentences into reasonable chapter chunks
-      const sentencesPerScene = Math.max(3, Math.ceil(sentences.length / 8)); // Aim for about 8 scenes max
-      
-      for (let i = 0; i < sentences.length; i += sentencesPerScene) {
-        const sceneChunk = sentences.slice(i, i + sentencesPerScene).join('. ') + '.';
-        scenes.push(sceneChunk.trim());
-      }
-    } else {
-      // Check if the text contains chapter markers
-      const hasSceneMarkers = text.includes('scene_number') || 
-                             text.includes('chapter ') || 
-                             paragraphs.some(p => /^(Chapter|chapter)\s+\d+/i.test(p));
-      
-      if (hasSceneMarkers) {
-        // Try to extract scenes based on chapter markers
-        let currentScene = '';
-        
-        for (const paragraph of paragraphs) {
-          if (/^(Chapter|chapter)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
-            // This paragraph starts a new chapter
-            if (currentScene) {
-              scenes.push(currentScene.trim());
-            }
-            currentScene = paragraph;
-          } else {
-            // This paragraph is part of the current chapter
-            currentScene += '\n\n' + paragraph;
-          }
+    // Remove any text before the JSON start
+    textToParse = textToParse.substring(jsonStartIndex);
+
+    // Find the last likely end of JSON (corresponding } or ])
+    // Attempt to find the matching closing bracket for the first opening one
+    let openCount = 0;
+    let actualEndIndex = -1;
+    let firstOpenChar = '';
+    for (let i = 0; i < textToParse.length; i++) {
+        const char = textToParse[i];
+        if (i === 0) firstOpenChar = char; // Record the first opening char
+
+        if (char === '[' || char === '{') {
+            openCount++;
+        } else if (char === ']' || char === '}') {
+            openCount--;
         }
         
-        // Add the last chapter if it exists
-        if (currentScene) {
-          scenes.push(currentScene.trim());
+        // Check if we closed the initial bracket/brace
+        if (openCount === 0 && i > 0 && 
+            ((firstOpenChar === '[' && char === ']') || (firstOpenChar === '{' && char === '}'))) {
+            actualEndIndex = i;
+            break; 
+        }
+        
+        // Handle strings to prevent counting brackets inside them
+        if (char === '"') {
+            let endQuoteIndex = i + 1;
+            while (endQuoteIndex < textToParse.length) {
+                if (textToParse[endQuoteIndex] === '"') {
+                    // Check for escaped quote
+                    if (endQuoteIndex > 0 && textToParse[endQuoteIndex - 1] === '\\') {
+                         // It's escaped, continue searching
+                    } else {
+                        // Found the closing quote
+                        i = endQuoteIndex; 
+                        break;
+                    }
+                }
+                endQuoteIndex++;
+            }
+            // If no closing quote found, something is wrong, but proceed with current index
+             if(endQuoteIndex === textToParse.length) i = endQuoteIndex;
+        }
+    }
+
+    if (actualEndIndex !== -1) {
+        textToParse = textToParse.substring(0, actualEndIndex + 1);
+        console.log("After bracket/brace matching:", textToParse.substring(0, 200) + "...");
+    } else {
+        console.warn("Could not reliably find matching end bracket/brace. Proceeding with potentially incomplete JSON.");
+        // As a fallback, try finding the last bracket/brace
+        const lastBracketIndex = Math.max(textToParse.lastIndexOf(']'), textToParse.lastIndexOf('}'));
+        if (lastBracketIndex > 0) { // Only trim if a closing bracket is found after the start
+             textToParse = textToParse.substring(0, lastBracketIndex + 1);
+        }
+    }
+
+    // Sanitize the potentially extracted JSON string
+    const sanitizedString = this.sanitizeJsonString(textToParse);
+    console.log("String going into JSON.parse:", sanitizedString.substring(0, 200) + "...");
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(sanitizedString);
+    } catch (parseError: any) {
+      const errorPos = parseError.message.match(/position (\d+)/)?.[1];
+      const contextSnippet = errorPos ? sanitizedString.substring(Math.max(0, parseInt(errorPos) - 30), Math.min(sanitizedString.length, parseInt(errorPos) + 30)) : '(no position info)';
+      console.error(`JSON parse error: ${parseError.message}. Context around position ${errorPos || 'N/A'}: "...${contextSnippet}..."`);
+      console.log("Attempting manual scene extraction as fallback... Using ORIGINAL input string.");
+      return this.extractScenesManually(inputString); // Use original input for manual extraction
+    }
+
+    // Determine if the parsed data is an array or a single object
+    const scenesArray = Array.isArray(parsedData) ? parsedData : [parsedData];
+
+    const formattedScenes: string[] = [];
+    for (const scene of scenesArray) {
+      if (typeof scene === 'object' && scene !== null) {
+        const beat = scene.scene_beat || scene.chapter_beat;
+        const number = scene.scene_number ?? scene.chapter_number;
+
+        if (number != null && typeof beat === 'string' && beat.trim().length > 0) {
+          formattedScenes.push(beat.trim());
+        } else {
+          console.warn("Skipping scene object due to missing/invalid number or beat:", JSON.stringify(scene));
         }
       } else {
-        // If we couldn't extract scenes based on markers, use paragraphs as scenes
-        // Group paragraphs into reasonable chunks to form scenes
-        const paragraphsPerScene = Math.max(2, Math.ceil(paragraphs.length / 8)); // Aim for about 8 scenes
-        
-        for (let i = 0; i < paragraphs.length; i += paragraphsPerScene) {
-          const sceneChunk = paragraphs.slice(i, i + paragraphsPerScene).join('\n\n');
-          scenes.push(sceneChunk.trim());
-        }
+        console.warn("Skipping non-object item in scenes array:", JSON.stringify(scene));
       }
     }
-    
-    // If no scenes were extracted, use the entire text as one chapter
-    if (scenes.length === 0) {
-      scenes = [text.trim()];
+
+    if (formattedScenes.length === 0) {
+      console.warn("Warning: No valid scenes extracted from the parsed JSON data. Trying manual extraction using ORIGINAL input string.");
+      return this.extractScenesManually(inputString); // Fallback if parsing succeeded but found no valid scenes
     }
+
+    console.log(`Successfully parsed ${formattedScenes.length} scenes from JSON.`);
+    return formattedScenes;
+  }
+
+  // New method to convert plain text to JSON format (Revised)
+  private convertPlainTextToJson(text: string): string {
+    console.log("Attempting to convert plain text to JSON format");
+    const scenes = this.extractScenesFromPlainText(text); // Reuse extraction logic
     
-    // Convert scenes to JSON format
-    const jsonScenes = scenes.map((chapter, index) => ({
-      scene_number: index + 1,
-      scene_beat: chapter
+    // Convert extracted scenes to the desired JSON format
+    const jsonScenes = scenes.map((sceneText, index) => ({
+      scene_number: index + 1, // Or use chapter_number if preferred
+      scene_beat: sceneText // Or use chapter_beat if preferred
     }));
     
     console.log(`Converted ${jsonScenes.length} scenes to JSON format`);
-    return JSON.stringify(jsonScenes);
-  }
-  
-  // New helper method to extract scenes from plain text narrative
-  private extractScenesFromPlainText(text: string): string[] {
-    console.log("Extracting scenes from plain text narrative");
-    
-    // Split the text into paragraphs or chunks
-    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-    
-    // If we have very few paragraphs, we might need to split by sentences
-    if (paragraphs.length <= 2) {
-      // Try to split by sentences that end with periods followed by spaces
-      const sentences = text.split(/\.\s+/).filter(s => s.trim().length > 0);
-      
-      // Group sentences into reasonable chapter chunks (e.g., 3-5 sentences per chapter)
-      const scenes: string[] = [];
-      const sentencesPerScene = Math.max(3, Math.ceil(sentences.length / 8)); // Aim for about 8 scenes max
-      
-      for (let i = 0; i < sentences.length; i += sentencesPerScene) {
-        const sceneChunk = sentences.slice(i, i + sentencesPerScene).join('. ') + '.';
-        scenes.push(sceneChunk.trim());
-      }
-      
-      console.log(`Extracted ${scenes.length} scenes by splitting into sentence groups`);
-      return scenes;
-    }
-    
-    // Check if the text contains chapter markers like "scene_number" or similar patterns
-    const hasSceneMarkers = text.includes('scene_number') || 
-                           text.includes('chapter ') || 
-                           paragraphs.some(p => /^(Chapter|chapter)\s+\d+/i.test(p));
-    
-    if (hasSceneMarkers) {
-      // Try to extract scenes based on chapter markers
-      const scenes: string[] = [];
-      let currentScene = '';
-      
-      for (const paragraph of paragraphs) {
-        if (/^(Chapter|chapter)\s+\d+/i.test(paragraph) || paragraph.includes('scene_number')) {
-          // This paragraph starts a new chapter
-          if (currentScene) {
-            scenes.push(currentScene.trim());
-          }
-          currentScene = paragraph;
-        } else {
-          // This paragraph is part of the current chapter
-          currentScene += '\n\n' + paragraph;
-        }
-      }
-      
-      // Add the last chapter if it exists
-      if (currentScene) {
-        scenes.push(currentScene.trim());
-      }
-      
-      if (scenes.length > 0) {
-        console.log(`Extracted ${scenes.length} scenes based on chapter markers`);
-        return scenes;
-      }
-    }
-    
-    // If we couldn't extract scenes based on markers, use paragraphs as scenes
-    // Group paragraphs into reasonable chunks to form scenes
-    const scenes: string[] = [];
-    const paragraphsPerScene = Math.max(2, Math.ceil(paragraphs.length / 8)); // Aim for about 8 scenes
-    
-    for (let i = 0; i < paragraphs.length; i += paragraphsPerScene) {
-      const sceneChunk = paragraphs.slice(i, i + paragraphsPerScene).join('\n\n');
-      scenes.push(sceneChunk.trim());
-    }
-    
-    console.log(`Extracted ${scenes.length} scenes by grouping paragraphs`);
-    return scenes;
-  }
-  
-  // Helper method to sanitize JSON string
-  private sanitizeJsonString(jsonString: string): string {
-    // This is a simplified sanitizer that handles common JSON formatting issues
-    
-    // Replace unescaped quotes within string values
-    // This regex looks for quotes between quotes that aren't escaped
-    let result = jsonString;
-    
-    // First, let's handle any potential control characters that might be invalid in JSON
-    result = result.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-    
-    // Try to fix unescaped quotes in a way that preserves the structure
-    // This is complex to do perfectly with regex, so we'll use a simplified approach
-    
-    // Replace instances where there might be nested quotes
-    result = result.replace(/: ?"([^"]*)"([^"]*)"([^"]*)"/g, ': "$1\'$2\'$3"');
-    
-    return result;
-  }
-  
-  // Fallback method to extract scenes when JSON parsing fails
-  private extractScenesManually(text: string): string[] | null {
-    try {
-      console.log("Attempting manual chapter extraction...");
-      
-      // Look for scene_beat patterns
-      const sceneRegex = /"scene_beat"\s*:\s*"([^"]*)"/g;
-      const scenes: string[] = [];
-      let match;
-      
-      while ((match = sceneRegex.exec(text)) !== null) {
-        if (match[1] && match[1].trim()) {
-          scenes.push(match[1].trim());
-        }
-      }
-      
-      // If we found scenes, return them
-      if (scenes.length > 0) {
-        console.log(`Manually extracted ${scenes.length} scenes`);
-        return scenes;
-      }
-      
-      // If the regex approach failed, try a more aggressive line-by-line approach
-      const lines = text.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.includes('"scene_beat"') && i + 1 < lines.length) {
-          // Extract the content after "scene_beat":
-          const content = line.split('"scene_beat"')[1].trim();
-          if (content.startsWith(':')) {
-            // Get the content after the colon
-            let sceneBeat = content.substring(1).trim();
-            // Remove starting and ending quotes if present
-            if (sceneBeat.startsWith('"')) {
-              sceneBeat = sceneBeat.substring(1);
-            }
-            if (sceneBeat.endsWith('"') || sceneBeat.endsWith('",')) {
-              sceneBeat = sceneBeat.replace(/",?$/, '');
-            }
-            if (sceneBeat) {
-              scenes.push(sceneBeat);
-            }
-          }
-        }
-      }
-      
-      if (scenes.length > 0) {
-        console.log(`Extracted ${scenes.length} scenes using line-by-line approach`);
-        return scenes;
-      }
-      
-      // If all else fails, try to extract any text that looks like a chapter description
-      const paragraphs = text.split(/\n\s*\n/);
-      for (const paragraph of paragraphs) {
-        // Look for paragraphs that might be chapter descriptions
-        // They typically mention the narrator and have substantial content
-        if (paragraph.includes('(The Narrator)') && paragraph.length > 100) {
-          scenes.push(paragraph.trim());
-        }
-      }
-      
-      if (scenes.length > 0) {
-        console.log(`Extracted ${scenes.length} scenes by looking for narrator mentions`);
-        return scenes;
-      }
-      
-      console.log("Failed to extract scenes manually");
-      return null;
-    } catch (err) {
-      console.error("Error in manual chapter extraction:", err);
-      return null;
-    }
+    // Return the stringified JSON array
+    return JSON.stringify(jsonScenes, null, 2); // Pretty print for potential debugging
   }
 
-  // Create outline from story idea
+  // New helper method to extract scenes from plain text narrative (Revised)
+  private extractScenesFromPlainText(text: string): string[] {
+    console.log("Extracting scenes from plain text narrative...");
+    const scenes: string[] = [];
+    
+    // 1. Try splitting by chapter/scene markers first
+    const chapterMarkers = text.match(/^s*(Chapter|Scene)s+d+[:.]?/gmi);
+    if (chapterMarkers && chapterMarkers.length > 1) {
+      const parts = text.split(/^s*(Chapter|Scene)s+d+[:.]?/mi);
+      for (let i = 1; i < parts.length; i++) { // Start from 1 to skip content before the first marker
+        const sceneContent = parts[i].trim();
+        if (sceneContent) scenes.push(sceneContent);
+      }
+      if (scenes.length > 0) {
+          console.log(`Extracted ${scenes.length} scenes based on 'Chapter/Scene' markers.`);
+          return scenes;
+      }
+    }
+
+    // 2. Try splitting by double newlines (paragraphs)
+    const paragraphs = text.split(/ns*n/).map(p => p.trim()).filter(p => p.length > 0);
+    if (paragraphs.length > 1) {
+        // Group paragraphs into scenes if reasonable (e.g., aiming for 5-10 scenes)
+        const targetSceneCount = Math.min(10, Math.max(5, Math.round(paragraphs.length / 3)));
+        const paragraphsPerScene = Math.max(1, Math.ceil(paragraphs.length / targetSceneCount));
+        
+        for (let i = 0; i < paragraphs.length; i += paragraphsPerScene) {
+          const sceneChunk = paragraphs.slice(i, i + paragraphsPerScene).join('n');
+          scenes.push(sceneChunk);
+        }
+        if (scenes.length > 0) {
+            console.log(`Extracted ${scenes.length} scenes by grouping ${paragraphsPerScene} paragraphs.`);
+            return scenes;
+        }
+    }
+    
+    // 3. Fallback: Split by sentences if very little structure
+    if (scenes.length === 0 && text.length > 0) {
+        const sentences = text.match(/[^.!?]+[.!?]+/g) || [text]; // Basic sentence split
+        const sentencesPerScene = Math.max(3, Math.ceil(sentences.length / 8)); // Aim for ~8 scenes
+        for (let i = 0; i < sentences.length; i += sentencesPerScene) {
+            const sceneChunk = sentences.slice(i, i + sentencesPerScene).join(' ').trim();
+            if (sceneChunk) scenes.push(sceneChunk);
+        }
+         if (scenes.length > 0) {
+            console.log(`Extracted ${scenes.length} scenes by grouping sentences.`);
+            return scenes;
+         }
+    }
+
+    // 4. Absolute Fallback: Return the whole text as one scene
+    if (scenes.length === 0 && text.trim().length > 0) {
+        console.log("Could not split text, returning as single scene.");
+        return [text.trim()];
+    }
+    
+    console.log("No scenes extracted from plain text.");
+    return [];
+  }
+
+  // Helper method to sanitize JSON string (Revised - minimal changes)
+  private sanitizeJsonString(jsonString: string): string {
+      // console.log("Sanitizing JSON string...");
+      // Remove specific problematic Unicode control characters U+0000 to U+001F, except for valid whitespace like \t, \n, \r
+      let result = jsonString.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+      // console.log("Sanitization complete.");
+      return result;
+  }
+
+  // Fallback method to extract scenes when JSON parsing fails (Revised)
+  private extractScenesManually(text: string): string[] | null {
+    console.log("Attempting manual scene extraction from original text...");
+    const scenes: string[] = [];
+
+    // Regex to find scene_beat or chapter_beat values, more tolerant of formatting
+    const beatRegex = /["'](?:scene_beat|chapter_beat)["']\s*:\s*["']((?:.|\n)*?)["']/gi;
+    let match;
+    while ((match = beatRegex.exec(text)) !== null) {
+        // Ensure match[1] exists and is a string before trying to replace/trim
+        if (match && typeof match[1] === 'string') {
+            const beatContent = match[1]
+                .replace(/\\"/g, '"')     // Replace escaped quotes
+                .replace(/\\n/g, '\n')     // Replace escaped newlines
+                .replace(/\\t/g, '\t')     // Replace escaped tabs
+                .replace(/\\\//g, '/')    // Replace escaped slashes
+                .replace(/\\\\/g, '\\')    // Replace escaped backslashes
+                .trim();
+            if (beatContent) {
+                scenes.push(beatContent);
+            }
+        } else {
+             console.warn("Manual extraction regex match found, but capture group 1 was invalid:", match);
+        }
+    }
+
+    if (scenes.length > 0) {
+      console.log(`Manually extracted ${scenes.length} scenes using regex.`);
+      return scenes;
+    }
+
+    // If regex fails, fall back to plain text extraction on the original string
+    console.log("Manual regex extraction failed, trying plain text extraction as last resort...");
+    return this.extractScenesFromPlainText(text);
+  }
+
+  // Create outline from story idea using structured output for OpenRouter
   public async createOutline(idea: string, signal?: AbortSignal): Promise<string[] | null> {
     try {
       await this.ensureSettingsLoaded();
@@ -730,14 +656,37 @@ Please provide a detailed summary in 400-600 words.
 
       const numScenes = profile.num_scenes || settings.NUM_SCENES;
       let retries = 0;
+
+      // Define the JSON Schema for the expected output
+      const outlineSchema = {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            chapter_number: {
+              type: "integer",
+              description: "The sequential number of the chapter."
+            },
+            chapter_beat: {
+              type: "string",
+              description: "A detailed summary of the events in this chapter (approx 250 words)."
+            }
+          },
+          required: ["chapter_number", "chapter_beat"],
+          additionalProperties: false
+        },
+        minItems: 5, // Corresponds to prompt requirement
+        maxItems: 7  // Corresponds to prompt requirement
+      };
       
       while (retries < 5) {
         try {
+          // The user message no longer needs to specify JSON format instructions, 
+          // as structured output handles it. We keep the content requirements.
           const userMessage = `## OUTLINE REQUIREMENTS
-- The plot outline must contain between 5 and 7 chapters, these are STRICT requirements.
-- DO NOT create more than 7 chapters under any circumstances.
+- The plot outline must contain between 5 and 7 chapters. These are STRICT requirements.
 - If there are plot holes in the story idea, you MUST fix them in the plot outline.
-- DO NOT write an epilogue as the final chapter, the final chapter must be the resolution of the story or provide an opening for a sequel IF there can be one.
+- DO NOT write an epilogue as the final chapter. The final chapter must be the resolution or provide an opening for a potential sequel.
 
 ## Instructions
 - Write a full plot outline for the given story idea.
@@ -765,84 +714,101 @@ Please provide a detailed summary in 400-600 words.
 ## You must STRICLY use following JSON format for the plot outline exactly without deviation, DO NOT write in markdown format:
 [
   {
-    "scene_number": 1,
-    "scene_beat": "chapter 1 content"
+    "chapter_number": 1,
+    "chapter_beat": "chapter 1 content"
   },
   {
-    "scene_number": 2,
-    "scene_beat": "chapter 2 content"
+    "chapter_number": 2,
+    "chapter_beat": "chapter 2 content"
   },
 ]
 
 ## Story Idea:
 ${idea}`;
 
-          // Get the appropriate client based on user settings
           const client = await this.getClient();
-          
-          // Use the story_generation_model for outline creation
-          const model = this.userSettings.use_openai_for_story_gen 
+          const useOpenAI = this.userSettings.use_openai_for_story_gen;
+          const model = useOpenAI 
             ? this.userSettings.reasoning_model || 'gpt-4o'
             : this.userSettings.reasoning_model || 'anthropic/claude-3.7-sonnet:thinking';
           
-          console.log(`Using ${this.userSettings.use_openai_for_story_gen ? 'OpenAI' : 'OpenRouter'} with model: ${model} for outline creation`);
+          console.log(`Using ${useOpenAI ? 'OpenAI' : 'OpenRouter'} with model: ${model} for outline creation`);
+
+          // Construct API request parameters
+          const requestParams: any = {
+              model: model,
+              temperature: 0.8,
+              messages: [{ role: "user", content: userMessage }],
+          };
           
-          const response = await client.chat.completions.create({
-            model: model,
-            temperature: 0.5,
-            messages: [{ role: "user", content: userMessage }],
-          }, {
-            signal: signal
-          });
-          const text = response.choices[0].message.content || '';
+          const response = await client.chat.completions.create(requestParams, { signal });
+          const responseContent = response.choices[0].message.content || '';
 
-          console.log("Plot outline:", text);
+          console.log("Raw response content:", responseContent.substring(0, 200) + "...");
 
-          // Check if the response is already valid JSON
-          let outline;
+          let parsedOutline: any[];
           try {
-            // Try to parse it directly first
-            const parsedJson = JSON.parse(text);
-            if (Array.isArray(parsedJson)) {
-              // If it's already a valid JSON array, format it directly
-              outline = [];
-              for (const chapter of parsedJson) {
-                if (chapter.scene_number != null && chapter.scene_beat) {
-                  outline.push(chapter.scene_beat.trim());
-                }
+              // Attempt to parse the response content directly
+              parsedOutline = JSON.parse(responseContent);
+              if (!Array.isArray(parsedOutline)) {
+                  throw new Error("Parsed response is not an array.");
               }
-              
-              if (outline.length > 0) {
-                console.log(`Successfully parsed ${outline.length} scenes directly from JSON`);
-                return outline;
+          } catch (parseError: any) {
+              console.error(`Attempt ${retries + 1}: Failed to parse response as JSON: ${parseError.message}`);
+              // If parsing fails even with structured output (or for OpenAI), try formatScenes as a fallback
+              console.log("Falling back to formatScenes parser...");
+              const fallbackOutline = this.formatScenes(responseContent);
+              if (fallbackOutline && fallbackOutline.length > 0) {
+                 console.log(`Outline successfully parsed via fallback formatScenes with ${fallbackOutline.length} scenes.`);
+                 return fallbackOutline;
+              } else {
+                 console.warn(`Attempt ${retries + 1}: JSON parsing and formatScenes fallback failed. Retrying...`);
+                 retries += 1;
+                 if(retries >= 5) throw new Error("Failed to generate or parse a valid outline after multiple retries.");
+                 await new Promise(resolve => setTimeout(resolve, 1000));
+                 continue;
               }
-            }
-          } catch (parseError) {
-            // If direct parsing fails, use formatScenes
-            console.log("Direct JSON parsing failed, using formatScenes:", parseError);
           }
-          
-          // Fall back to formatScenes if direct parsing didn't work
-          outline = this.formatScenes(text);
-          if (!outline) {
-            console.log("Error: Empty outline generated.");
-            retries += 1;
-            continue;
-          }
-          return outline;
 
-        } catch (err) {
-          console.error(`Error in createOutline: ${err}. Retrying...`);
-          retries += 1;
+          // Validate structure and extract beats from the successfully parsed JSON
+          const outlineBeats = parsedOutline.map((item: any) => {
+              if (typeof item === 'object' && item !== null && 
+                  (item.chapter_number != null || item.scene_number != null) && 
+                  typeof (item.chapter_beat || item.scene_beat) === 'string') {
+                  return (item.chapter_beat || item.scene_beat).trim();
+              }
+              console.warn("Invalid item found in parsed outline array:", item);
+              return null; // Mark invalid items
+          }).filter((beat): beat is string => beat !== null && beat.length > 0); // Filter out nulls and empty strings
+          
+          if (outlineBeats.length < 5 || outlineBeats.length > 7) {
+               console.warn(`Attempt ${retries + 1}: Outline length (${outlineBeats.length}) outside required 5-7 range. Retrying...`);
+               retries += 1;
+               if(retries >= 5) throw new Error(`Failed to generate an outline with the required number of chapters (5-7) after ${retries} attempts. Last count: ${outlineBeats.length}`);
+               await new Promise(resolve => setTimeout(resolve, 1000));
+               continue;
+          }
+
+          console.log(`Outline successfully created and parsed with ${outlineBeats.length} chapters.`);
+          return outlineBeats; // Success
+
+        } catch (err: any) {
+            if (err.name === 'AbortError') throw err; 
+            console.error(`Error in createOutline (Attempt ${retries + 1}):`, err.message);
+            retries += 1;
+            if(retries >= 5) throw new Error(`Failed to create outline after ${retries} attempts due to errors: ${err.message}`);
+            await new Promise(resolve => setTimeout(resolve, 1500)); 
         }
-      }
-      console.log("Failed to create outline after 5 attempts.");
+    } // End while loop
+    
+    console.error("Failed to create outline after 5 attempts.");
+    return null; 
+    
+  } catch (err: any) { 
+      console.error("Critical error during outline creation setup:", err.message);
       return null;
-    } catch (err) {
-      console.error("Error loading profile:", err);
-      return null;
-    }
   }
+}
 
   // Generate characters for the story
   public async generateCharacters(outline: string[], signal?: AbortSignal): Promise<string | null> {
