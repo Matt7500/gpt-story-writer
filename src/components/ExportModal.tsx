@@ -8,12 +8,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "./ui/button";
 import { Download, Video, AlertTriangle, Loader2, Music, Upload } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Progress } from "./ui/progress";
 import { toast } from "@/components/ui/use-toast";
 import { textExportService } from "@/services/TextExportService";
-import { audioExportService } from "@/services/AudioExportService";
 import { videoExportService } from "@/services/VideoExportService";
+import { supabase } from "@/integrations/supabase/client";
+import { Session } from '@supabase/supabase-js';
 
 interface Chapter {
   title: string;
@@ -27,6 +28,15 @@ interface ExportModalProps {
   onClose: () => void;
   chapters: Chapter[];
   title: string;
+}
+
+// Added type for backend job status
+interface AudioJobStatus {
+  id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  message: string;
+  error: string | null;
 }
 
 function ConfirmationDialog({ isOpen, onConfirm, onCancel }: { 
@@ -65,7 +75,6 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentChapter, setCurrentChapter] = useState("");
-  const [controller, setController] = useState<AbortController | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [videoProgress, setVideoProgress] = useState<{
     progress: number;
@@ -73,40 +82,80 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     message: string | null;
     requiresUserInput?: boolean;
   } | null>(null);
-  const [audioProgress, setAudioProgress] = useState<string | null>(null);
-  const [audioGenerationDetails, setAudioGenerationDetails] = useState<{
-    currentChapter: number;
-    totalChapters: number;
-    currentSection: number;
-    totalSections: number;
-  } | null>(null);
+  const [audioJobId, setAudioJobId] = useState<string | null>(null);
+  const [audioStatusMessage, setAudioStatusMessage] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
   
-  // File input ref for image upload
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    })
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      }
+    );
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+      // Clear polling interval on unmount
+      clearPolling(); 
+    };
+  }, []);
+
+  const clearPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+      console.log('Polling stopped.');
+    }
+  };
+  
+  // Reset audio state helper
+  const resetAudioState = () => {
+    setIsGeneratingAudio(false);
+    setAudioJobId(null);
+    setProgress(0);
+    setAudioStatusMessage(null);
+    setAudioError(null);
+    clearPolling();
+  }
 
   // Handle modal close
   const handleClose = () => {
-    if ((isExporting || isGeneratingAudio) && controller) {
-      setShowConfirmation(true);
-      return;
-    }
+    // Stop polling if modal is closed while job is running
+    clearPolling(); 
+    // Reset state related to audio generation
+    resetAudioState();
+    // Also reset other export states if needed
+    setIsExporting(false);
+    setIsGeneratingVideo(false);
+    setCurrentChapter("");
+    setVideoProgress(null);
     onClose();
   };
 
+  // Confirmation dialog logic - Note: This doesn't cancel backend job
   const handleConfirmCancel = () => {
-    if (controller) {
-      controller.abort();
-      setIsExporting(false);
-      setIsGeneratingAudio(false);
-      setProgress(0);
-      setCurrentChapter("");
-      setShowConfirmation(false);
-      onClose();
-    }
+    setIsExporting(false); // Stop text export if running
+    resetAudioState(); // Stop audio polling and reset state
+    // Potentially add logic to stop video generation if needed
+    setCurrentChapter("");
+    setShowConfirmation(false);
+    onClose();
   };
 
   const handleContinueExport = () => {
     setShowConfirmation(false);
+  };
+  
+  const getBackendUrl = () => {
+      return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
   };
 
   const handleDownload = async () => {
@@ -114,11 +163,6 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       setIsExporting(true);
       setProgress(0);
 
-      // Create new AbortController for this export
-      const newController = new AbortController();
-      setController(newController);
-
-      // Use TextExportService to generate the text content
       const storyContent = await textExportService.exportAsText(
         chapters,
         title,
@@ -126,21 +170,14 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
           setProgress(progressData.progress);
           setCurrentChapter(progressData.currentChapter);
         },
-        newController.signal
+        null
       );
 
-      // Check if export was cancelled
-      if (newController.signal.aborted) {
-        throw new Error('Export cancelled');
-      }
-
-      // Download the file
       textExportService.downloadTextFile(storyContent, title);
 
       setIsExporting(false);
       setProgress(0);
       setCurrentChapter("");
-      setController(null);
       onClose();
     } catch (error: any) {
       console.error("Export process ended:", {
@@ -151,8 +188,6 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
       setIsExporting(false);
       setProgress(0);
       setCurrentChapter("");
-      setController(null);
-      // Only show error message if it wasn't a cancellation
       if (error.message !== 'Export cancelled') {
         toast({
           title: "Export Failed",
@@ -173,16 +208,13 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
         requiresUserInput: false
       });
 
-      // Use VideoExportService to generate the video with the new flow
       await videoExportService.generateVideo(
         chapters,
         title,
         (progressData) => {
           setVideoProgress(progressData);
           
-          // If we need the user to upload an image, show the file upload dialog
           if (progressData.requiresUserInput && progressData.stage === 'image') {
-            // This will trigger the file input to open
             setTimeout(() => {
               if (fileInputRef.current) {
                 fileInputRef.current.click();
@@ -191,30 +223,24 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
           }
         },
         (imageCallback) => {
-          // This function is called when the service needs an image
-          // We'll use the fileInputRef to handle the file selection
           const handleFileChange = (event: Event) => {
             const target = event.target as HTMLInputElement;
             if (target.files && target.files.length > 0) {
               const file = target.files[0];
-              // Call the callback with the selected file
               imageCallback(file);
               
-              // Remove the event listener after file selection
               if (fileInputRef.current) {
                 fileInputRef.current.removeEventListener('change', handleFileChange);
               }
             }
           };
           
-          // Add event listener to the file input
           if (fileInputRef.current) {
             fileInputRef.current.addEventListener('change', handleFileChange);
           }
         }
       );
 
-      // Video generation completed successfully
       setIsGeneratingVideo(false);
       setVideoProgress(null);
       
@@ -235,97 +261,153 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
     }
   };
 
-  const handleGenerateAudio = async () => {
-    try {
-      setIsGeneratingAudio(true);
-      setProgress(0);
-      setAudioProgress(null);
-      setAudioGenerationDetails(null);
-      
-      // Create new AbortController for this export
-      const newController = new AbortController();
-      setController(newController);
-      
-      // Use AudioExportService to generate the audio
-      const audioBlob = await audioExportService.generateAudio(
-        chapters,
-        title,
-        (progressData) => {
-          setProgress(progressData.progress);
-          setCurrentChapter(progressData.currentChapter);
-          setAudioProgress(progressData.progressMessage);
-          setAudioGenerationDetails(progressData.generationDetails);
-        },
-        newController.signal
-      );
-      
-      // Check if export was cancelled
-      if (newController.signal.aborted) {
-        throw new Error('Audio generation cancelled');
+  // Function to poll job status
+  const pollJobStatus = (jobId: string) => {
+    console.log(`Starting polling for job ${jobId}`);
+    clearPolling(); // Clear any existing interval first
+
+    pollingIntervalRef.current = setInterval(async () => {
+      if (!session) {
+          console.warn('Polling stopped: No active session.');
+          clearPolling();
+          resetAudioState();
+          toast({ title: "Authentication Error", description: "Polling stopped. Please log in.", variant: "destructive" });
+          return;
       }
       
-      // Download the audio file
-      audioExportService.downloadAudioFile(audioBlob, title);
-      
-      // Reset state
-      setIsGeneratingAudio(false);
-      setProgress(100);
-      setAudioProgress('Audio generation complete!');
-      setController(null);
-      
-      // Show success message
-      toast({
-        title: "Audio Generated",
-        description: "Your audio file has been generated and downloaded successfully.",
-      });
-      
-      // Close modal after a short delay
-      setTimeout(() => {
-        setProgress(0);
-        setAudioProgress(null);
-        setAudioGenerationDetails(null);
-        onClose();
-      }, 2000);
-      
-    } catch (error: any) {
-      console.error("Audio generation process ended:", {
-        type: error.message === 'Audio generation cancelled' ? 'Cancellation' : 'Error',
-        message: error.message,
-        details: error.stack
-      });
-      
-      setIsGeneratingAudio(false);
-      setProgress(0);
-      setAudioProgress(null);
-      setAudioGenerationDetails(null);
-      setController(null);
-      
-      // Only show error message if it wasn't a cancellation
-      if (error.message !== 'Audio generation cancelled') {
-        const isVoiceIdError = error.message.includes('Invalid ElevenLabs voice ID') || 
-                              error.message.includes('invalid_uid');
-        
-        toast({
-          title: "Audio Generation Failed",
-          description: error.message || "Error generating audio",
-          variant: "destructive",
-          action: isVoiceIdError ? (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                // You can add navigation to settings here if you have a settings page
-                toast({
-                  title: "ElevenLabs Setup",
-                  description: "Go to Settings and update your ElevenLabs voice ID. You can find your voice IDs in your ElevenLabs account dashboard.",
-                });
-              }}
-            >
-              Help
-            </Button>
-          ) : undefined,
+      try {
+        const backendUrl = getBackendUrl();
+        console.log(`Polling status for job ${jobId}...`);
+        const statusResponse = await fetch(`${backendUrl}/api/export/audio/status/${jobId}`, {
+          headers: {
+              'Authorization': `Bearer ${session.access_token}`
+          }
         });
+
+        if (!statusResponse.ok) {
+          // Handle non-200 responses during polling (e.g., 404 job not found)
+          console.error(`Polling error: Status ${statusResponse.status}`);
+          setAudioError(`Polling error: ${statusResponse.statusText}`);
+          clearPolling();
+          setIsGeneratingAudio(false); // Stop showing loader
+          // Optionally show a toast
+          toast({ title: "Polling Error", description: `Could not get job status: ${statusResponse.statusText}`, variant: "destructive" });
+          return;
+        }
+
+        const statusData: AudioJobStatus = await statusResponse.json();
+        console.log('Received status:', statusData);
+
+        setProgress(statusData.progress);
+        setAudioStatusMessage(statusData.message);
+        setAudioError(statusData.error);
+
+        if (statusData.status === 'completed') {
+          console.log(`Job ${jobId} completed!`);
+          clearPolling();
+          setIsGeneratingAudio(false); // Stop loader
+          setProgress(100);
+          setAudioStatusMessage('Audio generation complete! Preparing download...');
+          toast({ title: "Audio Ready", description: "Your audio file is ready for download." });
+          
+          // Trigger download
+          // Create a temporary link and click it
+          const downloadUrl = `${backendUrl}/api/export/audio/result/${jobId}`;
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          // Need to manually add the Authorization header for download if backend requires it
+          // Fetching blob and creating object URL is more robust for auth headers
+          fetch(downloadUrl, { 
+              headers: { 'Authorization': `Bearer ${session.access_token}` }
+          })
+          .then(res => {
+              if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
+              return res.blob();
+          })
+          .then(blob => {
+              const objectUrl = window.URL.createObjectURL(blob);
+              link.href = objectUrl;
+              link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_audio.mp3`; // Suggest filename
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(objectUrl); // Clean up
+              // Close modal after successful download (optional)
+              setTimeout(() => {
+                 handleClose(); // Use handleClose to reset everything
+              }, 1500);
+          })
+          .catch(err => {
+              console.error("Download error:", err);
+              setAudioError(`Failed to download audio: ${err.message}`);
+              toast({ title: "Download Failed", description: err.message, variant: "destructive" });
+          });
+
+        } else if (statusData.status === 'failed') {
+          console.error(`Job ${jobId} failed: ${statusData.error}`);
+          clearPolling();
+          setIsGeneratingAudio(false);
+          setAudioError(statusData.error || 'Unknown error during generation');
+          toast({ title: "Audio Generation Failed", description: statusData.error || 'Unknown error', variant: "destructive" });
+        } else {
+          // Continue polling if status is 'pending' or 'processing'
+          console.log(`Job ${jobId} status: ${statusData.status}. Continuing poll.`);
+        }
+
+      } catch (error: any) {
+        console.error("Error during polling:", error);
+        setAudioError(`Polling failed: ${error.message}`);
+        clearPolling();
+        setIsGeneratingAudio(false);
+        toast({ title: "Polling Error", description: error.message || 'An error occurred while checking status', variant: "destructive" });
       }
+    }, 3000); // Poll every 3 seconds
+  };
+
+  const handleGenerateAudio = async () => {
+    if (!session) {
+        toast({ title: "Authentication Error", description: "Please log in again.", variant: "destructive" });
+        return;
+    }
+
+    resetAudioState(); // Ensure clean state before starting
+    setIsGeneratingAudio(true);
+    setAudioStatusMessage('Starting audio generation job...');
+    
+    try {
+      const backendUrl = getBackendUrl();
+      // 1. Start the job
+      const startResponse = await fetch(`${backendUrl}/api/export/audio`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ chapters, title })
+      });
+
+      if (!startResponse.ok) {
+        const errorData = await startResponse.json().catch(() => ({ error: 'Failed to parse error response' }));
+        throw new Error(errorData.error || `Failed to start job: ${startResponse.statusText}`);
+      }
+
+      const { jobId } = await startResponse.json();
+      setAudioJobId(jobId);
+      setAudioStatusMessage('Audio job started. Processing...');
+      console.log('Audio generation job started with ID:', jobId);
+
+      // 2. Start polling for status
+      pollJobStatus(jobId);
+
+    } catch (error: any) {
+      console.error("Error starting audio generation:", error);
+      resetAudioState(); // Reset state on failure to start
+      setAudioError(error.message || 'Failed to start audio generation');
+      toast({
+        title: "Audio Generation Error",
+        description: error.message || "Failed to start audio generation",
+        variant: "destructive",
+      });
     }
   };
 
@@ -350,11 +432,17 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
                   {isGeneratingVideo && videoProgress
                     ? (videoProgress.message || 'Starting video generation...') 
                     : isGeneratingAudio
-                      ? (audioProgress || 'Starting audio generation...')
+                      // Display backend status message for audio, fallback to default
+                      ? (audioStatusMessage || 'Starting audio generation...')
                       : (currentChapter 
                           ? `Rewriting ${currentChapter} (${Math.round(progress)}%)` 
                           : 'Starting export...')}
                 </p>
+                {/* Display audio error if present */} 
+                {isGeneratingAudio && audioError && (
+                    <p className="text-sm text-red-600 text-center">Error: {audioError}</p>
+                )}
+                {/* Image upload for video */} 
                 {isGeneratingVideo && videoProgress && videoProgress.stage === 'image' && videoProgress.requiresUserInput && (
                   <div className="flex flex-col items-center gap-2 pt-2">
                     <p className="text-sm font-medium">Select a background image for your video</p>
@@ -374,14 +462,9 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
                     />
                   </div>
                 )}
-                {isGeneratingAudio && audioGenerationDetails && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Chapter {audioGenerationDetails.currentChapter}/{audioGenerationDetails.totalChapters}, 
-                    Section {audioGenerationDetails.currentSection}/{audioGenerationDetails.totalSections}
-                  </p>
-                )}
               </div>
             )}
+            {/* Buttons */}
             <Button
               onClick={handleDownload}
               disabled={isExporting || isGeneratingVideo || isGeneratingAudio}
@@ -400,7 +483,8 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
               ) : (
                 <Music className="h-4 w-4" />
               )}
-              {isGeneratingAudio ? "Generating..." : "Generate Audio"}
+              {/* Update button text based on state */} 
+              {isGeneratingAudio ? (audioStatusMessage ? audioStatusMessage.split(':')[0] : 'Generating...') : "Generate Audio"}
             </Button>
             <Button
               onClick={handleGenerateVideo}

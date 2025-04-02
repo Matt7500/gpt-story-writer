@@ -2,6 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs-extra');
+const path = require('path');
+
+// Ensure tmp directory exists
+fs.ensureDirSync(path.join(__dirname, 'tmp'));
 
 const app = express();
 const port = process.env.PORT || 3001;
