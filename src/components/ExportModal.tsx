@@ -155,7 +155,7 @@ export function ExportModal({ isOpen, onClose, chapters, title }: ExportModalPro
   };
   
   const getBackendUrl = () => {
-      return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      return import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
   };
 
   const handleDownload = async () => {

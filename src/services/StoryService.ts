@@ -503,10 +503,10 @@ Please provide a detailed summary in 400-600 words.
 
         if (number != null && typeof beat === 'string' && beat.trim().length > 0) {
           formattedScenes.push(beat.trim());
-        } else {
+    } else {
           console.warn("Skipping scene object due to missing/invalid number or beat:", JSON.stringify(scene));
         }
-      } else {
+          } else {
         console.warn("Skipping non-object item in scenes array:", JSON.stringify(scene));
       }
     }
@@ -535,11 +535,11 @@ Please provide a detailed summary in 400-600 words.
     // Return the stringified JSON array
     return JSON.stringify(jsonScenes, null, 2); // Pretty print for potential debugging
   }
-
+  
   // New helper method to extract scenes from plain text narrative (Revised)
   private extractScenesFromPlainText(text: string): string[] {
     console.log("Extracting scenes from plain text narrative...");
-    const scenes: string[] = [];
+      const scenes: string[] = [];
     
     // 1. Try splitting by chapter/scene markers first
     const chapterMarkers = text.match(/^s*(Chapter|Scene)s+d+[:.]?/gmi);
@@ -551,7 +551,7 @@ Please provide a detailed summary in 400-600 words.
       }
       if (scenes.length > 0) {
           console.log(`Extracted ${scenes.length} scenes based on 'Chapter/Scene' markers.`);
-          return scenes;
+      return scenes;
       }
     }
 
@@ -580,12 +580,12 @@ Please provide a detailed summary in 400-600 words.
             const sceneChunk = sentences.slice(i, i + sentencesPerScene).join(' ').trim();
             if (sceneChunk) scenes.push(sceneChunk);
         }
-         if (scenes.length > 0) {
+      if (scenes.length > 0) {
             console.log(`Extracted ${scenes.length} scenes by grouping sentences.`);
-            return scenes;
-         }
+        return scenes;
+      }
     }
-
+    
     // 4. Absolute Fallback: Return the whole text as one scene
     if (scenes.length === 0 && text.trim().length > 0) {
         console.log("Could not split text, returning as single scene.");
@@ -602,13 +602,13 @@ Please provide a detailed summary in 400-600 words.
       // Remove specific problematic Unicode control characters U+0000 to U+001F, except for valid whitespace like \t, \n, \r
       let result = jsonString.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
       // console.log("Sanitization complete.");
-      return result;
+    return result;
   }
-
+  
   // Fallback method to extract scenes when JSON parsing fails (Revised)
   private extractScenesManually(text: string): string[] | null {
     console.log("Attempting manual scene extraction from original text...");
-    const scenes: string[] = [];
+      const scenes: string[] = [];
 
     // Regex to find scene_beat or chapter_beat values, more tolerant of formatting
     const beatRegex = /["'](?:scene_beat|chapter_beat)["']\s*:\s*["']((?:.|\n)*?)["']/gi;
@@ -629,13 +629,13 @@ Please provide a detailed summary in 400-600 words.
         } else {
              console.warn("Manual extraction regex match found, but capture group 1 was invalid:", match);
         }
-    }
-
-    if (scenes.length > 0) {
+      }
+      
+      if (scenes.length > 0) {
       console.log(`Manually extracted ${scenes.length} scenes using regex.`);
-      return scenes;
-    }
-
+        return scenes;
+      }
+      
     // If regex fails, fall back to plain text extraction on the original string
     console.log("Manual regex extraction failed, trying plain text extraction as last resort...");
     return this.extractScenesFromPlainText(text);
@@ -739,11 +739,11 @@ ${idea}`;
             : this.userSettings.reasoning_model || 'anthropic/claude-3.7-sonnet:thinking';
           
           console.log(`Using ${useOpenAI ? 'OpenAI' : 'OpenRouter'} with model: ${model} for outline creation`);
-
+          
           const requestParams: any = {
-              model: model,
+            model: model,
               temperature: 0.8,
-              messages: [{ role: "user", content: userMessage }],
+            messages: [{ role: "user", content: userMessage }],
           };
           
           // Add structured output only if NOT using OpenAI (and assuming model compatibility)
@@ -803,10 +803,10 @@ ${idea}`;
           // Validate against dynamic chapter range
           if (outlineBeats.length < effectiveMinChapters || outlineBeats.length > effectiveMaxChapters) {
                console.warn(`Attempt ${retries + 1}: Outline length (${outlineBeats.length}) outside required ${effectiveMinChapters}-${effectiveMaxChapters} range. Retrying...`);
-               retries += 1;
+            retries += 1;
                if(retries >= 5) throw new Error(`Failed to generate an outline with the required number of chapters (${effectiveMinChapters}-${effectiveMaxChapters}) after ${retries} attempts. Last count: ${outlineBeats.length}`);
                await new Promise(resolve => setTimeout(resolve, 1000));
-               continue;
+            continue;
           }
 
           console.log(`Outline successfully created and parsed with ${outlineBeats.length} chapters.`);
@@ -815,20 +815,20 @@ ${idea}`;
         } catch (err: any) {
             if (err.name === 'AbortError') throw err; 
             console.error(`Error in createOutline (Attempt ${retries + 1}):`, err.message);
-            retries += 1;
+          retries += 1;
             if(retries >= 5) throw new Error(`Failed to create outline after ${retries} attempts due to errors: ${err.message}`);
             await new Promise(resolve => setTimeout(resolve, 1500)); 
         }
     } // End while loop
     
     console.error(`Failed to create outline after ${retries} attempts.`); // Updated log
-    return null; 
+      return null;
     
   } catch (err: any) { 
       console.error("Critical error during outline creation setup:", err.message);
       return null;
+    }
   }
-}
 
   // Generate characters for the story
   public async generateCharacters(outline: string[], signal?: AbortSignal): Promise<string | null> {
