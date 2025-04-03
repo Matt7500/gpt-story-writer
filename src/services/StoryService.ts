@@ -1398,11 +1398,11 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 - Write narration as much as possible to give the reader more information about the chapter.
 - When there is no context, start the chapter with exposition to give the reader a better understanding of the plot and characters.
 
-##chapter Transition Guidelines
-- When writing a chapter, make sure to include a transition from the previous chapter to the new chapter.
-- The transition should be a short paragraph that is not too long and not too short.
-- The transition should be a natural continuation of the previous chapter and the new chapter.
-- DO NOT repeat a short summary of what happened in the previous chapter, instead write a transition that naturally leads into the new chapter.
+##Chapter Transition Guidelines
+- Begin each chapter with a natural continuation from the previous scene’s final moment.
+- Use a short paragraph that flows directly from the emotional tone or unresolved tension of the last chapter.
+- Do NOT summarize what just happened. Instead, hint at or build on it with the narrator’s present thoughts, surroundings, or mood.
+- Avoid starting a chapter with phrases like “Two days had passed since…” or any form of recap.
 
 
 # Core Requirements
@@ -1472,7 +1472,7 @@ ${sceneBeat}
           messages: [
             { role: "user", content: prompt }
           ],
-          temperature: 0.7,
+          temperature: 0.5,
           stream: true
         };
         
