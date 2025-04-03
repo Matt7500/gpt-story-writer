@@ -10,6 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const fs = require('fs-extra');
 const path = require('path');
 const { ElevenLabsClient } = require('elevenlabs');
+const TextExportService = require('./TextExportService'); // Import TextExportService
 
 // Set ffmpeg paths
 ffmpeg.setFfmpegPath(ffmpegStatic);
@@ -167,13 +168,63 @@ class AudioExportService {
       await fs.ensureDir(job.jobDir);
       console.log(`Processing job ${jobId}: Created job directory ${job.jobDir}`);
 
-      // --- 1. Flatten all sections --- 
-      const sectionsToProcess = [];
-      let globalSectionIndex = 0;
+      // --- 1. Refine Chapter Text --- 
+      console.log(`Job ${jobId}: Starting text refinement phase for ${chapters.length} chapters.`);
+      job.message = 'Refining chapter text...';
+      job.progress = 10; // Start refinement progress after settings/tier check
+      this.jobs.set(jobId, job);
+
+      const refinedChapters = [];
+      // Calculate total chapters that actually need refining
+      const totalChaptersToRefine = chapters.filter(ch => ch.content && ch.content.trim().length > 0).length;
+      let refinedChaptersCount = 0;
+
       for (let i = 0; i < chapters.length; i++) {
         const chapter = chapters[i];
         const chapterIndex = i;
-        // Split chapter content into paragraphs
+        console.log(`Job ${jobId}: Processing Chapter ${chapterIndex + 1}/${chapters.length} for refinement.`);
+        // Progress calculation remains based on total chapters to ensure smooth bar filling
+        job.progress = Math.round(10 + ((i + 1) / chapters.length) * 20); 
+        // Set a generic message initially for the chapter
+        job.message = `Processing chapter ${chapterIndex + 1}/${chapters.length} for refinement...`;
+        this.jobs.set(jobId, { ...job });
+
+        // Check if chapter content is empty or just whitespace
+        if (!chapter.content || chapter.content.trim().length === 0) {
+          console.log(`Job ${jobId}: Skipping refinement for Chapter ${chapterIndex + 1} (empty content).`);
+          // Add the original chapter (with empty content) directly
+          refinedChapters.push({ ...chapter }); 
+          continue; // Move to the next chapter
+        }
+
+        try {
+          const refinedContent = await TextExportService.rewriteInChunks(
+            chapter.content,
+            userId,
+            jobId // Use jobId as sessionId for potential tracking in TextExportService
+          );
+          // Store the refined chapter content
+          refinedChapters.push({ ...chapter, content: refinedContent }); 
+          refinedChaptersCount++; // Increment count *after* successful refinement
+          // Update message to reflect refined count
+          job.message = `Refining text: ${refinedChaptersCount}/${totalChaptersToRefine} chapters completed.`;
+          this.jobs.set(jobId, { ...job }); // Update job state with new message
+          console.log(`Job ${jobId}: Successfully refined Chapter ${chapterIndex + 1}. (${refinedChaptersCount}/${totalChaptersToRefine} refined)`);
+        } catch (refineError) {
+          console.error(`Job ${jobId}: Error refining Chapter ${chapterIndex + 1}:`, refineError);
+          throw new Error(`Failed to refine text for Chapter ${chapterIndex + 1}: ${refineError.message}`);
+        }
+      }
+      console.log(`Job ${jobId}: Text refinement phase complete.`);
+      // --- End Refinement ---
+
+      // --- 2. Flatten all sections (using refined chapters) --- 
+      const sectionsToProcess = [];
+      let globalSectionIndex = 0;
+      for (let i = 0; i < refinedChapters.length; i++) { // Use refinedChapters here
+        const chapter = refinedChapters[i]; // Use refined chapter
+        const chapterIndex = i;
+        // Split refined chapter content into paragraphs
         const paragraphs = chapter.content.split(/\n\n+/).filter(p => p.trim().length > 0);
         
         for (let j = 0; j < paragraphs.length; j += PARAGRAPH_CHUNK_SIZE) {
@@ -236,7 +287,8 @@ class AudioExportService {
             // Success
             completedSections++;
             sectionResults[section.globalIndex] = section.filePath; // Store path at the correct global index
-            job.progress = Math.round(10 + (completedSections / totalSections) * 85); // 10% setup, 85% generation
+            // Calculate progress within the audio generation phase (e.g., 30% to 95%)
+            job.progress = Math.round(30 + (completedSections / totalSections) * 65); 
             job.message = `Generating audio: Section ${completedSections}/${totalSections} completed.`;
             this.jobs.set(jobId, { ...job }); // Update job state (use spread to ensure reactivity if needed)
             console.log(`Job ${jobId}: Section ${section.globalIndex + 1}/${totalSections} (C${section.chapterIndex+1} S${section.sectionIndex+1}) completed successfully.`);
