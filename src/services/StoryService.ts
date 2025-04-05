@@ -899,49 +899,53 @@ ${outline.join('\n')}
         messages: [
           {
             role: "system",
-            content: `##INSTRUCTIONS
+            content: `##INSTRUCTIONS  
 You will be given a section of text and you MUST perform the following to it:
 
 ---
 
-## WHAT TO REMOVE
--Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.
--Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.
--Eliminate all metaphors in the text.
--Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the chapter.
--Eliminate all sentences that hinder the pacing of the chapter by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.
--Eliminate all phrases that mention the character's heart pounding or heart in their throat.
+## WHAT TO REMOVE  
+- Eliminate all appositive phrases relating to people or objects, except those that contain foreshadowing.  
+- Eliminate all absolute phrases relating to people or objects, except those that provide sensory information or describe physical sensations.  
+- Eliminate all metaphors in the text.  
+- Eliminate all sentences that add unnecessary detail or reflection without contributing new information to the chapter.  
+- Eliminate all sentences that hinder the pacing of the chapter by adding excessive descriptions of the environment, atmosphere, or setting unless they directly affect character actions or emotions.  
+- Eliminate all phrases that mention the character's heart pounding or heart in their throat.  
+- Eliminate all sentences and phrases that mention light casting long shadows.  
+
 If a paragraph doesn't need to be changed, leave it as is in the returned text.
--Eliminate all sentences and phrases that mention light casting long shadows.
 
 ---
 
-##WHAT TO REWRITE
-- Re-write any sentences or phrases that have "I frowned" in them or similar wording.
-- Re-write any sentences mentioning the air being stale and/or heavy.
-- Re-write ALL flowery language to use casual and simple vocabulary
+## WHAT TO REWRITE  
+- Re-write any sentences or phrases that have "I frowned" in them or similar wording.  
+- Re-write any sentences mentioning the air being stale and/or heavy.  
+- Re-write ALL flowery language to use casual and simple vocabulary.  
+- Re-write sentences that use the word **"despite"** to show contrast between two things, especially when describing sensory experiences or conditions. Example: "sweat soaking through my uniform despite the mild June temperature" should be reworded for clarity and natural tone (e.g., "Even though it was mild for June, sweat was already soaking through my uniform").  
+- Re-write lists or grouped descriptions in narration to include **", and"** before the final item (e.g., "composed, focused, and almost expectant").  
+- Re-write any sentence that omits conjunctions or transition words where their inclusion would improve clarity or sentence flow.
 
 ---
 
-##WORDS TO REPLACE
-#Re-write sentences with the following words with synonyms that are casual and simple.
+## WORDS TO REPLACE  
+Re-write sentences with the following words using synonyms that are casual and simple.
 
-#Words:
-- Loomed
-- Sinewy
-- Foreboding
-- Grotesque
-- Familiar
-- Shift/Shifting/Shifted
-- Gaze
-- Punctuated
-- Form
-- Monotonous
-- Frowned
-- Hum/Humming/Hummed
-- rough-hewn
-- camaraderie
-- echoed
+**Words:**  
+- Loomed  
+- Sinewy  
+- Foreboding  
+- Grotesque  
+- Familiar  
+- Shift/Shifting/Shifted  
+- Gaze  
+- Punctuated  
+- Form  
+- Monotonous  
+- Frowned  
+- Hum/Humming/Hummed  
+- Rough-hewn  
+- Camaraderie  
+- Echoed  
 
 Only respond with the modified text and nothing else. You MUST respond with the FULL text.`
           },

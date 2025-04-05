@@ -146,6 +146,7 @@ class AudioExportService {
               CONCURRENCY_LIMIT = 10;
               break;
             case 'scale':
+            case 'growing_business':
             case 'business':
             case 'enterprise':
               CONCURRENCY_LIMIT = 15;
@@ -375,6 +376,21 @@ class AudioExportService {
       this.jobs.set(jobId, job);
       console.log(`Job ${jobId} completed successfully.`);
 
+      // --- Schedule cleanup after 30 seconds --- 
+      console.log(`Job ${jobId}: Scheduling cleanup in 30 seconds.`);
+      setTimeout(() => {
+        console.log(`Job ${jobId}: Executing scheduled cleanup.`);
+        // Use async immediately invoked function expression (IIFE) 
+        // because setTimeout callback isn't inherently async
+        (async () => {
+          try {
+            await this.cleanupJobData(jobId);
+          } catch (cleanupError) {
+            console.error(`Job ${jobId}: Error during scheduled cleanup:`, cleanupError);
+          }
+        })(); 
+      }, 30000); // 30 seconds
+
     } catch (error) {
       // --- Global Error Handling --- 
       console.error(`Error processing job ${jobId}:`, error);
@@ -385,9 +401,10 @@ class AudioExportService {
       currentJobState.message = `Job failed: ${error.message}`; 
       this.jobs.set(jobId, currentJobState);
 
-      // Clean up temporary directory on error
-      console.error(`Job ${jobId} failed. Cleaning up directory: ${job.jobDir}`);
-      await fs.remove(job.jobDir).catch(cleanupErr => console.error(`Error cleaning up directory ${job.jobDir} after failure:`, cleanupErr));
+      // Clean up temporary directory and job entry using the new method
+      console.error(`Job ${jobId} failed. Triggering cleanup.`);
+      await this.cleanupJobData(jobId); 
+      
       // Don't re-throw here, error is logged and status is set
     }
   }
@@ -692,6 +709,33 @@ class AudioExportService {
     return job.resultPath;
   }
   
+  // Cleanup specific job data (directory and map entry)
+  async cleanupJobData(jobId) {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      console.warn(`Cleanup requested for non-existent or already cleaned job: ${jobId}`);
+      return; // Job not found, nothing to do.
+    }
+
+    const jobDir = job.jobDir;
+    console.log(`Job ${jobId}: Initiating cleanup. Removing intermediate sections, temporary files (silence, concat list), and final audio file from ${jobDir}`);
+    try {
+      if (jobDir && await fs.pathExists(jobDir)) {
+        await fs.remove(jobDir);
+        console.log(`Job ${jobId}: Successfully removed job directory ${jobDir}`);
+      } else {
+        console.log(`Job ${jobId}: Job directory ${jobDir || 'N/A'} not found or already removed.`);
+      }
+    } catch (err) {
+      console.error(`Job ${jobId}: Error cleaning up directory ${jobDir}:`, err);
+      // Log the error, but still proceed to remove the job entry.
+    } finally {
+      // Always remove the job from the map
+      this.jobs.delete(jobId);
+      console.log(`Job ${jobId}: Removed job entry from tracking map.`);
+    }
+  }
+
   // Cleanup old jobs (optional - could run periodically)
   cleanupOldJobs(maxAgeMinutes = 60) {
       const now = new Date();

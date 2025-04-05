@@ -12,7 +12,6 @@ import { useState, useRef, useEffect } from "react";
 import { Progress } from "./ui/progress";
 import { toast } from "@/components/ui/use-toast";
 import { textExportService } from "@/services/TextExportService";
-import { videoExportService } from "@/services/VideoExportService";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from '@supabase/supabase-js';
 
