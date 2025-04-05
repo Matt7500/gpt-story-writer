@@ -18,4 +18,6 @@ export interface UserSettings {
   voice_style?: number;
   voice_speaker_boost?: boolean;
   replicate_key?: string;
+  min_chapters?: number;
+  max_chapters?: number;
 }

@@ -405,7 +405,64 @@ Please provide a detailed summary in 400-600 words.
   }
 
   // Format scenes from JSON string or JSON-like text
+  // Format scenes from JSON string or JSON-like text
   public formatScenes(inputString: string): string[] | null {
+    console.log("Raw input to formatScenes:", inputString.substring(0, 200) + "...");
+    let textToParse = inputString.trim();
+
+    // Remove markdown code blocks if present
+    textToParse = textToParse.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
+    console.log("After removing markdown:", textToParse.substring(0, 200) + "...");
+
+    // Find the first likely start of JSON (either { or [)
+    const jsonStartIndex = textToParse.search(/[{\[]/);
+    if (jsonStartIndex === -1) {
+        console.log("No JSON start found. Trying plain text extraction.");
+        return this.extractScenesFromPlainText(inputString);
+    }
+    // Remove any text before the JSON start
+    textToParse = textToParse.substring(jsonStartIndex);
+
+    // Find the last likely end of JSON (corresponding } or ])
+    // Attempt to find the matching closing bracket for the first opening one
+    let openCount = 0;
+    let actualEndIndex = -1;
+    let firstOpenChar = '';
+    for (let i = 0; i < textToParse.length; i++) {
+        const char = textToParse[i];
+        if (i === 0) firstOpenChar = char; // Record the first opening char
+
+        if (char === '[' || char === '{') {
+            openCount++;
+        } else if (char === ']' || char === '}') {
+            openCount--;
+        }
+        
+        // Check if we closed the initial bracket/brace
+        if (openCount === 0 && i > 0 && 
+            ((firstOpenChar === '[' && char === ']') || (firstOpenChar === '{' && char === '}'))) {
+            actualEndIndex = i;
+            break; 
+        }
+        
+        // Handle strings to prevent counting brackets inside them
+        if (char === '"') {
+            let endQuoteIndex = i + 1;
+            while (endQuoteIndex < textToParse.length) {
+                if (textToParse[endQuoteIndex] === '"') {
+                    // Check for escaped quote
+                    if (endQuoteIndex > 0 && textToParse[endQuoteIndex - 1] === '\\') {
+                         // It's escaped, continue searching
+                    } else {
+                        // Found the closing quote
+                        i = endQuoteIndex; 
+                        break;
+                    }
+                }
+                endQuoteIndex++;
+            }
+            // If no closing quote found, something is wrong, but proceed with current index
+             if(endQuoteIndex === textToParse.length) i = endQuoteIndex;
     console.log("Raw input to formatScenes:", inputString.substring(0, 200) + "...");
     let textToParse = inputString.trim();
 
@@ -534,6 +591,8 @@ Please provide a detailed summary in 400-600 words.
     console.log(`Converted ${jsonScenes.length} scenes to JSON format`);
     // Return the stringified JSON array
     return JSON.stringify(jsonScenes, null, 2); // Pretty print for potential debugging
+    // Return the stringified JSON array
+    return JSON.stringify(jsonScenes, null, 2); // Pretty print for potential debugging
   }
   
   // New helper method to extract scenes from plain text narrative (Revised)
@@ -594,7 +653,11 @@ Please provide a detailed summary in 400-600 words.
     
     console.log("No scenes extracted from plain text.");
     return [];
+    console.log("No scenes extracted from plain text.");
+    return [];
   }
+
+  // Helper method to sanitize JSON string (Revised - minimal changes)
 
   // Helper method to sanitize JSON string (Revised - minimal changes)
   private sanitizeJsonString(jsonString: string): string {
@@ -628,6 +691,8 @@ Please provide a detailed summary in 400-600 words.
             }
         } else {
              console.warn("Manual extraction regex match found, but capture group 1 was invalid:", match);
+        } else {
+             console.warn("Manual extraction regex match found, but capture group 1 was invalid:", match);
         }
       }
       
@@ -642,9 +707,18 @@ Please provide a detailed summary in 400-600 words.
   }
 
   // Create outline from story idea using structured output for OpenRouter
+  // Create outline from story idea using structured output for OpenRouter
   public async createOutline(idea: string, signal?: AbortSignal): Promise<string[] | null> {
     try {
       await this.ensureSettingsLoaded();
+
+      // Get user-defined chapter range or use defaults
+      const minChapters = this.userSettings?.min_chapters || 5;
+      const maxChapters = this.userSettings?.max_chapters || 7;
+      // Ensure min is not greater than max
+      const effectiveMinChapters = Math.min(minChapters, maxChapters);
+      const effectiveMaxChapters = Math.max(minChapters, maxChapters);
+      console.log(`Target chapter range: ${effectiveMinChapters}-${effectiveMaxChapters}`);
 
       // Get user-defined chapter range or use defaults
       const minChapters = this.userSettings?.min_chapters || 5;
@@ -685,13 +759,38 @@ Please provide a detailed summary in 400-600 words.
         minItems: effectiveMinChapters,
         maxItems: effectiveMaxChapters
       };
+
+      // Define the JSON Schema using the effective chapter range
+      const outlineSchema = {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            chapter_number: {
+              type: "integer",
+              description: "The sequential number of the chapter."
+            },
+            chapter_beat: {
+              type: "string",
+              description: `A detailed summary of the events in this chapter (approx 250 words).`
+            }
+          },
+          required: ["chapter_number", "chapter_beat"],
+          additionalProperties: false
+        },
+        minItems: effectiveMinChapters,
+        maxItems: effectiveMaxChapters
+      };
       
       while (retries < 5) {
         try {
           // Update prompt to use the dynamic chapter range
+          // Update prompt to use the dynamic chapter range
           const userMessage = `## OUTLINE REQUIREMENTS
 - The plot outline must contain between ${effectiveMinChapters} and ${effectiveMaxChapters} chapters. These are STRICT requirements.
+- The plot outline must contain between ${effectiveMinChapters} and ${effectiveMaxChapters} chapters. These are STRICT requirements.
 - If there are plot holes in the story idea, you MUST fix them in the plot outline.
+- DO NOT write an epilogue as the final chapter. The final chapter must be the resolution or provide an opening for a potential sequel.
 - DO NOT write an epilogue as the final chapter. The final chapter must be the resolution or provide an opening for a potential sequel.
 
 ## Instructions
@@ -722,8 +821,13 @@ Please provide a detailed summary in 400-600 words.
   {
     "chapter_number": 1,
     "chapter_beat": "chapter 1 content..."
+    "chapter_number": 1,
+    "chapter_beat": "chapter 1 content..."
   },
   {
+    "chapter_number": 2,
+    "chapter_beat": "chapter 2 content..."
+  }
     "chapter_number": 2,
     "chapter_beat": "chapter 2 content..."
   }
@@ -733,6 +837,8 @@ Please provide a detailed summary in 400-600 words.
 ${idea}`;
 
           const client = await this.getClient();
+          const useOpenAI = this.userSettings.use_openai_for_story_gen;
+          const model = useOpenAI 
           const useOpenAI = this.userSettings.use_openai_for_story_gen;
           const model = useOpenAI 
             ? this.userSettings.reasoning_model || 'gpt-4o'
@@ -812,6 +918,9 @@ ${idea}`;
           console.log(`Outline successfully created and parsed with ${outlineBeats.length} chapters.`);
           return outlineBeats; // Success
 
+          console.log(`Outline successfully created and parsed with ${outlineBeats.length} chapters.`);
+          return outlineBeats; // Success
+
         } catch (err: any) {
             if (err.name === 'AbortError') throw err; 
             console.error(`Error in createOutline (Attempt ${retries + 1}):`, err.message);
@@ -827,8 +936,8 @@ ${idea}`;
   } catch (err: any) { 
       console.error("Critical error during outline creation setup:", err.message);
       return null;
-    }
   }
+}
 
   // Generate characters for the story
   public async generateCharacters(outline: string[], signal?: AbortSignal): Promise<string | null> {
@@ -1407,6 +1516,11 @@ Only write the sequel idea and nothing else. DO NOT write any comments or explan
 - Use a short paragraph that flows directly from the emotional tone or unresolved tension of the last chapter.
 - Do NOT summarize what just happened. Instead, hint at or build on it with the narrator’s present thoughts, surroundings, or mood.
 - Avoid starting a chapter with phrases like “Two days had passed since…” or any form of recap.
+##Chapter Transition Guidelines
+- Begin each chapter with a natural continuation from the previous scene’s final moment.
+- Use a short paragraph that flows directly from the emotional tone or unresolved tension of the last chapter.
+- Do NOT summarize what just happened. Instead, hint at or build on it with the narrator’s present thoughts, surroundings, or mood.
+- Avoid starting a chapter with phrases like “Two days had passed since…” or any form of recap.
 
 
 # Core Requirements
@@ -1476,6 +1590,7 @@ ${sceneBeat}
           messages: [
             { role: "user", content: prompt }
           ],
+          temperature: 0.5,
           temperature: 0.5,
           stream: true
         };

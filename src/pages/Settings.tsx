@@ -33,6 +33,10 @@ export default function Settings() {
   const [voiceStyle, setVoiceStyle] = useState(0.5);
   const [voiceSpeakerBoost, setVoiceSpeakerBoost] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Add state for chapter range
+  const [minChapters, setMinChapters] = useState<number>(5); 
+  const [maxChapters, setMaxChapters] = useState<number>(7);
 
   useEffect(() => {
     setDocumentTitle("Settings");
@@ -94,6 +98,11 @@ export default function Settings() {
         setVoiceSimilarityBoost(settings.voice_similarity_boost ?? 0.75);
         setVoiceStyle(settings.voice_style ?? 0.5);
         setVoiceSpeakerBoost(settings.voice_speaker_boost ?? false);
+
+        // Load chapter range settings
+        setMinChapters(settings.min_chapters ?? 5); 
+        setMaxChapters(settings.max_chapters ?? 7);
+
       } catch (error: any) {
         console.error("Error loading settings:", error);
         toast({
@@ -180,6 +189,8 @@ export default function Settings() {
               voiceSimilarityBoost={voiceSimilarityBoost}
               voiceStyle={voiceStyle}
               voiceSpeakerBoost={voiceSpeakerBoost}
+              minChapters={minChapters}
+              maxChapters={maxChapters}
               onOpenAIKeyChange={setOpenAIKey}
               onOpenaiKeyChange={setOpenaiKey}
               onOpenAIModelChange={setOpenAIModel}
@@ -197,6 +208,8 @@ export default function Settings() {
               onVoiceSimilarityBoostChange={setVoiceSimilarityBoost}
               onVoiceStyleChange={setVoiceStyle}
               onVoiceSpeakerBoostChange={setVoiceSpeakerBoost}
+              onMinChaptersChange={setMinChapters}
+              onMaxChaptersChange={setMaxChapters}
             />
           </motion.div>
         </div>

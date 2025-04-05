@@ -55,6 +55,8 @@ interface AISettingsProps {
   voiceSimilarityBoost: number;
   voiceStyle: number;
   voiceSpeakerBoost: boolean;
+  minChapters?: number;
+  maxChapters?: number;
   onOpenAIKeyChange: (key: string) => void;
   onOpenaiKeyChange: (key: string) => void;
   onOpenAIModelChange: (model: string) => void;
@@ -72,6 +74,8 @@ interface AISettingsProps {
   onVoiceSimilarityBoostChange: (similarityBoost: number) => void;
   onVoiceStyleChange: (style: number) => void;
   onVoiceSpeakerBoostChange: (speakerBoost: boolean) => void;
+  onMinChaptersChange: (value: number) => void;
+  onMaxChaptersChange: (value: number) => void;
 }
 
 const API_KEY_PATTERNS = {
@@ -104,6 +108,8 @@ export function AISettings({
   voiceSimilarityBoost,
   voiceStyle,
   voiceSpeakerBoost,
+  minChapters: initialMinChapters,
+  maxChapters: initialMaxChapters,
   onOpenAIKeyChange,
   onOpenaiKeyChange,
   onOpenAIModelChange,
@@ -121,6 +127,8 @@ export function AISettings({
   onVoiceSimilarityBoostChange,
   onVoiceStyleChange,
   onVoiceSpeakerBoostChange,
+  onMinChaptersChange,
+  onMaxChaptersChange,
 }: AISettingsProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
@@ -154,6 +162,28 @@ export function AISettings({
   });
   const [isEditingStoryModel, setIsEditingStoryModel] = useState(false);
   const [isEditingReasoningModel, setIsEditingReasoningModel] = useState(false);
+
+  const [minChapters, setMinChapters] = useState<number>(initialMinChapters ?? 5);
+  const [maxChapters, setMaxChapters] = useState<number>(initialMaxChapters ?? 7);
+  const [chapterRangeError, setChapterRangeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMinChapters(initialMinChapters ?? 5);
+  }, [initialMinChapters]);
+
+  useEffect(() => {
+    setMaxChapters(initialMaxChapters ?? 7);
+  }, [initialMaxChapters]);
+
+  useEffect(() => {
+    if (minChapters < 3 || maxChapters > 15) {
+      setChapterRangeError("Chapters must be between 3 and 15.");
+    } else if (minChapters > maxChapters) {
+      setChapterRangeError("Minimum chapters cannot be greater than maximum chapters.");
+    } else {
+      setChapterRangeError(null);
+    }
+  }, [minChapters, maxChapters]);
 
   const validateKey = (key: string, type: 'openai' | 'openrouter' | 'elevenlabs' | 'replicate'): APIKeyValidation => {
     if (!key) return { isValid: false, message: "" };
@@ -336,6 +366,15 @@ export function AISettings({
   }, [elevenLabsKey, keyValidation.elevenlabs.isValid, toast]);
 
   const handleSaveAISettings = async () => {
+    if (chapterRangeError) {
+      toast({
+        title: "Invalid Settings",
+        description: chapterRangeError,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSaving(true);
     try {
       const settings: Partial<UserSettings> = {
@@ -355,7 +394,9 @@ export function AISettings({
         voice_stability: stability,
         voice_similarity_boost: similarityBoost,
         voice_style: voiceStyleState,
-        voice_speaker_boost: speakerBoostState
+        voice_speaker_boost: speakerBoostState,
+        min_chapters: minChapters,
+        max_chapters: maxChapters,
       };
       
       await saveSettings(settings);
@@ -632,6 +673,52 @@ export function AISettings({
             Model used for analyzing and improving story outlines
           </p>
         </div>
+
+        {/* Chapter Range Inputs */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="min-chapters">Minimum Chapters</Label>
+            <Input
+              id="min-chapters"
+              type="number"
+              min={3}
+              max={15}
+              value={minChapters}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val)) {
+                  setMinChapters(val);
+                  onMinChaptersChange(val);
+                }
+              }}
+              className={cn(chapterRangeError && "border-red-500")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="max-chapters">Maximum Chapters</Label>
+            <Input
+              id="max-chapters"
+              type="number"
+              min={3}
+              max={15}
+              value={maxChapters}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val)) {
+                  setMaxChapters(val);
+                  onMaxChaptersChange(val);
+                }
+              }}
+              className={cn(chapterRangeError && "border-red-500")}
+            />
+          </div>
+        </div>
+        {chapterRangeError && (
+          <p className="text-xs text-red-500 mt-1">{chapterRangeError}</p>
+        )}
+        <p className="text-sm text-muted-foreground">
+          Set the desired minimum and maximum number of chapters for generated story outlines (range 3-15).
+        </p>
       </div>
 
       <Separator />

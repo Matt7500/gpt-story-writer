@@ -12,13 +12,15 @@ export class UserSettingsService {
   private TTL = 1000 * 60 * 5; // Reduced from 15 minutes to 5 minutes
   private defaultSettings: Partial<UserSettings> = {
     openrouter_model: "openai/gpt-4o-mini",
-    reasoning_model: "anthropic/claude-3-haiku-20240307",
+    reasoning_model: "anthropic/claude-3.7-sonnet:thinking",
     elevenlabs_model: "eleven_multilingual_v2",
     rewrite_model: "gpt-4",
     story_generation_model: "openai/gpt-4o-mini",
     use_openai_for_story_gen: false,
     title_fine_tune_model: "gpt-4o",
-    story_idea_model: "gpt-4o"
+    story_idea_model: "gpt-4o",
+    min_chapters: 5,
+    max_chapters: 7
   };
 
   private constructor() {
@@ -42,7 +44,15 @@ export class UserSettingsService {
     // Check cache first
     if (this.isCacheValid(userId)) {
       console.log('Using cached settings for user:', userId);
-      return this.cache.get(userId)!.settings;
+      // Ensure cached settings include new defaults if missing
+      const cached = this.cache.get(userId)!;
+      const completeCachedSettings = {
+        ...this.defaultSettings,
+        ...cached.settings
+      } as UserSettings;
+      // Update cache with potentially added defaults
+      this.cache.set(userId, { settings: completeCachedSettings, timestamp: cached.timestamp });
+      return completeCachedSettings;
     }
 
     console.log('Loading settings from database for user:', userId);
@@ -50,22 +60,22 @@ export class UserSettingsService {
       // Load from database
       const { data: settingsData, error: settingsError } = await supabase
         .from("user_settings")
-        .select("*")
+        .select("*") // Select all columns, including new ones
         .eq("user_id", userId)
         .single();
 
       if (settingsError) {
         if (settingsError.code === "PGRST116") {
-          // Settings don't exist, create them
+          // Settings don't exist, create them with new defaults
           return await this.createDefaultSettings(userId);
         }
         throw settingsError;
       }
 
       if (settingsData) {
-        // Ensure all required fields are present
+        // Ensure all required fields are present, including new defaults
         const completeSettings: UserSettings = {
-          ...this.defaultSettings,
+          ...this.defaultSettings, 
           ...settingsData,
           user_id: userId
         } as UserSettings;
@@ -89,6 +99,7 @@ export class UserSettingsService {
   }
 
   private async createDefaultSettings(userId: string): Promise<UserSettings> {
+    // Include new defaults when creating settings
     const defaultUserSettings = {
       user_id: userId,
       ...this.defaultSettings
@@ -102,11 +113,12 @@ export class UserSettingsService {
 
     if (insertError) throw insertError;
 
-    // Ensure all required fields are present
+    // Merge defaults again in case insert didn't return all fields
     const completeSettings: UserSettings = {
-      ...defaultUserSettings,
-      ...newSettings
-    };
+      ...this.defaultSettings, 
+      ...newSettings, // DB result takes precedence
+      user_id: userId
+    } as UserSettings;
 
     // Update cache with new settings
     this.cache.set(userId, {
@@ -114,25 +126,33 @@ export class UserSettingsService {
       timestamp: Date.now()
     });
 
+    console.log('Created default settings for user:', userId);
     return completeSettings;
   }
 
   public async updateSettings(userId: string, settings: Partial<UserSettings>): Promise<UserSettings> {
     try {
       console.log('Updating settings for user:', userId, 'with:', settings);
+      // Fetch current settings to merge with updates, ensuring defaults are applied
+      const currentSettings = await this.getSettings(userId);
+      
       const { data: updatedSettings, error } = await supabase
         .from("user_settings")
-        .update(settings)
+        .update(settings) // Only send the updated fields
         .eq("user_id", userId)
-        .select()
+        .select()       // Select all columns after update
         .single();
 
-      if (error) throw error;
-
-      // Ensure all required fields are present
+      if (error) {
+        console.error("Supabase update error:", error);
+        throw error;
+      }
+      
+      // Merge defaults, current state, and the specific update result
       const completeSettings: UserSettings = {
         ...this.defaultSettings,
-        ...updatedSettings,
+        ...currentSettings, // Start with current (already includes defaults)
+        ...updatedSettings, // Apply DB result of the update
         user_id: userId
       } as UserSettings;
 
